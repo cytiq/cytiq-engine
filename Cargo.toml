@@ -28,7 +28,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/cytiq/cytiq-engine"
@@ -39,29 +39,29 @@ categories = ["science"]
 # the path. Keep each version equal to the workspace version above: packages
 # are published together, and `just package-check` rejects a mismatch.
 [workspace.dependencies]
-cytiq-autospectral = { path = "crates/cytiq-autospectral", version = "0.4.0" }
-cytiq-autospill = { path = "crates/cytiq-autospill", version = "0.4.0" }
-cytiq-classify = { path = "crates/cytiq-classify", version = "0.4.0" }
-cytiq-clean = { path = "crates/cytiq-clean", version = "0.4.0" }
-cytiq-compensate = { path = "crates/cytiq-compensate", version = "0.4.0" }
-cytiq-cytonorm = { path = "crates/cytiq-cytonorm", version = "0.4.0" }
-cytiq-cytoscan = { path = "crates/cytiq-cytoscan", version = "0.4.0" }
-cytiq-density = { path = "crates/cytiq-density", version = "0.4.0" }
-cytiq-fcs = { path = "crates/cytiq-fcs", version = "0.4.0" }
-cytiq-flowsom = { path = "crates/cytiq-flowsom", version = "0.4.0" }
-cytiq-gating = { path = "crates/cytiq-gating", version = "0.4.0" }
-cytiq-manifest = { path = "crates/cytiq-manifest", version = "0.4.0" }
-cytiq-mask = { path = "crates/cytiq-mask", version = "0.4.0" }
-cytiq-inspect = { path = "crates/cytiq-inspect", version = "0.4.0" }
-cytiq-peacoqc = { path = "crates/cytiq-peacoqc", version = "0.4.0" }
-cytiq-plot = { path = "crates/cytiq-plot", version = "0.4.0" }
-cytiq-provenance = { path = "crates/cytiq-provenance", version = "0.4.0" }
-cytiq-population = { path = "crates/cytiq-population", version = "0.4.0" }
-cytiq-specimen = { path = "crates/cytiq-specimen", version = "0.4.0" }
-cytiq-publish = { path = "crates/cytiq-publish", version = "0.4.0" }
-cytiq-qc = { path = "crates/cytiq-qc", version = "0.4.0" }
-cytiq-spillqc = { path = "crates/cytiq-spillqc", version = "0.4.0" }
-cytiq-transform = { path = "crates/cytiq-transform", version = "0.4.0" }
+cytiq-autospectral = { path = "crates/cytiq-autospectral", version = "0.4.1" }
+cytiq-autospill = { path = "crates/cytiq-autospill", version = "0.4.1" }
+cytiq-classify = { path = "crates/cytiq-classify", version = "0.4.1" }
+cytiq-clean = { path = "crates/cytiq-clean", version = "0.4.1" }
+cytiq-compensate = { path = "crates/cytiq-compensate", version = "0.4.1" }
+cytiq-cytonorm = { path = "crates/cytiq-cytonorm", version = "0.4.1" }
+cytiq-cytoscan = { path = "crates/cytiq-cytoscan", version = "0.4.1" }
+cytiq-density = { path = "crates/cytiq-density", version = "0.4.1" }
+cytiq-fcs = { path = "crates/cytiq-fcs", version = "0.4.1" }
+cytiq-flowsom = { path = "crates/cytiq-flowsom", version = "0.4.1" }
+cytiq-gating = { path = "crates/cytiq-gating", version = "0.4.1" }
+cytiq-manifest = { path = "crates/cytiq-manifest", version = "0.4.1" }
+cytiq-mask = { path = "crates/cytiq-mask", version = "0.4.1" }
+cytiq-inspect = { path = "crates/cytiq-inspect", version = "0.4.1" }
+cytiq-peacoqc = { path = "crates/cytiq-peacoqc", version = "0.4.1" }
+cytiq-plot = { path = "crates/cytiq-plot", version = "0.4.1" }
+cytiq-provenance = { path = "crates/cytiq-provenance", version = "0.4.1" }
+cytiq-population = { path = "crates/cytiq-population", version = "0.4.1" }
+cytiq-specimen = { path = "crates/cytiq-specimen", version = "0.4.1" }
+cytiq-publish = { path = "crates/cytiq-publish", version = "0.4.1" }
+cytiq-qc = { path = "crates/cytiq-qc", version = "0.4.1" }
+cytiq-spillqc = { path = "crates/cytiq-spillqc", version = "0.4.1" }
+cytiq-transform = { path = "crates/cytiq-transform", version = "0.4.1" }
 
 askama = { version = "0.16.1", default-features = false, features = ["std", "derive"] }
 globset = "0.4.21"
