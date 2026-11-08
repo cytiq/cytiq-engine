@@ -100,6 +100,29 @@ run(c("cytonorm", "train", "--manifest", manifest_path, "--output", model_dir,
       "--threads", "1", "--debug-dir", file.path(out, "diagnostics"), "--overwrite"))
 model <- fromJSON(file.path(model_dir, "model.json"))
 qc <- fromJSON(file.path(model_dir, "training-qc.json"))
+coefficient_path <- file.path(out, "rust-coefficients.json")
+stopifnot(system2("parity/.env/py/bin/python", shQuote(c("parity/cytonorm_coefficients.py", model_dir, coefficient_path))) == 0)
+coefficients <- fromJSON(coefficient_path, simplifyVector=FALSE)
+coefficient_error <- 0
+for (curve in coefficients) {
+  x <- unlist(curve$x); y <- unlist(curve$y); actual <- unlist(curve$slope)
+  expected_slopes <- splinefun(x,y,method="monoH.FC")(x,deriv=1)
+  stopifnot(all(abs(actual-expected_slopes) <= 1e-10+1e-10*abs(expected_slopes)))
+  coefficient_error <- max(coefficient_error,max(abs(actual-expected_slopes)))
+}
+
+# R's sequential adjacent corrections can leave a negative derivative.
+# Certify independently, rather than silently calling such a curve monotone.
+monotone_oracle <- function(x, y) {
+  f <- suppressWarnings(splinefun(x,y,method="monoH.FC")); x <- sort(unique(x))
+  d <- diff(f(x))/diff(x); m <- f(x,deriv=1)
+  all(vapply(seq_along(d), function(i) {
+    if (d[i] == 0) return(m[i] == 0 && m[i+1] == 0)
+    a <- m[i]/d[i]; b <- m[i+1]/d[i]; A <- 3*(a+b-2); B <- 2*(3-2*a-b)
+    t <- if(A > 0) -B/(2*A) else -1
+    min(a,b,if(t > 0 && t < 1) a+t*(B+t*A) else Inf) >= -1e-12
+  }, TRUE))
+}
 
 # Fit again without validation, with a different thread count. Exact persisted
 # artifacts must match: validation data must never influence the learned model.
@@ -140,6 +163,7 @@ for (i in seq_along(files)) {
 probabilities <- model$probabilities
 conditional_error <- target_error <- 0
 compared_values <- identity_values <- 0L
+unsafe_oracle_values <- unsafe_oracle_mappings <- 0L
 worst_case <- NULL
 worst_curve <- NULL
 spline_errors <- list()
@@ -160,8 +184,11 @@ for (cluster in seq_len(manifest$som$metaclusters)) {
         length(quantiles[[b]]) > 1 && diff(range(quantiles[[b]])) > 0
     }, TRUE)
     ref <- NULL
+    safe <- eligible
     if (any(eligible)) {
       expected_goal <- Reduce(`+`, quantiles[eligible]) / sum(eligible)
+      safe <- vapply(seq_along(eligible),function(b) eligible[b] && monotone_oracle(quantiles[[b]],expected_goal),TRUE)
+      unsafe_oracle_mappings <- unsafe_oracle_mappings + sum(eligible & !safe)
       goal <- model$goals[model$goals$metacluster == cluster & model$goals$marker == markers[j], ]
       target_error <- max(target_error, max(abs(goal$quantiles[[1]] - expected_goal)))
       ref <- QuantileNorm.train(files = cluster_files[eligible], labels = batches[train][eligible],
@@ -174,7 +201,7 @@ for (cluster in seq_len(manifest$som$metaclusters)) {
       if (!length(rows)) next
       b <- match(batches[i], batches[train])
       original <- baseline[[i]][rows, channels[j]]
-      if (eligible[b]) {
+      if (safe[b]) {
         expected_values <- ref$splines[[batches[i]]][[channels[j]]](original)
         actual <- normalized[[i]][rows, channels[j]]
         errors <- abs(expected_values - actual)
@@ -195,6 +222,12 @@ for (cluster in seq_len(manifest$som$metaclusters)) {
         compared_values <- compared_values + length(rows)
       } else {
         stopifnot(identical(original, normalized[[i]][rows, channels[j]]))
+        if (eligible[b]) {
+          reason <- qc$distributions$identity_reason[qc$distributions$batch == batches[i] &
+            qc$distributions$metacluster == cluster & qc$distributions$marker == markers[j] & qc$distributions$role == "train"]
+          stopifnot(length(reason)==1, !is.na(reason), grepl("unsafe spline",reason,fixed=TRUE))
+          unsafe_oracle_values <- unsafe_oracle_values + length(rows)
+        }
         identity_values <- identity_values + length(rows)
       }
     }
@@ -270,6 +303,9 @@ metrics <- list(schema_version = 1, dataset = "CytoNorm extdata / FR-FCM-Z247",
   unchanged_channels_and_event_order_preserved = TRUE,
   validation_exclusion_and_thread_determinism = TRUE,
   conditional_max_absolute_error = conditional_error, target_max_absolute_error = target_error,
+  coefficient_max_absolute_error = coefficient_error,
+  unsafe_oracle_identity_mappings = unsafe_oracle_mappings,
+  unsafe_oracle_identity_values = unsafe_oracle_values,
   conditional_max_interior_error = max(spline_errors$max_interior_error),
   conditional_max_tail_error = max(spline_errors$max_tail_error), worst_case = worst_case,
   passed = conditional_error <= 1e-9 && target_error <= 1e-12,
@@ -279,6 +315,7 @@ metrics <- list(schema_version = 1, dataset = "CytoNorm extdata / FR-FCM-Z247",
   full_pipeline_ARI = setNames(as.list(ari), ids),
   batch_distances_quantile_approx = summary, occupancy_cv = qc$occupancy_cv,
   limitations = c("Only the first 1000 real cells per file; not the full acquisitions.",
+    "Non-monotone upstream monoH.FC curves are refused; explicit sparse_policy identity retains their original values.",
     "Explicit identity compensation is a harness adapter, not a CyTOF spillover estimate.",
     "Missing channel labels are filled from physical names in prepared copies only.",
     "Five metaclusters are pilot settings; the minimum remains the default 100 events.",

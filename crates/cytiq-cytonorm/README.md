@@ -82,6 +82,19 @@ Explicit `sparse_policy: identity` leaves unsupported mappings unchanged and
 records why. Unreliable batches do not contribute to a mean target; a missing
 reference target makes the corresponding mappings identity under that policy.
 
+Slopes match R `stats::splinefun(method="monoH.FC")` over its full monotone
+region, including intervals outside the sufficient radius-three circle.
+The final derivative is checked analytically on every segment: R's adjacent
+corrections can themselves leave a non-monotone curve (real CD19 regression).
+Such fits fail under `sparse_policy: error`; explicit `identity` keeps the
+original values and records `unsafe spline` as the reason. No non-monotone
+coefficients are published. Old stored monotone coefficients load without
+refitting. Non-finite queries return NaN; workflows reject non-finite signals.
+An unsafe final spline does not remove its otherwise valid quantiles from
+the target calculation; the scientific target remains the same.
+Older engines with the radius-three validator may reject some new, valid fits;
+apply them with the corrected engine. The stored bundle schema is unchanged.
+
 The bundle contains:
 
 | File | Content |

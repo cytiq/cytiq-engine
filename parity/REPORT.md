@@ -813,6 +813,27 @@ type-7 quantiles, ties, flat/negative knots, extrapolation and consensus with
 identical codebook/resampling schedules. Regeneration is explicit via
 `just parity-cytonorm-fixture`, never a way to make Rust changes pass.
 
+The real-control check, `just parity-cytonorm-real`, also compares intermediate
+derivatives with `stats::splinefun(method="monoH.FC")`. The radius-three condition
+is sufficient but does not cover the full monotone Hermite region. Applying it
+unconditionally caused reproduced errors of `0.0570019504` within knots and
+`0.3544738411` in linear tails. Testing the derivative minimum before radial
+correction restores the R coefficients on admissible curves. The six real
+1,000-cell excerpts now give coefficient error `3.55e-15`, interior error
+`1.38e-14`, and tail error `2.63e-12`, below the unchanged `1e-9` value tolerance.
+
+R's sequential adjacent corrections can themselves produce a non-monotone
+curve: the CD19 mapping for PTLG021/metacluster 1 has a negative derivative.
+The engine rejects such a fit by default. With the existing explicit
+`sparse_policy: identity`, this pilot retains 288 original values for that
+mapping and records the unsafe-fit reason. The harness independently certifies
+the R derivatives and checks exact identity for this exception; it does not
+count the exception as numerical equivalence. There are 223 identity mappings
+out of 555 (222 sparse, one unsafe). Quantile-distance reduction is 37.75% for
+training and 7.63% for the held-out donor. These are descriptive cohort results,
+not evidence that normalization improves every population. Saved older spline
+coefficients are validated without refitting and keep their numerical results.
+
 These checks do not establish clinical transferability between arbitrary panels
 or instruments. Aggregate mode assumes comparable biology. QC reports occupancy,
 CV, identity fallback, extrapolation and a quantile approximation to 1-D EMD;
