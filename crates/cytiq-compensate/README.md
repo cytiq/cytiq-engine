@@ -37,6 +37,12 @@ println!("{} events on a raw detector margin", result.margin_event_count);
 
 ## Output rules
 
+`sample.comp.margins.json` is published atomically with the FCS and mask and
+recorded in provenance. It identifies the `detector_saturation` rule, input
+event count, per-channel upper bounds/counts and the union count; per-channel
+counts can overlap. `margin_diagnostics_path` resolves this sidecar. Negative
+fluorescence and observed extrema are not saturation rules.
+
 - Without `--matrix`, the file's `$SPILLOVER`/`$SPILL` matrix is used.
   `--matrix` accepts a square CSV/TSV with a corner label, channel columns and
   one row per channel, as exported by AutoSpill. It requires `--matrix-kind`:

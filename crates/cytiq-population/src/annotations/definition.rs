@@ -13,6 +13,14 @@ pub(super) fn validate_classifier_definition(
     })?;
     reference.verify()?;
     let bundle = serialization::read(&reference.path)?;
+    if let Some(policy) = &source.decision_policy {
+        policy.verify()?;
+        crate::decision::DecisionPolicy::load(&policy.path)?.check_bundle(&reference.path)?;
+        require(
+            source.abstain_margin == 0.0,
+            "decision policy conflicts with binary abstain margin",
+        )?;
+    }
     let version = bundle["schema_version"].as_u64();
     require(
         matches!(version, Some(2..=4)) && bundle["model_sha256"] == source.definition.sha256,

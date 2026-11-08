@@ -278,7 +278,7 @@ fn fit_mappings(
             .iter()
             .find(|g| g.metacluster == metacluster && g.marker == marker)
             .and_then(|g| g.quantiles.as_deref());
-        let reason = if events < manifest.min_cluster_events {
+        let mut reason = if events < manifest.min_cluster_events {
             Some(format!(
                 "only {events} events; minimum {}",
                 manifest.min_cluster_events
@@ -290,6 +290,17 @@ fn fit_mappings(
         } else {
             None
         };
+        let spline = if reason.is_none() {
+            match MonotoneSpline::fit(&q, target.ok_or_else(|| invalid("missing target"))?) {
+                Ok(spline) => Some(spline),
+                Err(error) => {
+                    reason = Some(format!("unsafe spline: {error}"));
+                    None
+                }
+            }
+        } else {
+            None
+        };
         if let Some(reason) = &reason
             && manifest.sparse_policy == SparsePolicy::Error
         {
@@ -297,14 +308,6 @@ fn fit_mappings(
                 "batch {batch}, cluster {metacluster}, marker {marker}: {reason}; choose sparse_policy: identity explicitly to leave this mapping unchanged"
             )));
         }
-        let spline = if reason.is_none() {
-            Some(MonotoneSpline::fit(
-                &q,
-                target.ok_or_else(|| invalid("missing target"))?,
-            )?)
-        } else {
-            None
-        };
         mappings.push(Mapping {
             batch,
             metacluster,

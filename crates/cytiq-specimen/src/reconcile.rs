@@ -130,6 +130,20 @@ pub fn reconcile(plan: &SpecimenPlan, sources: &[SourceObservations]) -> Result<
         let panel = &plan.layout.panels[&selection.panel_id];
         for (source_id, definition) in &panel.sources {
             if let Some(source) = provided.get(&(selection.panel_id.as_str(), source_id.as_str())) {
+                if source.annotations.technical_status != "fail"
+                    && (source.annotations.unknown_events > 0
+                        || source.annotations.abstained_events.unwrap_or(0) > 0)
+                {
+                    complete = false;
+                    checks.push(SpecimenCheck {
+                        category: "completeness".into(),
+                        scope: format!("{}/{}", selection.panel_id, source_id),
+                        check: "classification_coverage".into(),
+                        status: CheckStatus::Fail,
+                        message: "classifier abstained; full population totals are unavailable"
+                            .into(),
+                    });
+                }
                 observations.extend(source.observations.iter().cloned());
                 checks.push(SpecimenCheck {
                     category: "technical".into(),
@@ -297,7 +311,10 @@ fn validate_quantities(source: &SourceObservations) -> Result<()> {
             .iter()
             .find(|o| o.target == binding.target && o.measure == Measure::Fraction)
             .ok_or_else(|| crate::SpecimenError::Invalid("missing source fraction".into()))?;
-        let available = d.technical_status != "fail" && d.assessed_events > 0;
+        let available = d.technical_status != "fail"
+            && d.assessed_events > 0
+            && d.unknown_events == 0
+            && d.abstained_events.unwrap_or(0) == 0;
         require(
             count.status
                 == if d.technical_status == "fail" {
@@ -364,7 +381,10 @@ fn validate_quantities(source: &SourceObservations) -> Result<()> {
     }
     if c.source.format == AnnotationFormat::ClassifyPredictions {
         require(
-            classified.checked_add(d.unknown_events) == Some(d.assessed_events),
+            classified
+                .checked_add(d.unknown_events)
+                .and_then(|n| n.checked_add(d.abstained_events.unwrap_or(0)))
+                == Some(d.assessed_events),
             "classified and unknown counts do not cover assessed events",
         )?;
     }
@@ -450,8 +470,16 @@ fn index_sources<'a>(
         let descriptor = &source.annotations;
         let context = &descriptor.context;
         require(
-            descriptor.schema_version == 1
+            ((descriptor.schema_version == 1
+                && descriptor.abstained_events.is_none()
+                && descriptor.ood_events.is_none())
+                || (descriptor.schema_version == 2
+                    && descriptor.context.source.decision_policy.is_some()
+                    && descriptor.abstained_events.is_some()
+                    && descriptor.ood_events.is_some()))
                 && descriptor.unknown_events <= descriptor.assessed_events
+                && descriptor.abstained_events.unwrap_or(0) <= descriptor.assessed_events
+                && descriptor.ood_events.unwrap_or(0) <= descriptor.abstained_events.unwrap_or(0)
                 && descriptor.assessed_events <= context.raw_events,
             "invalid annotation descriptor",
         )?;

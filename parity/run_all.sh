@@ -16,6 +16,8 @@ PY="$PARITY/.env/py/bin/python"
 export R_LIBS_USER="$PARITY/.env/Rlib"
 BASELINE_REF="${1:-}"
 
+"$PY" -m unittest discover -s "$PARITY" -p 'test_classify_safety.py'
+
 rm -rf "$DATA" "$OUT"
 "$PY" "$PARITY/gen/generate.py" "$DATA"
 

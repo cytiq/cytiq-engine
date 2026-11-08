@@ -71,7 +71,11 @@ pub(crate) fn run(
     );
     record_provenance(
         recorder,
-        &[result.output.clone(), result.masks.clone()],
+        &[
+            result.output.clone(),
+            result.masks.clone(),
+            cytiq_compensate::margin_diagnostics_path(&result.output),
+        ],
         &record_path_for_file(&result.output),
     )
 }

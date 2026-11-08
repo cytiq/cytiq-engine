@@ -116,7 +116,12 @@ impl QcRunner {
         let metrics = mask_checks(&scope, &mask, &dataset, &acquisition, &mut checks)?;
         if let Some(metrics) = &metrics {
             match &panel.qc {
-                Some(policy) => checks.extend(evaluate(&scope, policy, metrics)),
+                Some(policy) if policy.has_rules() => {
+                    checks.extend(evaluate(&scope, policy, metrics));
+                }
+                Some(_) => {
+                    checks.push(missing_policy(&scope, panel.label(), config.require_policy));
+                }
                 None => checks.push(missing_policy(&scope, panel.label(), config.require_policy)),
             }
         }
@@ -182,7 +187,7 @@ fn missing_policy(scope: &str, panel: &str, required: bool) -> QcCheck {
         scope,
         "policy",
         status,
-        format!("panel `{panel}` has no `qc` policy: {consequence}"),
+        format!("panel `{panel}` has no effective `qc` policy: {consequence}"),
     )
 }
 

@@ -58,6 +58,20 @@ are errors. Classifier fractions retain abstentions in the assessed denominator;
 `unknown` is not turned into a biological population. Bundle v1 remains available
 to classify but is outside specimen import.
 
+An event's `keep`/`assessed` flag expresses eligibility/inference, not successful
+QC or biological assignment. Publication requires an effective pinned panel QC
+policy and its mandatory assessments. `release-qc.json` records the assessment
+bound to the manifest, acquisition and mask. Required failures retain diagnostic
+observations as `qc_rejected`, with supporting counts and null usable values.
+
+Policy-enabled predictions schema 5 carry an explicit decision status and OOD
+assessment; the bundle remains v1–v4. Such sources pin `decision_policy` in their
+definition. Their annotation descriptor uses schema 2 and records
+`abstained_events` and `ood_events` separately from legacy `unknown_events`.
+Any classifier abstention, including legacy binary `unknown`, makes full target
+totals `not_measured` with reason `classifier_abstained`; accepted counts remain
+supporting evidence. Denominators retain all assessed events.
+
 ## API and CLI
 
 Use `observe(&ObserveConfig)` for a descriptor and validated observations,

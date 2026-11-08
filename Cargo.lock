@@ -723,6 +723,7 @@ dependencies = [
  "cytiq-mask",
  "cytiq-publish",
  "log",
+ "serde_json",
  "thiserror",
 ]
 
@@ -943,8 +944,11 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "bytes",
+ "cytiq-manifest",
+ "cytiq-mask",
  "cytiq-provenance",
  "cytiq-publish",
+ "cytiq-qc",
  "parquet",
  "ryu",
  "serde",

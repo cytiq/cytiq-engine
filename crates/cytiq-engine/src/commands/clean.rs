@@ -28,7 +28,7 @@ pub(crate) struct CleanArgs {
     #[arg(long = "mask")]
     masks: Vec<PathBuf>,
     /// Comma-separated filters that must be applied (`debris`, `singlets`,
-    /// `viability`); otherwise the run fails without writing outputs.
+    /// `viability`); unmet checks block acceptance and retain diagnostics.
     #[arg(long, value_enum, value_delimiter = ',')]
     require: Vec<CliFilterKind>,
     /// Re-apply these Gating-ML gates (e.g. an edited gates.gatingml.xml)
@@ -130,7 +130,24 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(args.output.clone())
     );
-    let result = CleanRunner::run(&args.into())?;
+    let config: CleanConfig = args.into();
+    let result = match CleanRunner::run(&config) {
+        Ok(result) => result,
+        Err(error @ cytiq_clean::CleanError::RequiredFilterNotApplied { .. }) => {
+            let mut outcome = crate::provenance::record_with_reason(
+                recorder,
+                &files_under(&config.output),
+                &record_path_for_dir(&config.output),
+                cytiq_provenance::outcome::OutcomeReason::ChecksFailed,
+            )?;
+            if let Some(outcome) = &mut outcome {
+                outcome.message = error.to_string();
+            }
+            log::error!("{error}");
+            return Ok(outcome);
+        }
+        Err(error) => return Err(error.into()),
+    };
     let metrics = &result.metrics;
     for (name, report) in [
         ("debris", &metrics.filters.debris),
@@ -142,7 +159,7 @@ pub(crate) fn run(
                 "{name}: removed {} event(s)",
                 report.removed.unwrap_or_default()
             ),
-            _ => info!(
+            _ => log::warn!(
                 "{name}: {:?} ({})",
                 report.status,
                 report.reason.as_deref().unwrap_or_default()

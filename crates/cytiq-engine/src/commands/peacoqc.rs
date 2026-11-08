@@ -27,7 +27,8 @@ pub(crate) struct PeacoqcArgs {
     channel: Vec<String>,
     #[arg(long, value_enum, default_value_t = CliPeacoQcMethod::All)]
     method: CliPeacoQcMethod,
-    /// Remove detector margin events before peak-based QC.
+    /// Apply legacy `PeacoQC` margins (lower bounds and observed extrema);
+    /// can remove negative fluorescence. Disabled by default.
     #[arg(long)]
     remove_margins: bool,
     /// Ignore zero values during peak detection; useful for mass cytometry.
@@ -79,7 +80,11 @@ pub(crate) fn run(
         cytiq_provenance::reuse::Destination::File(output.clone())
     );
     let result = PeacoQcRunner::run(&input, &output, &config)?;
-    let outputs = [output.clone(), peacoqc_masks_path(&output)];
+    let outputs = [
+        output.clone(),
+        peacoqc_masks_path(&output),
+        cytiq_peacoqc::summary_path(&output),
+    ];
     info!(
         "peacoqc retained {} of {} events",
         result.summary.metrics.events_after, result.summary.metrics.events_before

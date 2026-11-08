@@ -195,7 +195,22 @@ fn cli_margins_on_transformed_input_match_raw_margins() {
         margin_counts.push(summary["metrics"]["per_channel_margin_counts"].clone());
     }
 
-    assert_eq!(margin_counts[0], margin_counts[1]);
+    for (raw, transformed) in margin_counts[0]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(margin_counts[1].as_array().unwrap())
+    {
+        for key in ["channel", "min_count", "max_count", "removed_count"] {
+            assert_eq!(raw[key], transformed[key]);
+        }
+        // Thresholds are reported in each file's signal space, including FCS f32 rounding.
+        for key in ["min_threshold", "max_threshold"] {
+            #[allow(clippy::cast_possible_truncation)]
+            let expected = f64::from((raw[key].as_f64().unwrap() / 150.0).asinh() as f32);
+            assert_eq!(transformed[key].as_f64().unwrap(), expected);
+        }
+    }
     let removed = margin_counts[0]
         .as_array()
         .expect("margin counts should be a list")
@@ -328,6 +343,26 @@ fn cli_publishes_no_fcs_when_its_mask_cannot_be_written() {
         .filter(|name| name.starts_with('.'))
         .collect::<Vec<_>>();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn debug_publication_failure_leaves_no_fcs_mask_or_summary() {
+    let root = create_temp_dir("cytiq-peacoqc-debug-rollback");
+    let input = root.join("sample.fcs");
+    write_margin_fixture_fcs(&input);
+    let debug = root.join("debug");
+    fs::write(&debug, b"existing file").unwrap();
+    let output = root.join("cleaned.fcs");
+    let result = run_peacoqc(&input, &output, Some(&debug));
+    assert!(!result.status.success());
+    for path in [
+        output.clone(),
+        cytiq_peacoqc::masks_path(&output),
+        cytiq_peacoqc::summary_path(&output),
+    ] {
+        assert!(!path.exists());
+    }
+    assert_eq!(fs::read(&debug).unwrap(), b"existing file");
 }
 
 fn run_peacoqc(input: &Path, output: &Path, debug_dir: Option<&Path>) -> std::process::Output {

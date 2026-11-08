@@ -247,7 +247,7 @@ fn compensate_and_gate_reuse_every_output_and_reject_a_damaged_sidecar() {
             .iter()
             .map(|file| PathBuf::from(file["path"].as_str().unwrap()))
             .collect();
-        assert_eq!(outputs.len(), 2);
+        assert_eq!(outputs.len(), if command == "compensate" { 3 } else { 2 });
         let stamps: Vec<_> = outputs
             .iter()
             .map(|path| fs::metadata(path).unwrap().modified().unwrap())
@@ -258,10 +258,14 @@ fn compensate_and_gate_reuse_every_output_and_reject_a_damaged_sidecar() {
             assert_eq!(fs::metadata(path).unwrap().modified().unwrap(), stamp);
         }
         let primary = fs::read(&output).unwrap();
-        fs::write(&outputs[1], b"damaged sidecar").unwrap();
-        args[6] = "reject";
-        cytiq(&args, 4);
-        assert_eq!(fs::read(&output).unwrap(), primary);
-        assert_eq!(fs::read(&outputs[1]).unwrap(), b"damaged sidecar");
+        for sidecar in outputs.iter().skip(1) {
+            let original = fs::read(sidecar).unwrap();
+            fs::write(sidecar, b"damaged sidecar").unwrap();
+            args[6] = "reject";
+            cytiq(&args, 4);
+            assert_eq!(fs::read(&output).unwrap(), primary);
+            assert_eq!(fs::read(sidecar).unwrap(), b"damaged sidecar");
+            fs::write(sidecar, original).unwrap();
+        }
     }
 }

@@ -44,6 +44,17 @@ Classifier sources use `format: classify_predictions`, a model definition,
 Bindings come from that vocabulary. The supplied projection must match all of its
 knowledge identities; placeholder tree/projection digests are rejected.
 
+Classifier sources may additionally pin `decision_policy: {path: policy.json,
+sha256: "<file digest>"}`; it conflicts with a nonzero legacy `abstain_margin`.
+See the [decision policy contract](../../docs/classifier-decision-policy.md).
+Abstention blocks full population totals and yields an incomplete specimen,
+while probabilities and supporting counts remain diagnostic artifacts.
+
+Release requires each population package's hash-verified `release-qc.json`
+snapshot. Older packages without it remain inspectable but cannot authorize
+release; regenerate them through `population observe`. Specimen reconciliation
+continues to operate on summaries without reading native event Parquet or FCS.
+
 `SpecimenPlan` v1 snapshots candidates and the effective layout. With a single
 acquisition a panel selects it automatically; repeats require `--select`.
 Non-selected acquisitions retain `not_selected` reasons. No `qc_best` heuristic

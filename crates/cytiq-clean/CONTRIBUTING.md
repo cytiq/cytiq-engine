@@ -40,6 +40,9 @@ this crate.
 - `event_id` is the 0-based input row; events are never reordered or copied.
 - Config validation lives in `validate` in `runner.rs`; keep error messages in
   terms of CLI flags, since they surface to users unchanged.
+- An unmet `--require` is an assessment failure: publish diagnostics before
+  returning `RequiredFilterNotApplied`; the CLI records `checks_failed`/exit 3.
+  Input, computation and publication errors retain the ordinary rollback contract.
 - `metrics.json` and the `masks.parquet` schema are output contracts; update
   this crate's [README](README.md#output-rules) when they change.
 

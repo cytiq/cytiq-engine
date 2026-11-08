@@ -38,6 +38,11 @@ pub fn masks_path(output: &Path) -> PathBuf {
     output.with_extension("masks.parquet")
 }
 
+#[must_use]
+pub fn margin_diagnostics_path(output: &Path) -> PathBuf {
+    output.with_extension("margins.json")
+}
+
 pub struct CompensateRunner;
 
 impl CompensateRunner {
@@ -85,8 +90,9 @@ impl CompensateRunner {
         // Compensation mixes channels: this is the last point where raw
         // detector margins can be identified. Saturated scatter counts too.
         let margin_indices = cytiq_fcs::margin_channels(&dataset, &matrix_indices);
-        let margin_pass =
-            cytiq_fcs::raw_margin_pass(&dataset, &margin_indices).map_err(read_error)?;
+        let assessment =
+            cytiq_fcs::assess_detector_saturation(&dataset, &margin_indices).map_err(read_error)?;
+        let margin_pass = assessment.pass;
         let (parameters, columns) = compensated_columns(&dataset, &matrix_indices, &matrix);
         let options = output_keywords(
             input,
@@ -106,6 +112,15 @@ impl CompensateRunner {
             write_fcs(path, &config.output, &parameters, &columns, &options)
         })?;
         mask.stage_parquet(&mut publication, &masks)?;
+        let diagnostics_path = margin_diagnostics_path(&config.output);
+        publication.stage_file(&diagnostics_path, |writer| {
+            serde_json::to_writer_pretty(writer, &assessment.diagnostics).map_err(|error| {
+                CompensateError::Publish(cytiq_publish::PublishError::io(
+                    &diagnostics_path,
+                    std::io::Error::other(error),
+                ))
+            })
+        })?;
         publication.commit()?;
 
         Ok(CompensateResult {

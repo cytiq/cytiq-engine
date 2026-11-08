@@ -178,7 +178,7 @@ impl Bundle {
     }
 }
 
-fn manifest(directory: &Path) -> Result<(PathBuf, Value), ClassifyError> {
+pub(crate) fn manifest(directory: &Path) -> Result<(PathBuf, Value), ClassifyError> {
     let json = directory.join("manifest.json");
     let path = if json.exists() {
         json

@@ -17,7 +17,7 @@ use rayon::{ThreadPoolBuilder, prelude::*};
 use serde::Serialize;
 
 use crate::error::PeacoQcError;
-use crate::export::{stage_masks_parquet, write_debug_artifacts};
+use crate::export::{stage_debug_artifacts, stage_masks_parquet};
 use cytiq_density::{density, smooth_spline_fitted};
 use cytiq_publish::{Existing, Publication};
 
@@ -169,6 +169,8 @@ pub struct PeacoQcMetrics {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ChannelMarginCounts {
     pub channel: String,
+    pub min_threshold: f64,
+    pub max_threshold: f64,
     pub min_count: usize,
     pub max_count: usize,
     pub removed_count: usize,
@@ -189,6 +191,8 @@ pub struct EventMaskRecord {
     pub bin_id: Option<usize>,
     pub is_good: bool,
     pub removed_by_margin: bool,
+    pub removed_by_lower_margin: bool,
+    pub removed_by_upper_margin: bool,
     pub removed_by_mad: bool,
     pub removed_by_it: bool,
     pub removed_by_consecutive_bins: bool,
@@ -237,6 +241,8 @@ struct WorkingData {
     original_indices: Vec<usize>,
     channel_values: Vec<Vec<f64>>,
     margin_removed: Vec<bool>,
+    lower_margin_removed: Vec<bool>,
+    upper_margin_removed: Vec<bool>,
     margin_counts: Vec<ChannelMarginCounts>,
 }
 
@@ -301,6 +307,9 @@ impl PeacoQcRunner {
             input.display()
         );
         let margin_bounds = if config.remove_margins {
+            let warning = "legacy PeacoQC margin filtering is enabled: lower bounds (including flowCore's -111 floor) and observed extrema can remove negative fluorescence and rare populations".to_owned();
+            warn!("peacoqc: {warning}");
+            warnings.push(warning);
             Some(selected_margin_bounds(input, &dataset, &channels)?)
         } else {
             None
@@ -346,8 +355,6 @@ impl PeacoQcRunner {
             source_event_ids.as_deref(),
             config.remove_margins,
         )?;
-        publication.commit()?;
-
         let summary = build_summary(
             input,
             output,
@@ -364,9 +371,19 @@ impl PeacoQcRunner {
             mad_contributions,
             warnings,
         );
+        let summary_path = summary_path(output);
+        publication.stage_file(&summary_path, |writer| {
+            serde_json::to_writer_pretty(writer, &summary).map_err(|source| {
+                PeacoQcError::JsonSerialize {
+                    path: summary_path.clone(),
+                    source,
+                }
+            })
+        })?;
         if let Some(debug_dir) = config.debug_dir.as_deref() {
-            write_debug_artifacts(&summary, &mask, debug_dir)?;
+            stage_debug_artifacts(&mut publication, &summary, &mask, debug_dir)?;
         }
+        publication.commit()?;
         info!(
             "peacoqc pipeline: retained {} of {} events",
             summary.metrics.events_after, summary.metrics.events_before
@@ -666,12 +683,23 @@ fn known_margin_bounds(
     path: &Path,
     dataset: &FcsDataset,
 ) -> Result<BTreeMap<String, MarginBounds>, PeacoQcError> {
-    cytiq_fcs::dataset_margin_bounds(&dataset.text, &dataset.parameters).map_err(|source| {
-        PeacoQcError::FcsRead {
-            path: path.to_path_buf(),
-            source,
+    let read_error = |source| PeacoQcError::FcsRead {
+        path: path.to_path_buf(),
+        source,
+    };
+    let mut known =
+        cytiq_fcs::dataset_margin_bounds(&dataset.text, &dataset.parameters).map_err(read_error)?;
+    let recorded = cytiq_fcs::recorded_margin_bounds(&dataset.text)
+        .map_err(read_error)?
+        .unwrap_or_default();
+    for parameter in &dataset.parameters {
+        if known.contains_key(&parameter.name) && !recorded.contains_key(&parameter.name) {
+            let bounds = MarginBounds::from_flowcore_parameter(&dataset.text, parameter);
+            bounds.validate().map_err(read_error)?;
+            known.insert(parameter.name.clone(), bounds);
         }
-    })
+    }
+    Ok(known)
 }
 
 fn selected_margin_bounds(
@@ -699,13 +727,17 @@ fn prepare_working_data(
     margin_bounds: Option<&[MarginBounds]>,
 ) -> WorkingData {
     let mut margin_removed = vec![false; event_count];
+    let mut lower_margin_removed = vec![false; event_count];
+    let mut upper_margin_removed = vec![false; event_count];
     let mut margin_counts = Vec::new();
 
     if let Some(margin_bounds) = margin_bounds {
         for (channel, bounds) in channels.iter().zip(margin_bounds) {
-            let (channel_removed, counts) = margin_events_for_channel(channel, bounds);
-            for (target, removed) in margin_removed.iter_mut().zip(channel_removed) {
-                *target = *target || removed;
+            let (lower, upper, counts) = margin_events_for_channel(channel, bounds);
+            for (index, (low, high)) in lower.into_iter().zip(upper).enumerate() {
+                lower_margin_removed[index] |= low;
+                upper_margin_removed[index] |= high;
+                margin_removed[index] |= low || high;
             }
             margin_counts.push(counts);
         }
@@ -730,6 +762,8 @@ fn prepare_working_data(
         original_indices,
         channel_values,
         margin_removed,
+        lower_margin_removed,
+        upper_margin_removed,
         margin_counts,
     }
 }
@@ -737,7 +771,7 @@ fn prepare_working_data(
 fn margin_events_for_channel(
     channel: &ChannelData<'_>,
     bounds: &MarginBounds,
-) -> (Vec<bool>, ChannelMarginCounts) {
+) -> (Vec<bool>, Vec<bool>, ChannelMarginCounts) {
     let minimum = channel.values.iter().copied().fold(f64::INFINITY, f64::min);
     let maximum = channel
         .values
@@ -762,15 +796,18 @@ fn margin_events_for_channel(
         .iter()
         .zip(&max_flags)
         .map(|(min_removed, max_removed)| *min_removed || *max_removed)
-        .collect::<Vec<_>>();
+        .filter(|removed| *removed)
+        .count();
     let counts = ChannelMarginCounts {
         channel: channel.name.to_owned(),
+        min_threshold,
+        max_threshold,
         min_count: min_flags.iter().filter(|removed| **removed).count(),
         max_count: max_flags.iter().filter(|removed| **removed).count(),
-        removed_count: removed.iter().filter(|removed| **removed).count(),
+        removed_count: removed,
     };
 
-    (removed, counts)
+    (min_flags, max_flags, counts)
 }
 
 fn find_events_per_bin(
@@ -1334,6 +1371,8 @@ fn build_event_mask(
             bin_id: None,
             is_good: !working.margin_removed[index],
             removed_by_margin: working.margin_removed[index],
+            removed_by_lower_margin: working.lower_margin_removed[index],
+            removed_by_upper_margin: working.upper_margin_removed[index],
             removed_by_mad: false,
             removed_by_it: false,
             removed_by_consecutive_bins: false,
@@ -1370,6 +1409,11 @@ fn primary_bin_ids(bins: &[Vec<usize>], event_count: usize) -> Vec<Option<usize>
 #[must_use]
 pub fn masks_path(output: &Path) -> PathBuf {
     output.with_extension("masks.parquet")
+}
+
+#[must_use]
+pub fn summary_path(output: &Path) -> PathBuf {
+    output.with_extension("summary.json")
 }
 
 /// Write the retained events to the staged `path` that becomes `output`.
@@ -1680,6 +1724,31 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn legacy_rules_report_lower_floor_extrema_and_overlap_separately() {
+        let values = [-500.0, -111.0, -110.0, 0.0, 1022.0, 1023.0];
+        let channel = super::ChannelData {
+            name: "FL1-A",
+            values: &values,
+        };
+        let bounds = super::MarginBounds {
+            lower: -111.0,
+            upper: Some(1023.0),
+        };
+        let (low, high, counts) = super::margin_events_for_channel(&channel, &bounds);
+        assert_eq!(low, [true, true, false, false, false, false]);
+        assert_eq!(high, [false, false, false, false, false, true]);
+        assert_eq!(
+            (counts.min_count, counts.max_count, counts.removed_count),
+            (2, 1, 3)
+        );
+        let discrete = super::ChannelData {
+            name: "rare",
+            values: &[1.0, 1.0, 2.0],
+        };
+        let (_, _, counts) = super::margin_events_for_channel(&discrete, &bounds);
+        assert_eq!(counts.removed_count, 3); // Observed extrema, not physical saturation.
+    }
     use super::*;
 
     #[test]

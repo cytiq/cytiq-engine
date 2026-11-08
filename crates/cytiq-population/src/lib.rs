@@ -2,6 +2,7 @@
 
 pub mod annotations;
 pub mod artifact;
+pub mod decision;
 pub mod knowledge;
 pub mod observation;
 pub mod serialization;

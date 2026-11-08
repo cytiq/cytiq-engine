@@ -95,8 +95,10 @@ report.html         each gate drawn on its own dimensions (Plotly)
 - A filter is `applied`, `not_assessed` or `disabled`, with a `reason`. The mask
   column of a filter that is not `applied` is null, not all-true. `keep` is the
   AND of the applied filters only.
-- `required` (CLI `--require`) fails the run before any output is written
-  when a listed filter is not `applied`.
+- `required` (CLI `--require`) blocks acceptance when a listed filter is not
+  `applied`. Masks, metrics, gates, HTML and provenance are retained atomically;
+  the CLI records a completed `checks_failed` assessment and exits with 3.
+  Read/compute/write errors still publish no new result.
 - Singlet bands use `cytiq_density::robust_spread`, so a zero MAD falls back
   to `IQR / 1.349` or a relative spread (`spread_source` in `metrics.json`).
 - A viability or scatter channel transformed by `cytiq transform` is rejected

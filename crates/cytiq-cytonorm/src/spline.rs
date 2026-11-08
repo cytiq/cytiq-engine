@@ -47,8 +47,8 @@ impl MonotoneSpline {
         let secants = xs
             .windows(2)
             .zip(ys.windows(2))
-            .map(|(a, b)| (b[1] - b[0]) / (a[1] - a[0]))
-            .collect::<Vec<_>>();
+            .map(|(a, b)| secant(a[0], a[1], b[0], b[1]))
+            .collect::<Result<Vec<_>>>()?;
         let mut slopes = vec![0.0; xs.len()];
         slopes[0] = secants[0];
         slopes[xs.len() - 1] = secants[secants.len() - 1];
@@ -62,9 +62,11 @@ impl MonotoneSpline {
             } else {
                 let a = slopes[i] / d;
                 let b = slopes[i + 1] / d;
-                let norm = a.hypot(b);
-                if norm > 3.0 {
-                    let factor = 3.0 / norm;
+                // The radius-three circle is sufficient, but not necessary,
+                // for monotonicity. R monoH.FC preserves the entire monotone
+                // region before applying the Fritsch–Carlson radial correction.
+                if minimum_derivative(a, b)? < 0.0 {
+                    let factor = 3.0 / a.hypot(b);
                     slopes[i] = factor * a * d;
                     slopes[i + 1] = factor * b * d;
                 }
@@ -98,13 +100,17 @@ impl MonotoneSpline {
         {
             return Err(invalid("invalid monotone spline coefficients"));
         }
-        // Compare to the canonical fit: arbitrary slopes must not bypass monotonicity.
+        // Check the actual derivative, including monotone intervals outside
+        // the radius-three circle. Stored legacy coefficients remain valid.
         for i in 0..self.x.len() - 1 {
-            let d = (self.y[i + 1] - self.y[i]) / (self.x[i + 1] - self.x[i]);
+            let d = secant(self.x[i], self.x[i + 1], self.y[i], self.y[i + 1])?;
             if (d == 0.0 && (self.slopes[i] != 0.0 || self.slopes[i + 1] != 0.0))
-                || (d > 0.0 && (self.slopes[i] / d).hypot(self.slopes[i + 1] / d) > 3.0 + 1e-12)
+                || (d > 0.0
+                    && minimum_derivative(self.slopes[i] / d, self.slopes[i + 1] / d)? < -1e-12)
             {
-                return Err(invalid("spline slopes violate monotonicity"));
+                return Err(invalid(
+                    "monoH.FC slopes violate monotonicity after adjacent corrections",
+                ));
             }
         }
         Ok(())
@@ -112,6 +118,9 @@ impl MonotoneSpline {
     /// Evaluate with linear endpoint extrapolation. Call validate after loading.
     #[must_use]
     pub fn evaluate(&self, value: f64) -> f64 {
+        if !value.is_finite() {
+            return f64::NAN;
+        }
         let n = self.x.len();
         if value <= self.x[0] {
             return self.y[0] + self.slopes[0] * (value - self.x[0]);
@@ -131,6 +140,36 @@ impl MonotoneSpline {
     }
 }
 
+fn secant(x0: f64, x1: f64, y0: f64, y1: f64) -> Result<f64> {
+    let width = x1 - x0;
+    let height = y1 - y0;
+    let slope = height / width;
+    if !width.is_finite() || width <= 0.0 || !height.is_finite() || !slope.is_finite() {
+        return Err(invalid("nonfinite spline interval or secant"));
+    }
+    Ok(slope)
+}
+
+/// Minimum of the normalized Hermite derivative on [0, 1]. Scaling keeps
+/// the quadratic bounded even when a finite slope/secant ratio is large.
+fn minimum_derivative(a: f64, b: f64) -> Result<f64> {
+    if !a.is_finite() || !b.is_finite() {
+        return Err(invalid("nonfinite normalized spline slope"));
+    }
+    let scale = a.max(b).max(1.0);
+    let (a, b, d) = (a / scale, b / scale, 1.0 / scale);
+    let quadratic = 3.0 * (a + b - 2.0 * d);
+    let linear = 2.0 * (3.0 * d - 2.0 * a - b);
+    let mut minimum = a.min(b);
+    if quadratic > 0.0 {
+        let t = -linear / (2.0 * quadratic);
+        if t > 0.0 && t < 1.0 {
+            minimum = minimum.min(a + t * (linear + t * quadratic));
+        }
+    }
+    Ok(minimum * scale)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,6 +181,8 @@ mod tests {
             y: Vec<f64>,
             query: Vec<f64>,
             expected: Vec<f64>,
+            slopes: Vec<f64>,
+            monotone: bool,
         }
         #[derive(serde::Deserialize)]
         struct QuantileCase {
@@ -158,7 +199,17 @@ mod tests {
             serde_json::from_str(include_str!("../../../data/fixtures/cytonorm/numeric.json"))
                 .unwrap();
         for case in fixture.splines {
-            let s = MonotoneSpline::fit(&case.x, &case.y).unwrap();
+            let fitted = MonotoneSpline::fit(&case.x, &case.y);
+            if !case.monotone {
+                // The real CD19 oracle has a negative derivative after R's
+                // adjacent corrections. Never silently publish that mapping.
+                assert!(fitted.unwrap_err().to_string().contains("monotonicity"));
+                continue;
+            }
+            let s = fitted.unwrap();
+            for (actual, expected) in s.slopes.iter().zip(&case.slopes) {
+                assert!((actual - expected).abs() <= 1e-10 + 1e-10 * expected.abs());
+            }
             for (x, expected) in case.query.into_iter().zip(case.expected) {
                 let actual = s.evaluate(x);
                 assert!(
@@ -172,6 +223,43 @@ mod tests {
                 let actual = cytiq_density::quantile_type7(&case.sorted, p);
                 assert!((actual - expected).abs() <= 1e-10 + 1e-10 * expected.abs());
             }
+        }
+    }
+    #[test]
+    fn preserves_the_full_monotone_region_and_rejects_invalid_coefficients() {
+        let s = MonotoneSpline::fit(&[0., 1., 2., 3.], &[0., 4., 5., 9.]).unwrap();
+        assert_eq!(s.slopes, [4., 2.5, 2.5, 4.]);
+        let mut malformed = s;
+        malformed.slopes[1] = 10.0;
+        assert!(malformed.validate().is_err());
+    }
+
+    #[test]
+    fn stored_legacy_coefficients_are_validated_without_refitting() {
+        let spline = MonotoneSpline {
+            x: vec![0., 1., 2., 3.],
+            y: vec![0., 4., 5., 9.],
+            slopes: vec![4., 2.121_320_343_559_642_4, 2.121_320_343_559_642_4, 4.],
+        };
+        let stored = serde_json::to_string(&spline).unwrap();
+        let loaded: MonotoneSpline = serde_json::from_str(&stored).unwrap();
+        loaded.validate().unwrap();
+        assert_eq!(loaded.slopes, spline.slopes);
+        assert!((loaded.evaluate(0.25) - 1.088_063_108_895_641_8).abs() < 1e-12);
+    }
+
+    #[test]
+    fn nonfinite_queries_never_panic_and_overflow_is_rejected() {
+        let s = MonotoneSpline::fit(&[0., 1.], &[0., 1.]).unwrap();
+        for query in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(s.evaluate(query).is_nan());
+        }
+        for (x, y) in [
+            ([-f64::MAX, f64::MAX], [0., 1.]),
+            ([0., 1.], [-f64::MAX, f64::MAX]),
+            ([0., f64::MIN_POSITIVE], [0., f64::MAX]),
+        ] {
+            assert!(MonotoneSpline::fit(&x, &y).is_err());
         }
     }
     #[test]

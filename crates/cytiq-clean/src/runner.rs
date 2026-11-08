@@ -317,7 +317,6 @@ fn run_inner(config: &CleanConfig) -> Result<CleanResult, CleanError> {
     }
     masks.source_event_ids = source_event_ids;
     masks.acquisition = acquisition;
-    ensure_required(&config.required, &reports)?;
     let event_count = dataset.event_count();
     let removal_overlap = count_masks(&mut reports, &masks, event_count);
     let kept = masks.keep.iter().filter(|keep| **keep).count();
@@ -376,6 +375,9 @@ fn run_inner(config: &CleanConfig) -> Result<CleanResult, CleanError> {
         "clean kept {kept} of {event_count} event(s); wrote {}",
         config.output.display()
     );
+    // An unmet assessment is a completed diagnostic run, not an I/O or
+    // computation failure. Preserve the evidence before returning the error.
+    ensure_required(&config.required, &metrics.filters)?;
     Ok(CleanResult {
         metrics,
         output: config.output.clone(),
@@ -415,8 +417,7 @@ fn ensure_raw_roles(
     }
 }
 
-/// `--require`: fail before any output is written when a required filter
-/// could not be applied.
+/// `--require`: reject the result when a required filter could not be applied.
 fn ensure_required(required: &[FilterKind], reports: &FilterReports) -> Result<(), CleanError> {
     for kind in required {
         let report = reports.get(*kind);

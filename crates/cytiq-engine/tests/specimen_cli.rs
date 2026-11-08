@@ -1,3 +1,5 @@
+#[path = "../../cytiq-classify/tests/support/decision.rs"]
+mod decision_support;
 use cytiq_mask::EventMask;
 use cytiq_population::{
     ArtifactRef,
@@ -279,6 +281,135 @@ fn explicit_retake_selection_to_gates_to_specimen_is_atomic_and_preserves_overla
     verify_package(&result).unwrap();
 }
 
+#[test]
+#[allow(clippy::too_many_lines)] // Complete QC -> population -> specimen release boundary.
+fn release_refuses_missing_empty_and_unassessed_mandatory_policies_but_keeps_evidence() {
+    for policy in [
+        Value::Null,
+        json!({}),
+        json!({"filters":{"live":{"required":true,"severity":"warn"}}}),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let raw = fixture("pipeline/sample.fcs");
+        let manifest = root.join("run.json");
+        let layout = root.join("layout.json");
+        write_json(
+            &manifest,
+            &json!({"schema_version":2,"cytometry":"conventional",
+            "panel":{"name":"P1","markers":[{"marker":"CD3"}],"qc":policy},
+            "samples":[{"id":"A01","specimen":"S01","file":raw}]}),
+        )
+        .unwrap();
+        write_json(&layout,&json!({"schema_version":1,"protocol_id":"release-contract","panels":{"P1":gate_panel("P1")}})).unwrap();
+        let planned = root.join("planned");
+        let plan = planned.join("plan.json");
+        outcome(
+            &[
+                "specimen",
+                "plan",
+                "--manifest",
+                text(&manifest),
+                "--layout",
+                text(&layout),
+                "--specimen",
+                "S01",
+                "--output",
+                text(&planned),
+            ],
+            0,
+        );
+        let mask = root.join("mask.parquet");
+        raw_mask(&raw, &mask);
+        let qc = root.join("qc.json");
+        cytiq(
+            &[
+                "qc",
+                "--manifest",
+                text(&manifest),
+                "--sample",
+                "A01",
+                "--mask",
+                text(&mask),
+                "--output",
+                text(&qc),
+            ],
+            0,
+        );
+        assert_eq!(serialization::read(&qc).unwrap()["status"], "warn");
+        let counts = root.join("counts.json");
+        let membership = root.join("membership.parquet");
+        cytiq(
+            &[
+                "gate",
+                "--input",
+                text(&raw),
+                "--gating-ml",
+                text(&fixture("specimen/gates.xml")),
+                "--mask",
+                text(&mask),
+                "--membership",
+                text(&membership),
+                "--output",
+                text(&counts),
+                "--format",
+                "json",
+            ],
+            0,
+        );
+        let observed = root.join("observed");
+        let run = outcome(
+            &observe_args(
+                &plan,
+                "A01",
+                "gates",
+                &membership,
+                &cytiq_provenance::record_path_for_file(&counts),
+                &mask,
+                &qc,
+                &cytiq_provenance::record_path_for_file(&qc),
+                &observed,
+            ),
+            3,
+        );
+        assert_eq!(run["reason"], "checks_failed");
+        assert_eq!(run["completed"], true);
+        verify_package(&observed).unwrap();
+        let checks = serialization::read(&observed.join("release-qc.json")).unwrap();
+        assert!(
+            checks["checks"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["status"] == "fail")
+        );
+        let result = root.join("result");
+        outcome(
+            &[
+                "specimen",
+                "run",
+                "--plan",
+                text(&plan),
+                "--observations",
+                text(&observed),
+                "--output",
+                text(&result),
+            ],
+            3,
+        );
+        let summary = serialization::read(&result.join("result.json")).unwrap();
+        assert_eq!(summary["status"], "fail");
+        assert!(
+            summary["observations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|o| o["status"] == "qc_rejected" && o["value_u64"].is_null())
+        );
+        assert!(observed.join("observations.parquet").exists());
+    }
+}
+
 fn cytof_bundle(directory: &Path) -> (PathBuf, PathBuf) {
     let original = fixture("classify/cytof/lightgbm");
     let output = directory.join("cytof-model");
@@ -334,7 +465,12 @@ fn cytof_bundle(directory: &Path) -> (PathBuf, PathBuf) {
 #[test]
 #[allow(clippy::too_many_lines)] // Exercise both existing inference recipes through the CLI.
 fn conventional_and_cytof_classifiers_reach_specimen_results_with_their_target_kinds() {
-    for (cytof, qc_failure) in [(false, false), (true, false), (false, true)] {
+    for (cytof, qc_failure, use_policy) in [
+        (false, false, false),
+        (true, false, false),
+        (false, true, false),
+        (false, false, true),
+    ] {
         let temporary = tempfile::tempdir().unwrap();
         let directory = temporary.path();
         let (model, projection, raw, panel) = if cytof {
@@ -378,8 +514,10 @@ fn conventional_and_cytof_classifiers_reach_specimen_results_with_their_target_k
             );
         }
         let vocabulary = model.join("classes.json");
+        let policy =
+            use_policy.then(|| decision_support::policy(directory, &model, Some(1.0), None));
         write_json(&layout,&json!({"schema_version":1,"protocol_id":"synthetic-ml","panels":{panel:{"projection":{"path":projection,"sha256":digest(&projection)},"sources":{"ml":{
-            "format":"classify_predictions","definition":ArtifactRef::of(&model.join("model.onnx")).unwrap(),"bundle_manifest":ArtifactRef::of(&model.join("manifest.json")).unwrap(),"abstain_margin":if cytof {0.0} else {0.4},"vocabulary":{"path":vocabulary,"sha256":digest(&vocabulary)}
+            "format":"classify_predictions","definition":ArtifactRef::of(&model.join("model.onnx")).unwrap(),"bundle_manifest":ArtifactRef::of(&model.join("manifest.json")).unwrap(),"abstain_margin":if cytof || use_policy {0.0} else {0.4},"vocabulary":{"path":vocabulary,"sha256":digest(&vocabulary)},"decision_policy":policy.as_ref().map(|path|ArtifactRef::of(path).unwrap())
         }}}}})).unwrap();
         let planned = directory.join("planned");
         let plan = planned.join("plan.json");
@@ -431,8 +569,11 @@ fn conventional_and_cytof_classifiers_reach_specimen_results_with_their_target_k
             "--batch-size",
             "17",
         ];
-        if !cytof {
+        if !cytof && !use_policy {
             args.extend(["--abstain-margin", "0.4"]);
+        }
+        if let Some(policy) = &policy {
+            args.extend(["--decision-policy", text(policy)]);
         }
         cytiq(&args, 0);
         let package = directory.join("observed");
@@ -448,10 +589,20 @@ fn conventional_and_cytof_classifiers_reach_specimen_results_with_their_target_k
                 &cytiq_provenance::record_path_for_file(&qc),
                 &package,
             ),
-            if qc_failure { 3 } else { 0 },
+            if qc_failure {
+                3
+            } else if !cytof {
+                4
+            } else {
+                0
+            },
         );
         let descriptor = serialization::read(&package.join("event-annotations.json")).unwrap();
-        if !cytof {
+        if use_policy {
+            assert_eq!(descriptor["schema_version"], 2);
+            assert!(descriptor["abstained_events"].as_u64().unwrap() > 0);
+            assert_eq!(descriptor["unknown_events"], 0);
+        } else if !cytof {
             assert!(descriptor["unknown_events"].as_u64().unwrap() > 0);
         }
         let result = directory.join("result");
@@ -466,7 +617,13 @@ fn conventional_and_cytof_classifiers_reach_specimen_results_with_their_target_k
                 "--output",
                 text(&result),
             ],
-            if qc_failure { 3 } else { 0 },
+            if qc_failure {
+                3
+            } else if !cytof {
+                4
+            } else {
+                0
+            },
         );
         let summary = serialization::read(&result.join("result.json")).unwrap();
         if qc_failure {
@@ -477,6 +634,18 @@ fn conventional_and_cytof_classifiers_reach_specimen_results_with_their_target_k
                     .unwrap()
                     .iter()
                     .all(|o| o["status"] == "qc_rejected"
+                        && o["value_u64"].is_null()
+                        && o["value_f64"].is_null())
+            );
+        }
+        if !cytof && !qc_failure {
+            assert_eq!(summary["complete"], false);
+            assert!(
+                summary["observations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|o| o["status"] == "not_measured"
                         && o["value_u64"].is_null()
                         && o["value_f64"].is_null())
             );

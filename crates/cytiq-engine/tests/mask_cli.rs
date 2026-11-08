@@ -118,6 +118,8 @@ fn combines_peacoqc_and_clean_masks_by_source_event() {
         names,
         [
             "margin_pass",
+            "margin_lower_pass",
+            "margin_upper_pass",
             "peacoqc_pass",
             "non_debris",
             "singlets",

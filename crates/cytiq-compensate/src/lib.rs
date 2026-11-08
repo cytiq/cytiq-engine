@@ -7,7 +7,9 @@ mod runner;
 
 pub use crate::error::CompensateError;
 pub use crate::matrix::{CompensationMatrix, MatrixKind, read_matrix_file};
-pub use crate::runner::{CompensateConfig, CompensateResult, CompensateRunner, masks_path};
+pub use crate::runner::{
+    CompensateConfig, CompensateResult, CompensateRunner, margin_diagnostics_path, masks_path,
+};
 
 /// Upstream implementations this crate is validated against
 /// (`parity/versions.txt`), recorded in provenance.

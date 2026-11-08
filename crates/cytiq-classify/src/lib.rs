@@ -1,12 +1,15 @@
 //! Supervised FCS event classification using a portable model bundle.
 mod bundle;
+mod decision;
+#[cfg(test)]
+mod decision_tests;
 mod features;
 mod serialization;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use arrow_array::{ArrayRef, BooleanArray, Float32Array, RecordBatch, StringArray, UInt64Array};
@@ -18,6 +21,8 @@ use parquet::arrow::ArrowWriter;
 use serde::Serialize;
 
 pub use bundle::{Bundle, NormalizationContract, input_files};
+pub use cytiq_population::decision::DecisionPolicy;
+pub use decision::DecisionSummary;
 pub use features::{Feature, Profile, feature_columns, feature_columns_with_normalization};
 
 pub const DEFAULT_BATCH_SIZE: usize = 65_536;
@@ -59,6 +64,8 @@ pub struct ClassifyConfig {
 
 #[derive(Debug, Serialize)]
 pub struct ClassifyRunResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<DecisionSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub normalization: Option<NormalizationContract>,
     pub schema_version: u32,
@@ -103,9 +110,44 @@ impl ClassifyRunner {
         clippy::cast_possible_truncation
     )]
     pub fn run(config: &ClassifyConfig) -> Result<ClassifyRunResult, ClassifyError> {
+        Self::run_with_policy(config, None)
+    }
+
+    /// Apply an independently validated selective-classification policy.
+    /// Existing bundle v1-v4 execution is unchanged when no policy is supplied.
+    /// # Errors
+    /// Rejects missing evidence, mismatched policy, invalid scorer output and ordinary classification errors.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation
+    )]
+    pub fn run_with_policy(
+        config: &ClassifyConfig,
+        policy_path: Option<&Path>,
+    ) -> Result<ClassifyRunResult, ClassifyError> {
         let invalid = |s: &str| ClassifyError::Invalid(s.to_owned());
         let batch_size = validate_run_config(config)?;
         let bundle = Bundle::load(&config.model, config.abstain_margin)?;
+        let policy = policy_path
+            .map(DecisionPolicy::load)
+            .transpose()
+            .map_err(|e| invalid(&e.to_string()))?;
+        let policy_hash = policy_path
+            .map(cytiq_provenance::hash_file)
+            .transpose()
+            .map_err(|e| invalid(&e.to_string()))?
+            .map(|(_, hash)| hash);
+        if let Some(policy) = &policy {
+            if config.abstain_margin != 0.0 {
+                return Err(invalid(
+                    "decision policy conflicts with legacy abstain margin",
+                ));
+            }
+            policy
+                .check_bundle(&bundle::manifest(&config.model)?.0)
+                .map_err(|e| invalid(&e.to_string()))?;
+        }
         let model = config.model.join("model.onnx");
         if cytiq_provenance::hash_file(&model)?.1 != bundle.model_sha256 {
             return Err(invalid("model checksum mismatch"));
@@ -147,16 +189,58 @@ impl ClassifyRunner {
                 .map_err(|e| invalid(&e.to_string()))?;
         }
         let mut session = builder.commit_from_file(model)?;
+        let mut ood_session = if let Some(ood) = policy.as_ref().and_then(|p| p.ood.as_ref()) {
+            // Keep the scalar safety decision on the portable CPU provider.
+            // Accelerator compilation/caching must not change its execution contract.
+            let mut builder = Session::builder(environment)?
+                .with_auto_device(ort::session::builder::AutoDevicePolicy::PreferCPU)
+                .map_err(|e| invalid(&e.to_string()))?;
+            if let Some(threads) = config.threads {
+                builder = builder
+                    .with_intra_threads(threads)
+                    .map_err(|e| invalid(&e.to_string()))?;
+            }
+            let session = builder.commit_from_file(&ood.model.path)?;
+            validate_model_input(
+                &session
+                    .inputs()
+                    .iter()
+                    .map(ort::value::Outlet::name)
+                    .collect::<Vec<_>>(),
+                "features",
+            )?;
+            if session.outputs().len() != 1 || session.outputs()[0].name() != "ood_score" {
+                return Err(invalid("invalid OOD ONNX output interface"));
+            }
+            Some(session)
+        } else {
+            None
+        };
         let input_names = session
             .inputs()
             .iter()
             .map(ort::value::Outlet::name)
             .collect::<Vec<_>>();
         validate_model_input(&input_names, &bundle.input)?;
-        let schema = Arc::new(prediction_schema(&bundle, &acquisition)?);
+        let schema = Arc::new(prediction_schema(
+            &bundle,
+            &acquisition,
+            policy_hash.as_deref(),
+        )?);
         let mut result = ClassifyRunResult {
+            decision: policy_hash.map(|hash| DecisionSummary {
+                policy_sha256: hash,
+                bundle_schema_version: bundle.schema_version,
+                abstained: 0,
+                ood_events: 0,
+                ood_assessed: ood_session.is_some(),
+            }),
             normalization: bundle.normalization.clone(),
-            schema_version: bundle.schema_version,
+            schema_version: if policy.is_some() {
+                5
+            } else {
+                bundle.schema_version
+            },
             acquisition_sha256: acquisition,
             model_sha256: bundle.model_sha256.clone(),
             run_id: bundle.run_id.clone(),
@@ -192,20 +276,58 @@ impl ClassifyRunner {
                 let columns =
                     feature_columns_with_normalization(&window, &bundle.profile, normalization)?;
                 let selected = (0..end - start).filter(|i| keep[*i]).collect::<Vec<_>>();
-                let probabilities = infer_probabilities(
+                let mut probabilities = infer_probabilities(
                     &mut session,
                     &columns,
                     &selected,
                     bundle.classes.len(),
                     end - start,
                 )?;
-                let labels = probabilities
-                    .iter()
-                    .map(|row| {
-                        row.as_ref()
-                            .map(|row| decide(&bundle, row, config.abstain_margin, &mut result))
-                    })
-                    .collect::<Vec<_>>();
+                if policy.is_some() && bundle.schema_version == 1 {
+                    // V1 publishes p_negative = 1 - p_positive. Evaluate the
+                    // policy on that same public probability vector.
+                    for row in probabilities.iter_mut().flatten() {
+                        row[0] = 1.0 - row[1];
+                    }
+                }
+                let ood_scores = if policy.is_some() {
+                    decision::infer_ood(ood_session.as_mut(), &columns, &selected, end - start)?
+                } else {
+                    Vec::new()
+                };
+                let decisions = policy.as_ref().map(|policy| {
+                    probabilities
+                        .iter()
+                        .zip(&ood_scores)
+                        .map(|(row, score)| decision::assess(policy, row.as_deref(), *score))
+                        .collect::<Vec<_>>()
+                });
+                let mut labels = Vec::with_capacity(probabilities.len());
+                for (index, row) in probabilities.iter().enumerate() {
+                    let abstained = decisions
+                        .as_ref()
+                        .is_some_and(|rows| rows[index].status == "abstained");
+                    if abstained {
+                        result.assessed += 1;
+                        let summary = result
+                            .decision
+                            .as_mut()
+                            .ok_or_else(|| invalid("missing policy decision summary"))?;
+                        summary.abstained += 1;
+                        summary.ood_events += usize::from(
+                            ood_scores[index]
+                                .zip(policy.as_ref().and_then(|p| p.ood.as_ref()))
+                                .is_some_and(|(score, ood)| score >= ood.threshold),
+                        );
+                        labels.push(None);
+                    } else {
+                        labels.push(
+                            row.as_ref().map(|row| {
+                                decide(&bundle, row, config.abstain_margin, &mut result)
+                            }),
+                        );
+                    }
+                }
                 let mut arrays: Vec<ArrayRef> = vec![
                     Arc::new(UInt64Array::from_iter_values(start as u64..end as u64)),
                     Arc::new(UInt64Array::from(source)),
@@ -228,12 +350,18 @@ impl ClassifyRunner {
                     )));
                 }
                 arrays.push(Arc::new(StringArray::from(labels)));
+                if let Some(decisions) = &decisions {
+                    arrays.extend(decision::columns(decisions));
+                }
                 writer.write(&RecordBatch::try_new(schema.clone(), arrays)?)?;
                 start = end;
             }
             writer.close()?;
             Ok::<(), ClassifyError>(())
         })?;
+        if let Some(decision) = &mut result.decision {
+            decision.ood_assessed = ood_session.is_some() && result.assessed > 0;
+        }
         let summary = classification_summary(&bundle, &mut result)?;
         publication.stage_file(config.output.join("summary.json"), |writer| {
             serde_json::to_writer_pretty(writer, &summary).map_err(ClassifyError::from)
@@ -302,7 +430,11 @@ fn validate_model_input(names: &[&str], expected: &str) -> Result<(), ClassifyEr
     Ok(())
 }
 
-fn prediction_schema(bundle: &Bundle, acquisition: &str) -> Result<Schema, ClassifyError> {
+fn prediction_schema(
+    bundle: &Bundle,
+    acquisition: &str,
+    policy_hash: Option<&str>,
+) -> Result<Schema, ClassifyError> {
     let mut fields = vec![
         Field::new("event_id", DataType::UInt64, false),
         Field::new("source_event_id", DataType::UInt64, false),
@@ -315,14 +447,35 @@ fn prediction_schema(bundle: &Bundle, acquisition: &str) -> Result<Schema, Class
             .map(|id| Field::new(format!("p_{id}"), DataType::Float32, true)),
     );
     fields.push(Field::new("label", DataType::Utf8, true));
+    if policy_hash.is_some() {
+        fields.extend([
+            Field::new("confidence", DataType::Float32, true),
+            Field::new("uncertainty", DataType::Float32, true),
+            Field::new("ood_score", DataType::Float32, true),
+            Field::new("is_ood", DataType::Boolean, true),
+            Field::new("decision_status", DataType::Utf8, false),
+            Field::new("abstain_reason", DataType::Utf8, true),
+        ]);
+    }
     let mut metadata = HashMap::from([
         (
             "cytiq.classify.schema_version".into(),
-            bundle.schema_version.to_string(),
+            if policy_hash.is_some() {
+                "5".to_owned()
+            } else {
+                bundle.schema_version.to_string()
+            },
         ),
         ("cytiq.acquisition_sha256".into(), acquisition.to_owned()),
         ("cytiq.event_id_base".into(), "0".into()),
     ]);
+    if let Some(hash) = policy_hash {
+        metadata.insert("cytiq.classify.decision_policy_sha256".into(), hash.into());
+        metadata.insert(
+            "cytiq.classify.bundle_schema_version".into(),
+            bundle.schema_version.to_string(),
+        );
+    }
     if let Some(hash) = &bundle.vocabulary_sha256 {
         metadata.insert("cytiq.classify.vocabulary_sha256".into(), hash.clone());
         metadata.insert(
@@ -453,6 +606,7 @@ mod tests {
 
     fn summary_result() -> ClassifyRunResult {
         ClassifyRunResult {
+            decision: None,
             normalization: None,
             schema_version: 1,
             acquisition_sha256: "acquisition".into(),

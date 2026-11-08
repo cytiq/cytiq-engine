@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "dataset": "CytoNorm extdata / FR-FCM-Z247",
-  "cytiq_version": "0.1.0",
+  "cytiq_version": "0.4.1",
   "cytiq_build": {
-    "git_commit": "d389cd569f3489703470d24d406a1c727fa32eee",
+    "git_commit": "8120eff3a315f2053ca0d4b514ce411fac55b94b-dirty.8038f597c64f",
     "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
     "target": "aarch64-apple-darwin",
     "profile": "debug"
@@ -36,26 +36,29 @@
   "identity_compensation_preserved_values": true,
   "unchanged_channels_and_event_order_preserved": true,
   "validation_exclusion_and_thread_determinism": true,
-  "conditional_max_absolute_error": 0.35447384112862279,
+  "conditional_max_absolute_error": 2.6290081223123707e-12,
   "target_max_absolute_error": 1.7763568394002505e-15,
-  "conditional_max_interior_error": 0.057001950414257596,
-  "conditional_max_tail_error": 0.35447384112862279,
+  "coefficient_max_absolute_error": 3.5527136788005009e-15,
+  "unsafe_oracle_identity_mappings": 1,
+  "unsafe_oracle_identity_values": 288,
+  "conditional_max_interior_error": 1.3766765505351941e-14,
+  "conditional_max_tail_error": 2.6290081223123707e-12,
   "worst_case": {
     "sample": "Gates_PTLG028_Unstim_Control_2",
     "role": "validation",
     "batch": "PTLG028",
-    "metacluster": 5,
-    "marker": "CD45",
-    "event_index_one_based": 171,
-    "input": 1.9199117422103882,
-    "rust": 1.4911513481843734,
-    "R": 1.1366775070557507,
+    "metacluster": 1,
+    "marker": "CD11c",
+    "event_index_one_based": 765,
+    "input": 3.9847595691680908,
+    "rust": 23.328082337235088,
+    "R": 23.328082337232459,
     "outside_knots": true
   },
-  "passed": false,
-  "compared_values": 212306,
-  "identity_values": 9694,
-  "identity_mappings": 222,
+  "passed": true,
+  "compared_values": 212018,
+  "identity_values": 9982,
+  "identity_mappings": 223,
   "total_mappings": 555,
   "full_pipeline_ARI": {
     "Gates_PTLG021_Unstim_Control_1": 1,
@@ -70,17 +73,17 @@
       "role": "train",
       "comparisons": 555,
       "mean_before": 0.23606347069489242,
-      "mean_after": 0.14587338248285656,
-      "reduction_fraction": 0.38205863849474975,
+      "mean_after": 0.14694437925586543,
+      "reduction_fraction": 0.37752173674601153,
       "fraction_improved": 0.59999999999999998
     },
     {
       "role": "validation",
       "comparisons": 555,
       "mean_before": 0.25582485113245734,
-      "mean_after": 0.23524319583844075,
-      "reduction_fraction": 0.080452134352499316,
-      "fraction_improved": 0.33153153153153153
+      "mean_after": 0.23631380318015624,
+      "reduction_fraction": 0.076267211203023266,
+      "fraction_improved": 0.32792792792792791
     }
   ],
   "occupancy_cv": [
@@ -135,5 +138,5 @@
       "role": "validation"
     }
   ],
-  "limitations": ["Only the first 1000 real cells per file; not the full acquisitions.", "Explicit identity compensation is a harness adapter, not a CyTOF spillover estimate.", "Missing channel labels are filled from physical names in prepared copies only.", "Five metaclusters are pilot settings; the minimum remains the default 100 events.", "Sparse mappings explicitly retain original values; inspect their QC reasons.", "Distances are equal-weight means of within-cluster quantile-grid approximations.", "Real-data distances and stochastic ARI are descriptive, not biological acceptance criteria."]
+  "limitations": ["Only the first 1000 real cells per file; not the full acquisitions.", "Non-monotone upstream monoH.FC curves are refused; explicit sparse_policy identity retains their original values.", "Explicit identity compensation is a harness adapter, not a CyTOF spillover estimate.", "Missing channel labels are filled from physical names in prepared copies only.", "Five metaclusters are pilot settings; the minimum remains the default 100 events.", "Sparse mappings explicitly retain original values; inspect their QC reasons.", "Distances are equal-weight means of within-cluster quantile-grid approximations.", "Real-data distances and stochastic ARI are descriptive, not biological acceptance criteria."]
 }

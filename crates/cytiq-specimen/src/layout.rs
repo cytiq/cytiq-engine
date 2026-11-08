@@ -123,6 +123,9 @@ impl SpecimenLayout {
                 if let Some(bundle) = &mut source.bundle_manifest {
                     resolve(&base, &mut bundle.path);
                 }
+                if let Some(policy) = &mut source.decision_policy {
+                    resolve(&base, &mut policy.path);
+                }
                 if let Some(vocabulary) = &mut source.vocabulary {
                     resolve(&base, &mut vocabulary.path);
                 }
@@ -235,6 +238,7 @@ impl SpecimenLayout {
             for source in panel.sources.values() {
                 paths.push(source.definition.path.clone());
                 paths.extend(source.bundle_manifest.iter().map(|v| v.path.clone()));
+                paths.extend(source.decision_policy.iter().map(|v| v.path.clone()));
                 paths.extend(source.vocabulary.iter().map(|v| v.path.clone()));
             }
         }
