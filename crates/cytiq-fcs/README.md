@@ -24,6 +24,12 @@ Reading (`FcsReader`):
   per-parameter widths and `$BYTEORD`, into one column per parameter
   (`ColumnData::UInt`, `F32` or `F64`)
 
+`assess_detector_saturation` returns a physical upper-limit mask and per-channel
+diagnostics; `raw_margin_pass` retains its existing API and delegates to it.
+Negative signal and observed extrema do not define physical saturation.
+Legacy flowCore/PeacoQC thresholds remain explicitly separate. Invalid bounds,
+non-finite detector values and invalid channel indices return errors.
+
 The reader is strict by design: anything that does not match the spec is an
 error rather than a best-effort guess (duplicate keywords, HEADER/TEXT offset
 mismatch, non-UTF-8 TEXT, unsupported `$MODE`/`$BYTEORD`/widths, DATA length

@@ -73,9 +73,12 @@ Notes:
   give AutoSpectral's abundances (correlation ≥ 0.999).
 - On FACSDiva float data flowCore's −111 floor flags noise around zero, not
   saturation: `PeacoQC::RemoveMargins` removes 17,737 events of
-  `celesta_mdsc_sample` (31%), 17,700 of them at or below −111. cytiq's margin
-  mask uses the upper detector limit `$PnR − 1` only and flags 36; every one
-  of them is also removed by `RemoveMargins` (`kept_by_RemoveMargins` = 0).
+  `celesta_mdsc_sample` (31%), 17,700 of them at or below −111, when assessing
+  the fluorescence channels. The upper detector limit `$PnR − 1` flags 36 on
+  those channels. The current compensation mask also assesses scatter
+  saturation, giving 1,222 events in total; upstream `RemoveMargins` on the
+  same extended channel set removes 18,859. Every physically saturated event
+  is also removed by `RemoveMargins` (`kept_by_RemoveMargins` = 0).
   See `parity/REPORT.md` §2.10 and §3.
 - The AutoSpill datasets on FlowRepository (FR-FCM-Z2SS/Z2ST/Z2SV) are not
   fetched automatically: flowrepository.org serves a certificate that expired

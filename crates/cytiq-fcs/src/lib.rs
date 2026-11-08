@@ -43,8 +43,9 @@ pub use crate::limits::FcsReadLimits;
 pub use crate::lineage::{ORIGINAL_ID_PARAMETER, source_event_ids};
 pub use crate::linear::{ensure_linear_scale, linear_values, log_amplified_parameters};
 pub use crate::margins::{
-    MARGINS_KEYWORD, MarginBounds, dataset_margin_bounds, encode_margin_bounds, margin_channels,
-    raw_margin_pass, recorded_margin_bounds,
+    MARGINS_KEYWORD, MarginBounds, SaturationAssessment, SaturationChannelCounts,
+    SaturationDiagnostics, assess_detector_saturation, dataset_margin_bounds, encode_margin_bounds,
+    margin_channels, raw_margin_pass, recorded_margin_bounds,
 };
 pub use crate::signal::{
     COMPENSATION_KEYWORD, CompensationState, NORMALIZATION_KEYWORD, NormalizationState,

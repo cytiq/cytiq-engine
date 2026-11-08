@@ -73,7 +73,9 @@ println!("kept {}", result.summary.metrics.events_after);
   keyword is kept, including the spillover matrix and the original `$PnR`.
 - `<output>.masks.parquet` holds one row per input event in the
   [`cytiq-mask`](../cytiq-mask) layout: `event_id`, `source_event_id`,
-  `margin_pass`, `peacoqc_pass` and `keep` (null = not assessed).
+  `margin_pass`, `margin_lower_pass`, `margin_upper_pass`, `peacoqc_pass` and
+  `keep` (null = not assessed). Lower/upper rule columns preserve exact event
+  diagnostics without changing the aggregate `margin_pass` policy contract.
 - `remove_margins` uses raw detector bounds, or the bounds recorded in
   `CYTIQ_MARGINS` by `cytiq transform`. Channels transformed or compensated
   without recorded bounds are an error.
@@ -81,11 +83,17 @@ println!("kept {}", result.summary.metrics.events_after);
   `$PnR - 1` and flowCore's low bound (−111). On float data the low bound
   can flag ordinary noise around zero; the margin mask from
   [`compensate`](../cytiq-compensate/README.md) uses the upper limit only.
+  The flag is disabled by default and emits an explicit legacy-filter warning.
+  Unprocessed flowCore files honor their `flowCore_$PnRmin/Rmax` metadata;
+  Cytiq-recorded bounds retain priority for derived signals.
 - `--remove-zeros` ignores zero values during peak detection (useful for mass
   cytometry).
 - Channels match `$PnN`, then `$PnS`, then `$PnN [$PnS]`.
 - With `debug_dir`, writes `summary.json`, `mask.csv` and `report.html`
   (Plotly from the CDN).
+- `<output stem>.summary.json` is always published with the FCS and mask and
+  recorded in provenance. Its per-channel margin diagnostics include thresholds
+  in the input file's signal space, lower/upper counts and their union count.
 - `summary.json` `status` is `WARN` when `warnings` is not empty, otherwise
   `PASS`. It does not judge how much was removed; panel thresholds are
   checked by `cytiq qc`.

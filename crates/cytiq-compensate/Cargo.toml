@@ -9,6 +9,7 @@ categories.workspace = true
 description = "Applies a spillover or compensation matrix to the events of an FCS file"
 
 [dependencies]
+serde_json.workspace = true
 csv.workspace = true
 cytiq-fcs.workspace = true
 cytiq-mask.workspace = true

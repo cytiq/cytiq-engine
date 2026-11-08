@@ -723,6 +723,7 @@ dependencies = [
  "cytiq-mask",
  "cytiq-publish",
  "log",
+ "serde_json",
  "thiserror",
 ]
 

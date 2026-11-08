@@ -16,18 +16,21 @@ use crate::runner::{EventMaskRecord, PeacoQcSummary};
 ///
 /// Returns an error if the directory cannot be created or any artifact cannot
 /// be written.
-pub fn write_debug_artifacts(
+pub(crate) fn stage_debug_artifacts(
+    publication: &mut Publication,
     summary: &PeacoQcSummary,
     mask: &[EventMaskRecord],
     debug_dir: &Path,
 ) -> Result<(), PeacoQcError> {
-    fs::create_dir_all(debug_dir).map_err(|source| PeacoQcError::DebugDirectoryCreate {
-        path: debug_dir.to_path_buf(),
-        source,
+    publication.stage_path(debug_dir.join("summary.json"), |path| {
+        write_summary_json(path, summary)
     })?;
-    write_summary_json(&debug_dir.join("summary.json"), summary)?;
-    write_mask_csv(&debug_dir.join("mask.csv"), mask)?;
-    write_report_html(&debug_dir.join("report.html"), summary, mask)
+    publication.stage_path(debug_dir.join("mask.csv"), |path| {
+        write_mask_csv(path, mask)
+    })?;
+    publication.stage_path(debug_dir.join("report.html"), |path| {
+        write_report_html(path, summary, mask)
+    })
 }
 
 /// One row per input event, in the schema of `cytiq clean`'s masks: `event_id`
@@ -62,6 +65,18 @@ pub(crate) fn stage_masks_parquet(
         source_event_ids.map(<[u64]>::to_vec),
     )
     .with_filter("margin_pass", margin_pass)
+    .with_filter(
+        "margin_lower_pass",
+        mask.iter()
+            .map(|r| margins_assessed.then_some(!r.removed_by_lower_margin))
+            .collect(),
+    )
+    .with_filter(
+        "margin_upper_pass",
+        mask.iter()
+            .map(|r| margins_assessed.then_some(!r.removed_by_upper_margin))
+            .collect(),
+    )
     .with_filter("peacoqc_pass", peacoqc_pass)
     .stage_parquet(publication, path)
     .map_err(|error| PeacoQcError::ParquetWrite {

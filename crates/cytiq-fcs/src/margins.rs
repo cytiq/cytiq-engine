@@ -29,6 +29,23 @@ pub struct MarginBounds {
 }
 
 impl MarginBounds {
+    /// Validate bounds before using them to remove events.
+    /// # Errors
+    /// Rejects non-finite or reversed detector bounds.
+    pub fn validate(&self) -> Result<(), FcsError> {
+        if !self.lower.is_finite()
+            || self
+                .upper
+                .is_some_and(|upper| !upper.is_finite() || upper < self.lower)
+        {
+            return Err(FcsError::InvalidKeywordValue {
+                key: MARGINS_KEYWORD.to_owned(),
+                value: "nonfinite or reversed margin bounds".to_owned(),
+            });
+        }
+        Ok(())
+    }
+
     /// Bounds from raw acquisition keywords, as `PeacoQC::RemoveMargins` sees
     /// them through flowCore: `minRange = min($PnE zero value, max(-111,
     /// min(e)))`, `maxRange = $PnR - 1`, low threshold `max(min(minRange, 0),
@@ -39,9 +56,15 @@ impl MarginBounds {
         let explicit_min =
             keyword_f64(parameter, "minRange").or_else(|| keyword_f64(parameter, "min"));
         let lower = match explicit_min {
+            Some(minimum) if !minimum.is_finite() => minimum,
             Some(minimum) => minimum.min(0.0),
-            None => zero_value(parameter)
-                .map_or(DEFAULT_LOWER_BOUND, |zero| zero.min(DEFAULT_LOWER_BOUND)),
+            None => zero_value(parameter).map_or(DEFAULT_LOWER_BOUND, |zero| {
+                if zero.is_finite() {
+                    zero.min(DEFAULT_LOWER_BOUND)
+                } else {
+                    zero
+                }
+            }),
         };
         let upper = keyword_f64(parameter, &format!("$P{}R", parameter.index))
             .map(|range| range - 1.0)
@@ -64,9 +87,13 @@ impl MarginBounds {
         };
         let mut bounds = Self::from_raw_parameter(parameter);
         if let Some(minimum) = keyword("Rmin") {
-            bounds.lower = zero_value(parameter)
-                .map_or(minimum, |zero| zero.min(minimum))
-                .min(0.0);
+            bounds.lower = if minimum.is_finite() {
+                zero_value(parameter)
+                    .map_or(minimum, |zero| zero.min(minimum))
+                    .min(0.0)
+            } else {
+                minimum
+            };
         }
         if let Some(maximum) = keyword("Rmax") {
             bounds.upper = Some(maximum);
@@ -155,7 +182,7 @@ pub fn dataset_margin_bounds(
     let transformed =
         |name: &str| state.transformed(name) || state.compensated(name) || state.unmixed(name);
 
-    Ok(parameters
+    let bounds: BTreeMap<_, _> = parameters
         .iter()
         .filter(|p| {
             !state
@@ -169,7 +196,61 @@ pub fn dataset_margin_bounds(
             })?;
             Some((parameter.name.clone(), bounds))
         })
-        .collect())
+        .collect();
+    for parameter in parameters {
+        if recorded.contains_key(&parameter.name)
+            || transformed(&parameter.name)
+            || state
+                .normalization
+                .as_ref()
+                .is_some_and(|n| n.channels.contains(&parameter.name))
+        {
+            continue;
+        }
+        for (key, value) in &parameter.keywords {
+            let range = key == &format!("$P{}R", parameter.index);
+            if (range || ["minRange", "maxRange", "min", "max"].contains(&key.as_str()))
+                && value
+                    .trim()
+                    .parse::<f64>()
+                    .map_or(true, |v| !v.is_finite() || (range && v <= 0.0))
+            {
+                return Err(FcsError::InvalidKeywordValue {
+                    key: key.clone(),
+                    value: value.clone(),
+                });
+            }
+        }
+    }
+    for value in bounds.values() {
+        value.validate()?;
+    }
+    Ok(bounds)
+}
+
+/// Detector saturation diagnostics; negative signal and observed extrema do
+/// not define physical detector saturation.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SaturationDiagnostics {
+    pub schema_version: u32,
+    pub rule: &'static str,
+    pub events: usize,
+    pub removed_count: usize,
+    pub channels: Vec<SaturationChannelCounts>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SaturationChannelCounts {
+    pub channel: String,
+    /// None means the file declares no upper detector bound.
+    pub upper: Option<f64>,
+    pub removed_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SaturationAssessment {
+    pub pass: Vec<bool>,
+    pub diagnostics: SaturationDiagnostics,
 }
 
 /// The channels an acquisition's raw margins are judged on: `detectors` (the
@@ -203,10 +284,18 @@ pub fn margin_channels(dataset: &FcsDataset, detectors: &[usize]) -> Vec<usize> 
 ///
 /// Returns an error when `CYTIQ_*` state keywords are invalid.
 ///
-/// # Panics
-///
-/// Panics when an index is out of range.
 pub fn raw_margin_pass(dataset: &FcsDataset, indices: &[usize]) -> Result<Vec<bool>, FcsError> {
+    Ok(assess_detector_saturation(dataset, indices)?.pass)
+}
+
+/// Assess physical saturation before compensation/unmixing, with counts per
+/// detector and a union count. Memory is bounded by events plus channels.
+/// # Errors
+/// Rejects invalid bounds, non-finite values, unknown processed bounds and indices.
+pub fn assess_detector_saturation(
+    dataset: &FcsDataset,
+    indices: &[usize],
+) -> Result<SaturationAssessment, FcsError> {
     if crate::normalization_state(&dataset.text)?.is_some() {
         return Err(FcsError::InvalidKeywordValue {
             key: crate::NORMALIZATION_KEYWORD.to_owned(),
@@ -215,23 +304,64 @@ pub fn raw_margin_pass(dataset: &FcsDataset, indices: &[usize]) -> Result<Vec<bo
     }
     let bounds = dataset_margin_bounds(&dataset.text, &dataset.parameters)?;
     let mut pass = vec![true; dataset.event_count()];
+    let mut channels = Vec::with_capacity(indices.len());
     for index in indices {
-        let parameter = &dataset.parameters[*index];
-        let bounds = bounds
-            .get(&parameter.name)
-            .copied()
-            .unwrap_or_else(|| MarginBounds::from_raw_parameter(parameter));
+        let parameter =
+            dataset
+                .parameters
+                .get(*index)
+                .ok_or_else(|| FcsError::InvalidKeywordValue {
+                    key: "margin channel index".to_owned(),
+                    value: index.to_string(),
+                })?;
+        let bounds =
+            bounds
+                .get(&parameter.name)
+                .copied()
+                .ok_or_else(|| FcsError::InvalidKeywordValue {
+                    key: MARGINS_KEYWORD.to_owned(),
+                    value: format!("unknown bounds for {}", parameter.name),
+                })?;
         let values = dataset
             .data
             .column(*index)
-            .expect("every parameter has a data column")
+            .ok_or_else(|| FcsError::InvalidKeywordValue {
+                key: parameter.name.clone(),
+                value: "missing detector data column".to_owned(),
+            })?
             .to_f64_vec();
         let limit = bounds.detector_limit();
+        if values.len() != pass.len() {
+            return Err(FcsError::InvalidKeywordValue {
+                key: parameter.name.clone(),
+                value: "detector column length mismatch".to_owned(),
+            });
+        }
+        let mut removed_count = 0;
         for (event, value) in pass.iter_mut().zip(&values) {
+            if !value.is_finite() {
+                return Err(FcsError::InvalidKeywordValue {
+                    key: parameter.name.clone(),
+                    value: "nonfinite detector signal".to_owned(),
+                });
+            }
+            removed_count += usize::from(*value >= limit);
             *event &= *value < limit;
         }
+        channels.push(SaturationChannelCounts {
+            channel: parameter.name.clone(),
+            upper: bounds.upper,
+            removed_count,
+        });
     }
-    Ok(pass)
+    let diagnostics = SaturationDiagnostics {
+        schema_version: 1,
+        rule: "detector_saturation",
+        events: pass.len(),
+        removed_count: pass.iter().filter(|pass| !**pass).count(),
+        channels,
+    };
+    Ok(SaturationAssessment { pass, diagnostics })
 }
 
 fn keyword_f64(parameter: &Parameter, key: &str) -> Option<f64> {
@@ -354,6 +484,68 @@ mod tests {
             raw_margin_pass(&dataset, &[0]).unwrap(),
             [true, true, true, true, false, false]
         );
+    }
+
+    #[test]
+    fn saturation_keeps_a_point_two_percent_population_at_the_observed_maximum() {
+        let parameters = [crate::FcsWriteParameter::new("FL1-A").with_range(1024.0)];
+        let mut values = vec![-500.0_f32; 998];
+        values.extend([1000.0, 1000.0]);
+        let mut bytes = Vec::new();
+        crate::write_fcs3_1_f32_to_writer(&mut bytes, &parameters, &[values]).unwrap();
+        let dataset = crate::FcsReader::new(std::io::Cursor::new(bytes))
+            .read()
+            .unwrap();
+        let result = assess_detector_saturation(&dataset, &[0]).unwrap();
+        assert_eq!(result.pass, vec![true; 1000]);
+        assert_eq!(result.diagnostics.removed_count, 0);
+        assert_eq!(result.diagnostics.channels[0].upper, Some(1023.0));
+    }
+
+    #[test]
+    fn saturation_diagnostics_preserve_negative_populations_and_count_overlap() {
+        let parameters = [
+            crate::FcsWriteParameter::new("FL1-A").with_range(1024.0),
+            crate::FcsWriteParameter::new("FSC-A").with_range(1024.0),
+        ];
+        let columns = [
+            vec![-500.0_f32, -111.0, 1023.0, 1023.0, 0.0],
+            vec![0.0, 0.0, 0.0, 1023.0, 1023.0],
+        ];
+        let mut bytes = Vec::new();
+        crate::write_fcs3_1_f32_to_writer(&mut bytes, &parameters, &columns).unwrap();
+        let dataset = crate::FcsReader::new(std::io::Cursor::new(bytes))
+            .read()
+            .unwrap();
+        let result = assess_detector_saturation(&dataset, &[0, 1]).unwrap();
+        assert_eq!(result.pass, [true, true, false, false, false]);
+        assert_eq!(result.diagnostics.removed_count, 3);
+        assert_eq!(
+            result
+                .diagnostics
+                .channels
+                .iter()
+                .map(|c| c.removed_count)
+                .collect::<Vec<_>>(),
+            [2, 2]
+        );
+        assert!(assess_detector_saturation(&dataset, &[2]).is_err());
+        for bounds in [
+            MarginBounds {
+                lower: 0.0,
+                upper: Some(f64::NAN),
+            },
+            MarginBounds {
+                lower: f64::NEG_INFINITY,
+                upper: None,
+            },
+            MarginBounds {
+                lower: 10.0,
+                upper: Some(1.0),
+            },
+        ] {
+            assert!(bounds.validate().is_err());
+        }
     }
 
     #[test]
