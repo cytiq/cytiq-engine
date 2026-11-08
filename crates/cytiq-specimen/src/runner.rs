@@ -153,6 +153,8 @@ pub fn validate_population(
         true,
         if annotations.technical_status == "fail" {
             OutcomeReason::ChecksFailed
+        } else if annotations.unknown_events > 0 || annotations.abstained_events.unwrap_or(0) > 0 {
+            OutcomeReason::Incomplete
         } else {
             OutcomeReason::Success
         },
@@ -180,18 +182,23 @@ pub fn write_observations(
         PackageBegin::Reused(outcome) => return Ok(outcome),
         PackageBegin::Compute(run) => run,
     };
-    let (annotations, observations) = cytiq_population::observe(&config)?;
+    let (annotations, observations, assessment) =
+        cytiq_population::annotations::observe_with_release(&config)?;
     let reason = if annotations.technical_status == "fail" {
         OutcomeReason::ChecksFailed
+    } else if annotations.unknown_events > 0 || annotations.abstained_events.unwrap_or(0) > 0 {
+        OutcomeReason::Incomplete
     } else {
         OutcomeReason::Success
     };
     Ok(run.write("cytiq population observe", reason, |staged| {
+        write_json(&staged.join("release-qc.json"), &assessment)?;
         write_json(&staged.join("event-annotations.json"), &annotations)?;
         table::write(&staged.join("observations.parquet"), &observations)?;
         Ok(vec![
             "event-annotations.json".into(),
             "observations.parquet".into(),
+            "release-qc.json".into(),
         ])
     })?)
 }
@@ -210,6 +217,7 @@ pub fn run_specimen(
     recorder.snapshot_inputs("plan", &plan_files(plan_path))?;
     let plan = SpecimenPlan::load(plan_path)?;
     let mut sources = Vec::new();
+    let mut release_assessments = Vec::new();
     for package in packages {
         let names = [
             "event-annotations.json",
@@ -230,6 +238,37 @@ pub fn run_specimen(
             &package.join("event-annotations.json"),
         )?)?;
         let observations = table::read(&package.join("observations.parquet"))?;
+        let (status, message) = if outcome
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.path == "release-qc.json")
+        {
+            let path = package.join("release-qc.json");
+            recorder.snapshot_inputs("release_qc", std::slice::from_ref(&path))?;
+            let status = cytiq_population::annotations::validate_release_assessment(
+                &serialization::read(&path)?,
+                &annotations,
+            )?;
+            (
+                status,
+                "panel policy and mandatory assessments were checked before population publication",
+            )
+        } else {
+            (
+                CheckStatus::Fail,
+                "source has no pinned release QC assessment; regenerate the population package",
+            )
+        };
+        release_assessments.push(crate::reconcile::SpecimenCheck {
+            category: "technical".into(),
+            scope: format!(
+                "{}/{}",
+                annotations.context.panel_id, annotations.context.source_id
+            ),
+            check: "release_assessment".into(),
+            status,
+            message: message.into(),
+        });
         sources.push(SourceObservations {
             annotations,
             observations,
@@ -239,7 +278,14 @@ pub fn run_specimen(
         PackageBegin::Reused(outcome) => return Ok(outcome),
         PackageBegin::Compute(run) => run,
     };
-    let result = reconcile(&plan, &sources)?;
+    let mut result = reconcile(&plan, &sources)?;
+    result.checks.extend(release_assessments);
+    result.status = result
+        .checks
+        .iter()
+        .map(|check| check.status)
+        .max()
+        .unwrap_or(CheckStatus::Pass);
     let reason = if !result.complete {
         OutcomeReason::Incomplete
     } else if result.status == CheckStatus::Fail {

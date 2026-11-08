@@ -105,13 +105,14 @@ impl QcMetrics {
 
 /// `2.margin_pass` → `margin_pass`: the prefix `cytiq mask combine` adds to a
 /// repeated filter name.
-fn base_name(column: &str) -> &str {
-    match column.split_once('.') {
-        Some((index, name)) if !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()) => {
-            name
+fn base_name(mut column: &str) -> &str {
+    while let Some((index, name)) = column.split_once('.') {
+        if index.is_empty() || !index.bytes().all(|b| b.is_ascii_digit()) {
+            break;
         }
-        _ => column,
+        column = name;
     }
+    column
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -244,6 +245,41 @@ pub fn evaluate(sample_scope: &str, policy: &QcPolicy, metrics: &QcMetrics) -> V
     checks
 }
 
+/// Release requires an effective panel policy and every mandatory assessment,
+/// independently of the severity used for exploratory reporting.
+#[must_use]
+pub fn evaluate_release(
+    scope: &str,
+    policy: Option<&QcPolicy>,
+    metrics: &QcMetrics,
+) -> Vec<QcCheck> {
+    let Some(policy) = policy.filter(|policy| policy.has_rules()) else {
+        return vec![QcCheck::new(
+            scope,
+            "policy",
+            CheckStatus::Fail,
+            "release requires an explicit nonempty panel QC policy".to_owned(),
+        )];
+    };
+    let mut checks = evaluate(scope, policy, metrics);
+    for (name, rule) in &policy.filters {
+        if rule.required
+            && !metrics
+                .filters
+                .iter()
+                .any(|filter| filter.name == *name && filter.assessed > 0)
+        {
+            checks.push(QcCheck::new(
+                &format!("filter {name}"),
+                "required_assessment",
+                CheckStatus::Fail,
+                format!("mandatory filter `{name}` was not assessed; release is blocked"),
+            ));
+        }
+    }
+    checks
+}
+
 fn evaluate_filter(name: &str, rule: &FilterPolicy, metrics: &QcMetrics) -> Vec<QcCheck> {
     let mut checks = Vec::new();
     let scope = format!("filter {name}");
@@ -252,7 +288,7 @@ fn evaluate_filter(name: &str, rule: &FilterPolicy, metrics: &QcMetrics) -> Vec<
     let missing = if rule.required {
         violated
     } else {
-        CheckStatus::Pass
+        CheckStatus::Warn
     };
     let Some(filter) = metrics.filters.iter().find(|filter| filter.name == name) else {
         checks.push(QcCheck::new(
@@ -338,6 +374,66 @@ fn evaluate_filter(name: &str, rule: &FilterPolicy, metrics: &QcMetrics) -> Vec<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nested_combine_prefixes_preserve_assessment_and_union_of_failures() {
+        let mask = super::EventMask::new("a".repeat(64), vec![true, false, false], None)
+            .with_filter("live", vec![None, None, Some(false)])
+            .with_filter("2.live", vec![None, Some(false), None])
+            .with_filter("2.2.live", vec![Some(true), None, None]);
+        let metrics = super::QcMetrics::of(&mask, 3, 1);
+        assert_eq!(metrics.filters.len(), 1);
+        assert_eq!(metrics.filters[0].name, "live");
+        assert_eq!(metrics.filters[0].assessed, 3);
+        assert_eq!(metrics.filters[0].removed, 2);
+    }
+    #[test]
+    fn release_requires_effective_policy_and_mandatory_assessment_even_when_severity_warns() {
+        let metrics = super::QcMetrics::of(
+            &super::EventMask::new("a".repeat(64), vec![true; 3], None)
+                .with_filter("live", vec![None; 3]),
+            3,
+            3,
+        );
+        for policy in [None, Some(cytiq_manifest::QcPolicy::default())] {
+            assert!(
+                super::evaluate_release("sample", policy.as_ref(), &metrics)
+                    .iter()
+                    .any(|c| c.status == super::CheckStatus::Fail)
+            );
+        }
+        let policy = cytiq_manifest::QcPolicy {
+            filters: std::collections::BTreeMap::from([(
+                "live".into(),
+                cytiq_manifest::FilterPolicy {
+                    required: true,
+                    severity: cytiq_manifest::Severity::Warn,
+                    ..Default::default()
+                },
+            )]),
+            ..Default::default()
+        };
+        assert!(
+            super::evaluate("sample", &policy, &metrics)
+                .iter()
+                .all(|c| c.status != super::CheckStatus::Fail)
+        );
+        assert!(
+            super::evaluate_release("sample", Some(&policy), &metrics)
+                .iter()
+                .any(|c| c.status == super::CheckStatus::Fail)
+        );
+        let optional = cytiq_manifest::QcPolicy {
+            filters: std::collections::BTreeMap::from([(
+                "live".into(),
+                cytiq_manifest::FilterPolicy::default(),
+            )]),
+            ..Default::default()
+        };
+        assert_eq!(
+            super::evaluate("sample", &optional, &metrics)[0].status,
+            super::CheckStatus::Warn
+        );
+    }
     use std::collections::BTreeMap;
 
     use super::*;
@@ -485,7 +581,11 @@ mod tests {
             live.message
         );
         let singlets = find("filter singlets", "filter_assessed");
-        assert_eq!(singlets.status, CheckStatus::Pass, "optional and absent");
+        assert_eq!(
+            singlets.status,
+            CheckStatus::Warn,
+            "an absent optional filter has no successful assessment"
+        );
     }
 
     #[test]

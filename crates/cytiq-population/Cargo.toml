@@ -14,6 +14,9 @@ arrow-array.workspace = true
 arrow-schema.workspace = true
 cytiq-provenance.workspace = true
 cytiq-publish.workspace = true
+cytiq-qc.workspace = true
+cytiq-manifest.workspace = true
+cytiq-mask.workspace = true
 parquet = { workspace = true, features = ["zstd"] }
 serde.workspace = true
 serde_json = { workspace = true, features = ["float_roundtrip"] }

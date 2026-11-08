@@ -12,6 +12,12 @@ BLAST110. The Blast phenotype does not imply a leukemic/LAIP-positive cell.
 cytiq classify --input sample.fcs --model bundle/ --output results/
 ```
 
+An explicit `--decision-policy policy.json` enables a separately validated
+selective classifier. It never supplies default rejection thresholds or changes
+bundle v1–v4. `ClassifyRunner::run_with_policy` is the corresponding Rust API;
+`run` retains legacy behavior. See the [decision policy contract](../../docs/classifier-decision-policy.md)
+for evidence, OOD scorer, output schema 5 and the required cytiq-ml changes.
+
 The bundle contains `model.onnx` and a manifest declaring instrument,
 channels/marker aliases, preprocessing, class order, checksum and threshold.
 The runner validates the panel and model hash, linearises raw FCS signals,

@@ -65,6 +65,8 @@ pub struct SourceDefinition {
     pub bundle_manifest: Option<ArtifactRef>,
     #[serde(default)]
     pub abstain_margin: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_policy: Option<ArtifactRef>,
     #[serde(default)]
     pub vocabulary: Option<KnowledgeRef>,
     #[serde(default)]
@@ -88,6 +90,7 @@ impl SourceDefinition {
                 require(
                     self.vocabulary.is_none()
                         && self.bundle_manifest.is_none()
+                        && self.decision_policy.is_none()
                         && self.abstain_margin == 0.0
                         && !self.bindings.is_empty(),
                     "gating requires explicit bindings and no vocabulary",
@@ -241,12 +244,31 @@ pub struct EventAnnotations {
     pub technical_status: String,
     pub assessed_events: u64,
     pub unknown_events: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abstained_events: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ood_events: Option<u64>,
 }
 
 /// Produce per-source observations without changing or materializing annotation files.
 /// # Errors
 /// Rejects broken provenance, wrong acquisitions, incomplete coverage and invalid memberships.
 pub fn observe(config: &ObserveConfig) -> Result<(EventAnnotations, Vec<PopulationObservation>)> {
+    let (descriptor, observations, _) = observe_with_release(config)?;
+    Ok((descriptor, observations))
+}
+
+/// Observe and return a release assessment bound to the manifest and mask.
+/// Specimen reconciliation consumes this snapshot without event-level I/O.
+/// # Errors
+/// Returns the same lineage, provenance and policy errors as [`observe`].
+pub fn observe_with_release(
+    config: &ObserveConfig,
+) -> Result<(
+    EventAnnotations,
+    Vec<PopulationObservation>,
+    serde_json::Value,
+)> {
     let projection = config.context.projection.load()?;
     let mut context = config.context.clone();
     context.source.resolve(&projection)?;
@@ -258,33 +280,7 @@ pub fn observe(config: &ObserveConfig) -> Result<(EventAnnotations, Vec<Populati
     let mask = ArtifactRef::of(&config.mask)?;
     let producer_ref = ArtifactRef::of(&config.producer_provenance)?;
     let producer = producer_record(&config.producer_provenance)?;
-    let expected_tool = match context.source.format {
-        AnnotationFormat::GateMembership => "cytiq gate",
-        AnnotationFormat::ClassifyPredictions => "cytiq classify",
-    };
-    require(
-        producer.tool == expected_tool && producer.outputs.iter().any(|f| f.sha256 == data.sha256),
-        "producer does not describe annotations",
-    )?;
-    require(
-        producer
-            .inputs
-            .iter()
-            .any(|f| f.sha256 == context.source.definition.sha256),
-        "producer definition checksum mismatch",
-    )?;
-    check_single_mask(&producer, &mask)?;
-    if let Some(bundle) = &context.source.bundle_manifest {
-        require(
-            producer
-                .inputs
-                .iter()
-                .any(|f| f.role.as_deref() == Some("model") && f.sha256 == bundle.sha256)
-                && producer.config["abstain_margin"].as_f64()
-                    == Some(context.source.abstain_margin),
-            "classifier bundle or abstain configuration differs from the plan",
-        )?;
-    }
+    validate_producer(&context, &producer, &data, &mask)?;
     let qc_ref = ArtifactRef::of(&config.qc_report)?;
     let qc_provenance = ArtifactRef::of(&config.qc_provenance)?;
     let qc_record = producer_record(&config.qc_provenance)?;
@@ -301,15 +297,33 @@ pub fn observe(config: &ObserveConfig) -> Result<(EventAnnotations, Vec<Populati
         "technical QC used a different manifest from the specimen plan",
     )?;
     let qc = serialization::read(&config.qc_report)?;
-    let status = qc_status(&qc, &context)?;
+    let mut status = qc_status(&qc, &context)?;
     let eligible = read_mask(&config.mask, &context)?;
-    let (counts, assessed, unknown) = count_annotations(&config.annotations, &context, &eligible)?;
+    let AnnotationCounts {
+        counts,
+        assessed,
+        unknown,
+        abstained,
+        ood,
+    } = count_annotations(&config.annotations, &context, &eligible)?;
     require(
         qc["metrics"]["kept"].as_u64() == Some(assessed),
         "QC and annotation assessment counts disagree",
     )?;
+    let release_checks = release_checks(&context, &qc_record, &config.mask)?;
+    status = match release_checks.iter().map(|check| check.status).max() {
+        Some(cytiq_qc::CheckStatus::Fail) => "fail",
+        Some(cytiq_qc::CheckStatus::Warn) if status == "pass" => "warn",
+        _ => status,
+    };
     let descriptor = EventAnnotations {
-        schema_version: 1,
+        schema_version: if context.source.decision_policy.is_some() {
+            2
+        } else {
+            1
+        },
+        abstained_events: context.source.decision_policy.as_ref().map(|_| abstained),
+        ood_events: context.source.decision_policy.as_ref().map(|_| ood),
         context,
         data,
         producer_provenance: producer_ref,
@@ -321,7 +335,67 @@ pub fn observe(config: &ObserveConfig) -> Result<(EventAnnotations, Vec<Populati
         unknown_events: unknown,
     };
     let observations = observations(&descriptor, &projection, &counts)?;
-    Ok((descriptor, observations))
+    let assessment = serde_json::json!({"schema_version":1,"algorithm":"panel-qc-release-v1",
+        "manifest_sha256":descriptor.context.manifest_sha256,"mask_sha256":descriptor.analysis_mask.sha256,
+        "acquisition":descriptor.context.acquisition_sha256,"sample":descriptor.context.acquisition_id,
+        "panel":descriptor.context.panel_id,
+        "status":release_checks.iter().map(|check|check.status).max().unwrap_or(cytiq_qc::CheckStatus::Fail),
+        "checks":release_checks});
+    Ok((descriptor, observations, assessment))
+}
+
+fn validate_producer(
+    context: &ObservationContext,
+    producer: &RunRecord,
+    data: &ArtifactRef,
+    mask: &ArtifactRef,
+) -> Result<()> {
+    let expected_tool = match context.source.format {
+        AnnotationFormat::GateMembership => "cytiq gate",
+        AnnotationFormat::ClassifyPredictions => "cytiq classify",
+    };
+    require(
+        producer.tool == expected_tool && producer.outputs.iter().any(|f| f.sha256 == data.sha256),
+        "producer does not describe annotations",
+    )?;
+    require(
+        producer
+            .inputs
+            .iter()
+            .any(|f| f.sha256 == context.source.definition.sha256),
+        "producer definition checksum mismatch",
+    )?;
+    check_single_mask(producer, mask)?;
+    if let Some(bundle) = &context.source.bundle_manifest {
+        require(
+            producer
+                .inputs
+                .iter()
+                .any(|f| f.role.as_deref() == Some("model") && f.sha256 == bundle.sha256)
+                && producer.config["abstain_margin"].as_f64()
+                    == Some(context.source.abstain_margin),
+            "classifier bundle or abstain configuration differs from the plan",
+        )?;
+    }
+    if let Some(policy) = &context.source.decision_policy {
+        policy.verify()?;
+        require(
+            producer
+                .inputs
+                .iter()
+                .any(|f| f.role.as_deref() == Some("decision_policy") && f.sha256 == policy.sha256),
+            "classifier decision policy differs from the plan",
+        )?;
+    } else {
+        require(
+            producer
+                .inputs
+                .iter()
+                .all(|f| f.role.as_deref() != Some("decision_policy")),
+            "classifier used an unplanned decision policy",
+        )?;
+    }
+    Ok(())
 }
 
 fn producer_record(path: &Path) -> Result<RunRecord> {
@@ -440,31 +514,60 @@ fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
     Ok(eligible)
 }
 
+#[derive(Default)]
+struct AnnotationCounts {
+    counts: BTreeMap<String, u64>,
+    assessed: u64,
+    unknown: u64,
+    abstained: u64,
+    ood: u64,
+}
+
+impl AnnotationCounts {
+    fn new(context: &ObservationContext) -> Self {
+        Self {
+            counts: context
+                .source
+                .bindings
+                .iter()
+                .map(|binding| (binding.label.clone(), 0))
+                .collect(),
+            ..Self::default()
+        }
+    }
+}
+
 fn count_annotations(
     path: &Path,
     context: &ObservationContext,
     eligible: &Bitmap,
-) -> Result<(BTreeMap<String, u64>, u64, u64)> {
+) -> Result<AnnotationCounts> {
     let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
     metadata(&builder, context)?;
     let classifier = validate_source_metadata(&builder, context)?;
+    let policy = context
+        .source
+        .decision_policy
+        .as_ref()
+        .map(|reference| crate::decision::DecisionPolicy::load(&reference.path))
+        .transpose()?;
     let mut columns = vec!["event_id".into(), "source_event_id".into()];
     columns.push(if classifier { "assessed" } else { "keep" }.into());
     if classifier {
         columns.push("label".into());
+        if policy.is_some() {
+            columns.extend([
+                "decision_status".into(),
+                "abstain_reason".into(),
+                "is_ood".into(),
+            ]);
+        }
     } else {
         columns.extend(context.source.bindings.iter().map(|b| b.label.clone()));
     }
-    let mut counts: BTreeMap<_, _> = context
-        .source
-        .bindings
-        .iter()
-        .map(|b| (b.label.clone(), 0_u64))
-        .collect();
+    let mut result = AnnotationCounts::new(context);
     let parents = denominator_indices(&context.source.bindings);
     let mut seen = booleans(eligible.len())?;
-    let mut assessed = 0_u64;
-    let mut unknown = 0;
     let mut rows = 0_u64;
     for batch in projected(builder, &columns)? {
         let batch = batch?;
@@ -504,33 +607,27 @@ fn count_annotations(
                 "annotation eligibility disagrees with QC mask",
             )?;
             if keep.value(i) {
-                assessed += 1;
+                result.assessed += 1;
             }
             if let Some(labels) = labels {
-                require(
-                    labels.is_null(i) != keep.value(i),
-                    "classification assessment/label mismatch",
+                count_classifier_row(
+                    context,
+                    &batch,
+                    labels,
+                    policy.as_ref(),
+                    i,
+                    keep.value(i),
+                    &mut result,
                 )?;
-                if keep.value(i) {
-                    let label = labels.value(i);
-                    if label == "unknown" {
-                        require(
-                            context
-                                .source
-                                .bindings
-                                .iter()
-                                .all(|b| b.target.kind == TargetKind::Phenotype),
-                            "unknown is unsupported for multiclass predictions",
-                        )?;
-                        unknown += 1;
-                    } else {
-                        *counts.get_mut(label).ok_or_else(|| {
-                            crate::PopulationError::Invalid("unknown classifier label".into())
-                        })? += 1;
-                    }
-                }
             } else {
-                count_gate_row(context, &gates, &parents, &mut counts, i, keep.value(i))?;
+                count_gate_row(
+                    context,
+                    &gates,
+                    &parents,
+                    &mut result.counts,
+                    i,
+                    keep.value(i),
+                )?;
             }
         }
     }
@@ -538,7 +635,83 @@ fn count_annotations(
         (0..eligible.len()).all(|i| !eligible.get(i) || seen.get(i)),
         "annotations omit eligible raw events",
     )?;
-    Ok((counts, assessed, unknown))
+    Ok(result)
+}
+
+fn count_classifier_row(
+    context: &ObservationContext,
+    batch: &RecordBatch,
+    labels: &StringArray,
+    policy: Option<&crate::decision::DecisionPolicy>,
+    i: usize,
+    kept: bool,
+    result: &mut AnnotationCounts,
+) -> Result<()> {
+    if let Some(policy) = policy {
+        let statuses = strings(batch, "decision_status")?;
+        let reasons = strings(batch, "abstain_reason")?;
+        let flags = boolean(batch, "is_ood")?;
+        require(!statuses.is_null(i), "missing classifier decision status")?;
+        let status = statuses.value(i);
+        let is_ood = !flags.is_null(i) && flags.value(i);
+        require(
+            flags.is_null(i) == (!kept || policy.ood.is_none()),
+            "OOD assessment/null mismatch",
+        )?;
+        if !kept {
+            require(
+                status == "not_assessed" && labels.is_null(i) && reasons.is_null(i),
+                "excluded event has a classification decision",
+            )?;
+            return Ok(());
+        }
+        if status == "abstained" {
+            require(
+                labels.is_null(i) && !reasons.is_null(i),
+                "abstention requires a null label and a reason",
+            )?;
+            let reason = reasons.value(i);
+            require(
+                ["low_confidence", "ood", "low_confidence_and_ood"].contains(&reason)
+                    && is_ood == (reason != "low_confidence"),
+                "inconsistent abstention reason/OOD",
+            )?;
+            result.abstained += 1;
+            result.ood += u64::from(is_ood);
+            return Ok(());
+        }
+        require(
+            status == "classified" && reasons.is_null(i) && !is_ood,
+            "invalid accepted classification",
+        )?;
+    }
+    require(
+        labels.is_null(i) != kept,
+        "classification assessment/label mismatch",
+    )?;
+    if kept {
+        let label = labels.value(i);
+        if label == "unknown" {
+            require(
+                policy.is_none(),
+                "policy abstention must not become an unknown population",
+            )?;
+            require(
+                context
+                    .source
+                    .bindings
+                    .iter()
+                    .all(|b| b.target.kind == TargetKind::Phenotype),
+                "unknown is unsupported for multiclass predictions",
+            )?;
+            result.unknown += 1;
+        } else {
+            *result.counts.get_mut(label).ok_or_else(|| {
+                crate::PopulationError::Invalid("unknown classifier label".into())
+            })? += 1;
+        }
+    }
+    Ok(())
 }
 
 fn projected(
@@ -598,13 +771,7 @@ fn observations(
                 .target
                 .clone()
         });
-        let status = if descriptor.technical_status == "fail" {
-            ObservationStatus::QcRejected
-        } else if descriptor.assessed_events == 0 {
-            ObservationStatus::NotMeasured
-        } else {
-            ObservationStatus::Measured
-        };
+        let status = observation_status(descriptor);
         let mut observation = PopulationObservation {
             schema_version: 1,
             observation_id: String::new(),
@@ -651,11 +818,7 @@ fn observations(
             },
             n_events: descriptor.assessed_events,
             supporting_count: (status != ObservationStatus::Measured).then_some(count),
-            reason: match status {
-                ObservationStatus::QcRejected => Some("technical_qc_failed".into()),
-                ObservationStatus::NotMeasured => Some("no_assessed_events".into()),
-                _ => None,
-            },
+            reason: observation_reason(status, descriptor),
         };
         observation.seal()?;
         result.push(observation.clone());
@@ -675,6 +838,34 @@ fn observations(
         result.push(observation);
     }
     Ok(result)
+}
+
+fn observation_status(descriptor: &EventAnnotations) -> ObservationStatus {
+    if descriptor.technical_status == "fail" {
+        ObservationStatus::QcRejected
+    } else if descriptor.assessed_events == 0
+        || descriptor.unknown_events > 0
+        || descriptor.abstained_events.unwrap_or(0) > 0
+    {
+        ObservationStatus::NotMeasured
+    } else {
+        ObservationStatus::Measured
+    }
+}
+
+fn observation_reason(status: ObservationStatus, descriptor: &EventAnnotations) -> Option<String> {
+    match status {
+        ObservationStatus::QcRejected => Some("technical_qc_failed".into()),
+        ObservationStatus::NotMeasured => Some(
+            if descriptor.assessed_events == 0 {
+                "no_assessed_events"
+            } else {
+                "classifier_abstained"
+            }
+            .into(),
+        ),
+        _ => None,
+    }
 }
 
 fn validate_bindings(bindings: &[Binding]) -> Result<()> {
@@ -706,11 +897,35 @@ fn validate_source_metadata(
 ) -> Result<bool> {
     let classifier = context.source.format == AnnotationFormat::ClassifyPredictions;
     if classifier {
-        let version = builder
+        let output_version = builder
             .schema()
             .metadata()
             .get("cytiq.classify.schema_version")
             .and_then(|s| s.parse::<u32>().ok());
+        let version = if output_version == Some(5) {
+            let policy = context.source.decision_policy.as_ref().ok_or_else(|| {
+                crate::PopulationError::Invalid("unplanned decision policy output".into())
+            })?;
+            require(
+                builder
+                    .schema()
+                    .metadata()
+                    .get("cytiq.classify.decision_policy_sha256")
+                    == Some(&policy.sha256),
+                "prediction decision policy mismatch",
+            )?;
+            builder
+                .schema()
+                .metadata()
+                .get("cytiq.classify.bundle_schema_version")
+                .and_then(|s| s.parse::<u32>().ok())
+        } else {
+            require(
+                context.source.decision_policy.is_none(),
+                "decision policy output lacks schema 5",
+            )?;
+            output_version
+        };
         require(
             matches!(version, Some(2..=4)),
             "specimen classifier import requires bundle v2-v4",
@@ -782,6 +997,84 @@ fn count_gate_row(
         }
     }
     Ok(())
+}
+
+/// Validate a hash-verified package assessment without reopening event files.
+/// # Errors
+/// Rejects mismatched evidence or an inconsistent assessment summary.
+pub fn validate_release_assessment(
+    value: &serde_json::Value,
+    descriptor: &EventAnnotations,
+) -> Result<cytiq_qc::CheckStatus> {
+    require(
+        value["schema_version"] == 1
+            && value["algorithm"] == "panel-qc-release-v1"
+            && value["manifest_sha256"] == descriptor.context.manifest_sha256
+            && value["mask_sha256"] == descriptor.analysis_mask.sha256
+            && value["acquisition"] == descriptor.context.acquisition_sha256
+            && value["sample"] == descriptor.context.acquisition_id
+            && value["panel"] == descriptor.context.panel_id,
+        "release QC assessment does not belong to this source",
+    )?;
+    let checks = value["checks"]
+        .as_array()
+        .ok_or_else(|| crate::PopulationError::Invalid("missing release QC checks".into()))?;
+    require(!checks.is_empty(), "empty release QC assessment")?;
+    let statuses = checks
+        .iter()
+        .map(|check| serde_json::from_value::<cytiq_qc::CheckStatus>(check["status"].clone()))
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let status = statuses
+        .into_iter()
+        .max()
+        .unwrap_or(cytiq_qc::CheckStatus::Fail);
+    require(
+        value["status"] == serde_json::to_value(status)?,
+        "inconsistent release QC summary",
+    )?;
+    Ok(status)
+}
+
+fn release_checks(
+    context: &ObservationContext,
+    record: &RunRecord,
+    mask_path: &Path,
+) -> Result<Vec<cytiq_qc::QcCheck>> {
+    let input = record
+        .inputs
+        .iter()
+        .find(|input| {
+            input.role.as_deref() == Some("manifest") && input.sha256 == context.manifest_sha256
+        })
+        .ok_or_else(|| crate::PopulationError::Invalid("missing pinned QC manifest".into()))?;
+    require(
+        cytiq_provenance::hash_file(Path::new(&input.path))?.1 == context.manifest_sha256,
+        "QC manifest changed after assessment",
+    )?;
+    let invalid = |error: String| crate::PopulationError::Invalid(error);
+    let manifest = cytiq_manifest::RunManifest::load(Path::new(&input.path))
+        .map_err(|error| invalid(error.to_string()))?;
+    let sample = manifest
+        .samples
+        .iter()
+        .find(|sample| sample.id == context.acquisition_id)
+        .ok_or_else(|| invalid("QC manifest sample is missing".into()))?;
+    let panel = manifest
+        .panel_of(sample)
+        .ok_or_else(|| invalid("QC manifest panel is missing".into()))?;
+    require(
+        panel.label() == context.panel_id,
+        "QC manifest panel changed",
+    )?;
+    read_mask(mask_path, context)?;
+    let mask = cytiq_mask::EventMask::read_parquet(mask_path)
+        .map_err(|error| invalid(error.to_string()))?;
+    let metrics = cytiq_qc::QcMetrics::of(&mask, mask.len(), mask.kept());
+    Ok(cytiq_qc::evaluate_release(
+        &format!("sample {}", sample.id),
+        panel.qc.as_ref(),
+        &metrics,
+    ))
 }
 
 fn qc_status<'a>(qc: &'a serde_json::Value, context: &ObservationContext) -> Result<&'a str> {

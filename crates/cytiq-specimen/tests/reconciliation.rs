@@ -81,6 +81,8 @@ fn source(plan: &SpecimenPlan, panel: &str, population: u64, anchor: u64) -> Sou
         technical_status: "pass".into(),
         assessed_events: context.raw_events,
         unknown_events: 0,
+        abstained_events: None,
+        ood_events: None,
     };
     let mut observations = Vec::new();
     let selection = plan

@@ -12,7 +12,16 @@ cytiq qc --manifest run.yaml --sample S01 --mask sample.analysis.parquet --outpu
 ```
 
 Add `--require-policy` where the report decides whether a sample is released:
-a panel without a policy then fails instead of warning.
+a panel without an effective policy then fails instead of warning. `qc: {}`
+and policies containing only empty filter entries are not effective policies.
+An optional check that did not assess events warns rather than passing.
+
+Population publication reevaluates the pinned panel policy on the actual mask.
+It requires an effective policy and every `required` assessment, even if that
+filter's exploratory severity is `warn`. Missing requirements produce rejected
+observations and a retained `release-qc.json` assessment. Specimen reconciliation
+uses that hash-verified snapshot without reopening event files. No extra QC mode
+or configuration layer is needed.
 
 The policy is the panel's `qc` section (`cytiq_manifest::QcPolicy`):
 
@@ -43,6 +52,8 @@ qc:
 Columns `cytiq mask combine` prefixed after a repeated name (`2.live`) count
 as the same filter: an event is assessed when any column is non-null and
 removed when any is `false`.
+Recombining an already combined mask can add further numeric prefixes
+(`2.2.live`); all such combine prefixes resolve to the original filter.
 
 `min_assessed_fraction` is a share of the events `assessed_of` names:
 - `raw` (default): every raw event. A filter that only saw the events an
@@ -64,6 +75,7 @@ removed when any is `false`.
 | `QcReport` (`ensure_passed`) | The report: status, counts, metrics, checks |
 | `QcMetrics`, `FilterMetrics` | Raw and kept events; per filter: columns, assessed (count and share of raw events), eligible events and the share of them assessed, removed |
 | `evaluate` | The policy rules over metrics, without files |
+| `evaluate_release` | Effective panel policy and mandatory assessments required for release |
 | `QcCheck`, `CheckStatus` | One finding: `pass`, `warn`, `fail`, with `value` and `limit` |
 | `QcError` | Error type |
 

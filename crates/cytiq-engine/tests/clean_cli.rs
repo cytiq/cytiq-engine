@@ -592,7 +592,7 @@ fn singlets_survive_a_zero_mad() {
 }
 
 #[test]
-fn require_fails_without_writing_outputs() {
+fn require_blocks_acceptance_and_preserves_diagnostic_outputs() {
     let directory = create_temp_dir("cytiq-engine-clean-require");
     let output = directory.join("clean");
     let input = fixture("no_viability.fcs");
@@ -616,7 +616,19 @@ fn require_fails_without_writing_outputs() {
         stderr.contains("--require viability") && stderr.contains("not_assessed"),
         "stderr: {stderr}"
     );
-    assert!(!output.join("masks.parquet").exists());
+    assert_eq!(result.status.code(), Some(3));
+    for file in [
+        "masks.parquet",
+        "metrics.json",
+        "gates.gatingml.xml",
+        "report.html",
+        "provenance.json",
+    ] {
+        assert!(output.join(file).exists(), "missing diagnostic {file}");
+    }
+    let record: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(output.join("provenance.json")).unwrap()).unwrap();
+    assert_eq!(record["reason"], "checks_failed");
 }
 
 #[test]

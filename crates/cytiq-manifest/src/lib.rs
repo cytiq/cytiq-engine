@@ -164,6 +164,21 @@ pub struct QcPolicy {
     pub filters: BTreeMap<String, FilterPolicy>,
 }
 
+impl QcPolicy {
+    /// Whether this policy requests an actual acceptance check.
+    #[must_use]
+    pub fn has_rules(&self) -> bool {
+        self.min_events.is_some()
+            || self.min_kept_events.is_some()
+            || self.max_removed_fraction.is_some()
+            || self.filters.values().any(|rule| {
+                rule.required
+                    || rule.min_assessed_fraction.is_some()
+                    || rule.max_removed_fraction.is_some()
+            })
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FilterPolicy {

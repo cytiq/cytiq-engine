@@ -17,5 +17,7 @@ mod runner;
 pub mod preflight;
 
 pub use crate::error::QcError;
-pub use crate::policy::{CheckStatus, FilterMetrics, QcCheck, QcMetrics, evaluate};
+pub use crate::policy::{
+    CheckStatus, FilterMetrics, QcCheck, QcMetrics, evaluate, evaluate_release,
+};
 pub use crate::runner::{QcConfig, QcReport, QcRunner};

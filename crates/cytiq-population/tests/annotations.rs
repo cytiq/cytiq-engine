@@ -23,6 +23,12 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn parquet(path: &Path, sources: Vec<u64>, keep: &[bool], gates: bool) {
+    if !gates {
+        cytiq_mask::EventMask::new("a".repeat(64), keep.to_vec(), Some(sources))
+            .write_parquet(path)
+            .unwrap();
+        return;
+    }
     let size = sources.len();
     let mut fields = vec![
         Field::new("event_id", DataType::UInt64, false),
@@ -68,8 +74,15 @@ fn parquet(path: &Path, sources: Vec<u64>, keep: &[bool], gates: bool) {
 }
 
 fn setup(directory: &Path, fail: bool) -> ObserveConfig {
+    setup_with_policy(directory, fail, &json!({"min_events":1}))
+}
+
+fn setup_with_policy(directory: &Path, fail: bool, policy: &serde_json::Value) -> ObserveConfig {
     let manifest = directory.join("run.yaml");
-    std::fs::write(&manifest, b"synthetic provenance contract fixture").unwrap();
+    std::fs::write(&manifest, serde_json::to_vec(&json!({
+        "cytometry":"conventional", "panel":{"name":"P1","markers":[{"marker":"CD3"}], "qc":policy},
+        "samples":[{"id":"A01","file":fixture("../pipeline/sample.fcs")}]
+    })).unwrap()).unwrap();
     let projection = fixture("P1.projection.json");
     let knowledge = KnowledgeArtifact::load(&projection).unwrap();
     let source: SourceDefinition = serde_json::from_value(json!({
@@ -146,6 +159,25 @@ fn setup(directory: &Path, fail: bool) -> ObserveConfig {
     )
     .unwrap();
     config
+}
+
+#[test]
+fn release_reassessment_cannot_turn_an_unassessed_optional_filter_into_a_pass() {
+    let directory = tempfile::tempdir().unwrap();
+    // The pinned QC report represents an older producer that called absence a pass.
+    let config = setup_with_policy(
+        directory.path(),
+        false,
+        &json!({"filters":{"live":{"max_removed_fraction":0.1}}}),
+    );
+    let (annotations, rows, assessment) =
+        cytiq_population::annotations::observe_with_release(&config).unwrap();
+    assert_eq!(annotations.technical_status, "warn");
+    assert_eq!(assessment["status"], "warn");
+    assert!(
+        rows.iter()
+            .all(|row| row.status == ObservationStatus::Measured)
+    );
 }
 
 #[test]

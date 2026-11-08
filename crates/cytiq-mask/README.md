@@ -81,7 +81,8 @@ let keep: Vec<bool> = analysis.keep_for(&dataset, &acquisition)?; // one entry p
 - `combine` keys rows by `source_event_id` and follows the first mask's rows.
   An event is kept only when every mask has it and keeps it. Filter columns
   are concatenated; a repeated name is prefixed with the 1-based index of its
-  mask (`2.margin_pass`).
+  mask (`2.margin_pass`). Recombining prefixed masks adds another prefix when
+  needed to keep every column unique (`2.2.margin_pass`); nulls remain null.
 - `keep_for` matches dataset rows to mask rows through the dataset's
   `Original_ID` (or row number when it has none). A dataset row missing from
   the mask is an error. `keep_by_source` checks the acquisition and builds the

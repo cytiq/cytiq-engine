@@ -332,11 +332,10 @@ impl EventMask {
         let mut names = HashSet::new();
         for (index, (mask, lookup)) in masks.iter().zip(&lookups).enumerate() {
             for (name, values) in &mask.filters {
-                let name = if names.insert(name.clone()) {
-                    name.clone()
-                } else {
-                    format!("{}.{name}", index + 1)
-                };
+                let mut name = name.clone();
+                while !names.insert(name.clone()) {
+                    name = format!("{}.{name}", index + 1);
+                }
                 let column = rows
                     .iter()
                     .map(|source_event_id| lookup.get(source_event_id).and_then(|row| values[*row]))
@@ -487,6 +486,31 @@ pub fn read_combined(paths: &[PathBuf]) -> Result<Option<EventMask>, MaskError> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recombining_prefixed_masks_keeps_unique_columns_and_nulls() {
+        let first = super::EventMask::new("a".repeat(64), vec![true, false], None)
+            .with_filter("live", vec![None, Some(false)])
+            .with_filter("2.live", vec![Some(true), None]);
+        let second = super::EventMask::new("a".repeat(64), vec![true, true], None)
+            .with_filter("live", vec![Some(true), Some(false)]);
+        let combined = super::EventMask::combine(&[first, second]).unwrap();
+        assert_eq!(combined.keep, [true, false]);
+        assert_eq!(
+            combined
+                .filters
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            ["live", "2.live", "2.2.live"]
+        );
+        assert_eq!(combined.filters[0].1, [None, Some(false)]);
+        assert_eq!(combined.filters[1].1, [Some(true), None]);
+        assert_eq!(combined.filters[2].1, [Some(true), Some(false)]);
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("mask.parquet");
+        combined.write_parquet(&path).unwrap();
+        assert_eq!(super::EventMask::read_parquet(&path).unwrap(), combined);
+    }
     use super::*;
 
     const RAW: &str = "1111111111111111111111111111111111111111111111111111111111111111";
