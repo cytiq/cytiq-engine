@@ -130,7 +130,7 @@ errors, and failing to write it is reported on stderr without changing the
 exit code. `population` and `specimen` additionally print the same JSON as one
 line on stdout (see [the specimen contract](../cytiq-specimen/README.md#packages-and-orchestration-contract)).
 
-Before 0.5, every failure exited with `1`: `qc`, `preflight` and
+Before 0.4.1, command failures used `1`: `qc`, `preflight` and
 `spillqc --fail-on-flag` now exit with `3`, invalid input with `2`, and a
 missing input or existing output with `4`. Scripts that tested for `1` should
 test for a non-zero code or the specific code they handle.
