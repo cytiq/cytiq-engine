@@ -17,12 +17,12 @@ mod sampling;
 pub use crate::error::CytoScanError;
 pub use crate::mixture::MclustModel;
 pub use crate::runner::{
-    CytoScanConfig, CytoScanConstants, CytoScanDiagnostics, CytoScanFeatureMatrix,
-    CytoScanFeatureRow, CytoScanParameters, CytoScanResult, CytoScanRunner, CytoScanSummaryRow,
-    DEFAULT_AGGREGATE_EVENTS, DEFAULT_ARCSINH_COFACTOR, DEFAULT_EVENTS_PER_FILE,
-    DEFAULT_FINGERPRINT_RECURSIONS, DEFAULT_ISOLATION_TREES, DEFAULT_NOVELTY_QUANTILE,
-    DEFAULT_OUTLIER_THRESHOLD, DEFAULT_QUANTILE_STEP, DEFAULT_RANDOM_SEED, FeatureMethod,
-    FlagMethod, parse_channel_list,
+    ChannelPreprocessing, CytoScanConfig, CytoScanConstants, CytoScanDiagnostics,
+    CytoScanFeatureMatrix, CytoScanFeatureRow, CytoScanParameters, CytoScanResult, CytoScanRunner,
+    CytoScanSummaryRow, DEFAULT_AGGREGATE_EVENTS, DEFAULT_ARCSINH_COFACTOR,
+    DEFAULT_EVENTS_PER_FILE, DEFAULT_FINGERPRINT_RECURSIONS, DEFAULT_ISOLATION_TREES,
+    DEFAULT_NOVELTY_QUANTILE, DEFAULT_OUTLIER_THRESHOLD, DEFAULT_QUANTILE_STEP,
+    DEFAULT_RANDOM_SEED, FeatureMethod, FlagMethod, parse_channel_list,
 };
 
 /// Upstream implementations this crate is validated against

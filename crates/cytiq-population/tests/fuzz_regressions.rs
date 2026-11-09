@@ -96,26 +96,3 @@ fn fuzz_checks_accept_every_specimen_fixture() {
         fixtures.display()
     );
 }
-
-/// Fuzz inputs that panic inside a dependency rather than in this crate, kept
-/// in `tests/fuzz_upstream/<target>/` until a release fixes them. After a
-/// dependency upgrade, run `cargo test -p cytiq-population --test
-/// fuzz_regressions -- --ignored`; once it passes, move the inputs to
-/// `tests/fuzz_regressions/<target>/` and re-enable the target in
-/// `.github/workflows/fuzz.yml`.
-#[test]
-#[ignore = "parquet 60.1.0 panics while decoding corrupt definition levels \
-            (arrow-buffer: offset + len out of bounds)"]
-fn upstream_panics_are_fixed() {
-    let directory =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fuzz_upstream/observations_parquet");
-    for input in files_in(&directory) {
-        let bytes = fs::read(&input).expect("read saved input");
-        eprintln!("observations_parquet: {}", input.display());
-        checks::observations_parquet(&bytes);
-        assert!(
-            table::read_from(bytes::Bytes::copy_from_slice(&bytes)).is_err(),
-            "a corrupt table is rejected"
-        );
-    }
-}

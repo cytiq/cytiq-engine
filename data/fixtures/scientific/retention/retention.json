@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "upstream": {
+    "R": "4.5.3",
+    "PeacoQC": "1.20.0"
+  },
+  "cases": {
+    "Acute2020": {
+      "input": "Acute2020.fcs",
+      "reference": "Acute2020.r-mask.json",
+      "source": {
+        "path": "files/Acute2020/994567_Normalized.fcs",
+        "bytes": 6400366,
+        "s3_version": "Cv_MTGxHv9VzGXOo0R9U1cli.vVJ7SJi",
+        "sha256": "766a48a54e09765a3d3617ef59c4e8f1a82ef7e42322f3ca4402b128831ca692"
+      },
+      "source_rows": {
+        "first": 0,
+        "last_exclusive": 20000
+      },
+      "channels": ["Y89Di", "Pr141Di", "Nd143Di", "Nd144Di", "Nd145Di", "Nd146Di", "Sm147Di", "Nd148Di", "Sm149Di", "Nd150Di", "Eu151Di", "Sm152Di", "Eu153Di", "Sm154Di", "Gd155Di", "Gd156Di", "Gd158Di", "Gd160Di", "Dy161Di", "Dy163Di", "Dy164Di", "Er166Di", "Er167Di", "Er168Di", "Er170Di", "Yb171Di", "Yb172Di", "Yb174Di", "Yb176Di"]
+    },
+    "Acute2021": {
+      "input": "Acute2021.fcs",
+      "reference": "Acute2021.r-mask.json",
+      "source": {
+        "path": "files/Acute2021/10_Normalized.fcs",
+        "bytes": 10001859,
+        "s3_version": "MWN7HlrSPCENoxdS1KbNbnde8ZhlNd7B",
+        "sha256": "66a42af24374243341e869f17e054a363b9bee308413cdf175818ec3265eb06b"
+      },
+      "source_rows": {
+        "first": 0,
+        "last_exclusive": 20000
+      },
+      "channels": ["Y89Di", "Pr141Di", "Nd143Di", "Nd144Di", "Nd145Di", "Nd146Di", "Sm147Di", "Nd148Di", "Sm149Di", "Nd150Di", "Eu151Di", "Sm152Di", "Eu153Di", "Sm154Di", "Gd155Di", "Gd156Di", "Gd158Di", "Gd160Di", "Dy161Di", "Dy163Di", "Dy164Di", "Er166Di", "Er167Di", "Er168Di", "Er170Di", "Yb171Di", "Yb172Di", "Yb174Di", "Yb176Di"]
+    },
+    "Vaccine": {
+      "input": "Vaccine.fcs",
+      "reference": "Vaccine.r-mask.json",
+      "source": {
+        "path": "files/Vaccine/01.T1_Normalized.fcs",
+        "bytes": 80601799,
+        "s3_version": "dWTtFsTU5M_vTBKphIcx.QW8unYbJ083",
+        "sha256": "d4bcab5b23dd0524a79803a787279bfde21956f73173c7cd395e499204c4fbf9"
+      },
+      "source_rows": {
+        "first": 0,
+        "last_exclusive": 20000
+      },
+      "channels": ["Y89Di", "Pr141Di", "Nd143Di", "Nd144Di", "Nd145Di", "Nd146Di", "Sm147Di", "Nd148Di", "Sm149Di", "Nd150Di", "Eu151Di", "Sm152Di", "Eu153Di", "Sm154Di", "Gd155Di", "Gd156Di", "Gd158Di", "Gd160Di", "Dy161Di", "Dy163Di", "Dy164Di", "Er166Di", "Er167Di", "Er168Di", "Er170Di", "Yb171Di", "Yb172Di", "Yb174Di", "Yb176Di"]
+    }
+  }
+}

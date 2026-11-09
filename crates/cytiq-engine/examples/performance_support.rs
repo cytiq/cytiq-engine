@@ -22,6 +22,11 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Validate fingerprints and every recorded input/output hash in an archive.
+    Verify {
+        #[arg(long)]
+        input: PathBuf,
+    },
     Generate {
         #[arg(long)]
         output: PathBuf,
@@ -29,6 +34,8 @@ enum Command {
         events: usize,
         #[arg(long, default_value_t = 42)]
         seed: u64,
+        #[arg(long)]
+        labels: bool,
     },
     Inspect {
         #[arg(long)]
@@ -52,11 +59,33 @@ enum ComparisonProfile {
 
 fn main() -> Result<()> {
     match Args::parse().command {
+        Command::Verify { input } => {
+            let mut paths = vec![input.clone()];
+            let mut verified = 0;
+            while let Some(path) = paths.pop() {
+                if path.is_dir() {
+                    for entry in fs::read_dir(&path)? {
+                        paths.push(entry?.path());
+                    }
+                } else if path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().ends_with("provenance.json"))
+                {
+                    refactor_provenance(&path, &input)?;
+                    verified += 1;
+                }
+            }
+            if verified == 0 {
+                return Err("missing archived provenance".into());
+            }
+            Ok(())
+        }
         Command::Generate {
             output,
             events,
             seed,
-        } => generate(&output, events, seed),
+            labels,
+        } => generate_options(&output, events, seed, labels),
         Command::Inspect { input } => {
             let stream = FcsReader::open(input)?.stream(
                 NonZeroUsize::new(8192).unwrap(),
@@ -89,8 +118,13 @@ fn next_random(state: &mut u64) -> u64 {
     value ^ (value >> 31)
 }
 
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#[cfg(test)]
 fn generate(output: &Path, events: usize, seed: u64) -> Result<()> {
+    generate_options(output, events, seed, false)
+}
+
+#[allow(clippy::cast_precision_loss)] // Synthetic time/noise are stored as FCS float32.
+fn generate_options(output: &Path, events: usize, seed: u64, labels: bool) -> Result<()> {
     if events == 0 {
         return Err("events must be positive".into());
     }
@@ -100,7 +134,13 @@ fn generate(output: &Path, events: usize, seed: u64) -> Result<()> {
     names.extend((1..=26).map(|index| format!("FL{index}-A")));
     let parameters = names
         .iter()
-        .map(|name| FcsWriteParameter::new(name).with_range(262_144.0))
+        .map(|name| {
+            if labels {
+                FcsWriteParameter::with_label(name, name).with_range(262_144.0)
+            } else {
+                FcsWriteParameter::new(name).with_range(262_144.0)
+            }
+        })
         .collect::<Vec<_>>();
     let mut state = seed;
     let columns = (0..names.len())

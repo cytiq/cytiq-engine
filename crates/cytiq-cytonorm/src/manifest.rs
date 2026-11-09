@@ -126,11 +126,12 @@ impl Manifest {
     /// # Errors
     /// Returns parsing, path or experimental-design validation errors.
     pub fn load(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path)?;
+        let bytes = cytiq_provenance::input::document_bytes(path)?;
+        let text = std::str::from_utf8(&bytes).map_err(|e| invalid(e.to_string()))?;
         let mut m: Self = match path.extension().and_then(|s| s.to_str()) {
-            Some("json") => serde_json::from_str(&text)?,
+            Some("json") => serde_json::from_str(text)?,
             Some("yaml" | "yml") => {
-                serde_saphyr::from_str(&text).map_err(|e| invalid(e.to_string()))?
+                serde_saphyr::from_str(text).map_err(|e| invalid(e.to_string()))?
             }
             _ => return Err(invalid("manifest must be .yaml, .yml or .json")),
         };

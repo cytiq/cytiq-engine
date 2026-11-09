@@ -13,6 +13,15 @@ on:
       - crates/cytiq-fcs/**
       - crates/cytiq-population/**
       - crates/cytiq-specimen/**
+      - crates/cytiq-mask/**
+      - crates/cytiq-provenance/**
+      - crates/cytiq-manifest/**
+      - crates/cytiq-qc/**
+      - Cargo.toml
+      - Cargo.lock
+      - mise.toml
+      - mise.lock
+      - justfile
       - .github/workflows/fuzz.yml
   schedule:
     - cron: "0 4 * * 1"
@@ -20,8 +29,9 @@ on:
     inputs:
       seconds:
         description: Seconds to fuzz each target
+        type: number
         required: false
-        default: "600"
+        default: 600
 
 permissions:
   contents: read
@@ -43,9 +53,7 @@ jobs:
           - { crate: cytiq-fcs, target: spillover_keyword }
           - { crate: cytiq-population, target: document_json }
           - { crate: cytiq-population, target: document_yaml }
-          # observations_parquet stays local (`just fuzz`) until parquet stops
-          # panicking on corrupt definition levels; see
-          # crates/cytiq-population/tests/fuzz_upstream.
+          - { crate: cytiq-population, target: observations_parquet }
           - { crate: cytiq-specimen, target: specimen_documents }
     env:
       FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && '60' || inputs.seconds || '600' }}
@@ -79,7 +87,9 @@ jobs:
           restore-keys: fuzz-corpus-${{ matrix.target }}-
 
       - name: Fuzz
-        run: just fuzz ${{ matrix.crate }} ${{ matrix.target }} "$FUZZ_SECONDS"
+        run: |
+          [[ "$FUZZ_SECONDS" =~ ^[1-9][0-9]*$ ]]
+          just fuzz ${{ matrix.crate }} ${{ matrix.target }} "$FUZZ_SECONDS"
 
       - name: Save corpus
         if: always() && github.event_name != 'pull_request'

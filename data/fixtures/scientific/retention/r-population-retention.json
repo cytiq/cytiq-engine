@@ -1,0 +1,1010 @@
+{
+  "Acute2020": [
+    {
+      "population": "Basophil",
+      "original": 1,
+      "retained": 0,
+      "frequency_error": -5.0000000000000002e-05
+    },
+    {
+      "population": "Beads",
+      "original": 4058,
+      "retained": 3598,
+      "frequency_error": -0.00019577464788730903
+    },
+    {
+      "population": "CD11cnegCD14neg",
+      "original": 12,
+      "retained": 10,
+      "frequency_error": -3.6619718309859072e-05
+    },
+    {
+      "population": "CD14negCD56neg",
+      "original": 5,
+      "retained": 5,
+      "frequency_error": 3.1690140845070432e-05
+    },
+    {
+      "population": "CD20neg",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 6.3380281690140838e-06
+    },
+    {
+      "population": "CD45",
+      "original": 109,
+      "retained": 97,
+      "frequency_error": 1.4788732394366462e-05
+    },
+    {
+      "population": "CD45hiCD66bpos",
+      "original": 62,
+      "retained": 55,
+      "frequency_error": -1.4084507042252947e-06
+    },
+    {
+      "population": "CD4Naive",
+      "original": 66,
+      "retained": 61,
+      "frequency_error": 0.00013661971830985923
+    },
+    {
+      "population": "CD4Naive/activated",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 1.2676056338028168e-05
+    },
+    {
+      "population": "CD66bnegCD45lo",
+      "original": 69,
+      "retained": 62,
+      "frequency_error": 4.2957746478873224e-05
+    },
+    {
+      "population": "CD8",
+      "original": 3,
+      "retained": 3,
+      "frequency_error": 1.9014084507042265e-05
+    },
+    {
+      "population": "CD8Naive",
+      "original": 10,
+      "retained": 10,
+      "frequency_error": 6.3380281690140865e-05
+    },
+    {
+      "population": "CD8TCM",
+      "original": 7,
+      "retained": 7,
+      "frequency_error": 4.4366197183098573e-05
+    },
+    {
+      "population": "CD8TEM1",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 1.2676056338028168e-05
+    },
+    {
+      "population": "CD8TEM2/activated",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 6.3380281690140838e-06
+    },
+    {
+      "population": "CD8TEMRA",
+      "original": 5,
+      "retained": 4,
+      "frequency_error": -2.4647887323943661e-05
+    },
+    {
+      "population": "ClassicalMono",
+      "original": 110,
+      "retained": 94,
+      "frequency_error": -0.00020422535211267554
+    },
+    {
+      "population": "Cleanup1",
+      "original": 2129,
+      "retained": 1890,
+      "frequency_error": 2.8873239436622011e-05
+    },
+    {
+      "population": "Cleanup2",
+      "original": 42,
+      "retained": 36,
+      "frequency_error": -7.1830985915492633e-05
+    },
+    {
+      "population": "Cleanup3",
+      "original": 402,
+      "retained": 362,
+      "frequency_error": 0.00029436619718310048
+    },
+    {
+      "population": "Cleanup4",
+      "original": 442,
+      "retained": 395,
+      "frequency_error": 0.00015352112676056059
+    },
+    {
+      "population": "Cleanup5",
+      "original": 34,
+      "retained": 31,
+      "frequency_error": 4.6478873239436677e-05
+    },
+    {
+      "population": "Cleanup6",
+      "original": 1464,
+      "retained": 1300,
+      "frequency_error": 3.9436619718308252e-05
+    },
+    {
+      "population": "DPT",
+      "original": 3,
+      "retained": 3,
+      "frequency_error": 1.9014084507042265e-05
+    },
+    {
+      "population": "EarlyNK",
+      "original": 5,
+      "retained": 5,
+      "frequency_error": 3.1690140845070432e-05
+    },
+    {
+      "population": "Eosinophil",
+      "original": 7,
+      "retained": 6,
+      "frequency_error": -1.1971830985915493e-05
+    },
+    {
+      "population": "gdT",
+      "original": 5,
+      "retained": 4,
+      "frequency_error": -2.4647887323943661e-05
+    },
+    {
+      "population": "Granulocyte",
+      "original": 94,
+      "retained": 79,
+      "frequency_error": -0.00024929577464788757
+    },
+    {
+      "population": "HLADRloCD123lo",
+      "original": 37,
+      "retained": 34,
+      "frequency_error": 6.5492957746478807e-05
+    },
+    {
+      "population": "IgDposMemB",
+      "original": 2,
+      "retained": 1,
+      "frequency_error": -4.3661971830985919e-05
+    },
+    {
+      "population": "Ir",
+      "original": 875,
+      "retained": 789,
+      "frequency_error": 0.00070070422535211535
+    },
+    {
+      "population": "LateNK",
+      "original": 22,
+      "retained": 22,
+      "frequency_error": 0.00013943661971830982
+    },
+    {
+      "population": "MAITNKT",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 1.2676056338028168e-05
+    },
+    {
+      "population": "Mononuclear",
+      "original": 42,
+      "retained": 35,
+      "frequency_error": -0.00012816901408450702
+    },
+    {
+      "population": "NaiveB",
+      "original": 15,
+      "retained": 15,
+      "frequency_error": 9.5070422535211297e-05
+    },
+    {
+      "population": "Neutrophil",
+      "original": 9537,
+      "retained": 8459,
+      "frequency_error": -0.00028661971830984401
+    },
+    {
+      "population": "nnCD4CXCR5neg",
+      "original": 27,
+      "retained": 21,
+      "frequency_error": -0.00016690140845070436
+    },
+    {
+      "population": "nnCD4CXCR5pos",
+      "original": 26,
+      "retained": 21,
+      "frequency_error": -0.00011690140845070423
+    },
+    {
+      "population": "nnCD4CXCR5pos/activated",
+      "original": 3,
+      "retained": 3,
+      "frequency_error": 1.9014084507042265e-05
+    },
+    {
+      "population": "NonTh1NonTh17",
+      "original": 2,
+      "retained": 1,
+      "frequency_error": -4.3661971830985919e-05
+    },
+    {
+      "population": "NonTNonB",
+      "original": 221,
+      "retained": 189,
+      "frequency_error": -0.00040211267605633899
+    },
+    {
+      "population": "Plasmablast",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 6.3380281690140838e-06
+    },
+    {
+      "population": "Th1",
+      "original": 9,
+      "retained": 8,
+      "frequency_error": 7.0422535211270157e-07
+    },
+    {
+      "population": "Th1/activated",
+      "original": 4,
+      "retained": 4,
+      "frequency_error": 2.5352112676056335e-05
+    },
+    {
+      "population": "Th17",
+      "original": 10,
+      "retained": 10,
+      "frequency_error": 6.3380281690140865e-05
+    },
+    {
+      "population": "Th2",
+      "original": 3,
+      "retained": 3,
+      "frequency_error": 1.9014084507042265e-05
+    },
+    {
+      "population": "TotalCD19B",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 6.3380281690140838e-06
+    },
+    {
+      "population": "TotalDC",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 6.3380281690140838e-06
+    },
+    {
+      "population": "TotalMonocyte",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 6.3380281690140838e-06
+    },
+    {
+      "population": "Treg",
+      "original": 5,
+      "retained": 5,
+      "frequency_error": 3.1690140845070432e-05
+    },
+    {
+      "population": "Treg/activated",
+      "original": 4,
+      "retained": 1,
+      "frequency_error": -0.00014366197183098592
+    }
+  ],
+  "Acute2021": [
+    {
+      "population": "abT",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 5.2631578947368431e-06
+    },
+    {
+      "population": "Basophil",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "Beads",
+      "original": 1909,
+      "retained": 1825,
+      "frequency_error": 0.00060263157894736852
+    },
+    {
+      "population": "CD11cnegCD14neg",
+      "original": 34,
+      "retained": 34,
+      "frequency_error": 8.9473684210526414e-05
+    },
+    {
+      "population": "CD14negCD56neg",
+      "original": 8,
+      "retained": 8,
+      "frequency_error": 2.1052631578947372e-05
+    },
+    {
+      "population": "CD3T",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "CD45",
+      "original": 46,
+      "retained": 46,
+      "frequency_error": 0.00012105263157894753
+    },
+    {
+      "population": "CD45hiCD66bpos",
+      "original": 15,
+      "retained": 15,
+      "frequency_error": 3.9473684210526282e-05
+    },
+    {
+      "population": "CD4Naive",
+      "original": 165,
+      "retained": 165,
+      "frequency_error": 0.00043421052631578867
+    },
+    {
+      "population": "CD66bnegCD45lo",
+      "original": 37,
+      "retained": 37,
+      "frequency_error": 9.7368421052631583e-05
+    },
+    {
+      "population": "CD8Naive",
+      "original": 22,
+      "retained": 22,
+      "frequency_error": 5.7894736842105301e-05
+    },
+    {
+      "population": "CD8TCM",
+      "original": 8,
+      "retained": 8,
+      "frequency_error": 2.1052631578947372e-05
+    },
+    {
+      "population": "CD8TEM1",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 5.2631578947368431e-06
+    },
+    {
+      "population": "CD8TEM1/activated",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "CD8TEMRA",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "ClassicalMono",
+      "original": 33,
+      "retained": 33,
+      "frequency_error": 8.6842105263157951e-05
+    },
+    {
+      "population": "Cleanup1",
+      "original": 1587,
+      "retained": 1527,
+      "frequency_error": 0.0010184210526315712
+    },
+    {
+      "population": "Cleanup2",
+      "original": 58,
+      "retained": 56,
+      "frequency_error": 4.7368421052631886e-05
+    },
+    {
+      "population": "Cleanup3",
+      "original": 273,
+      "retained": 262,
+      "frequency_error": 0.00013947368421052611
+    },
+    {
+      "population": "Cleanup4",
+      "original": 1578,
+      "retained": 735,
+      "frequency_error": -0.040215789473684212
+    },
+    {
+      "population": "Cleanup5",
+      "original": 3287,
+      "retained": 3287,
+      "frequency_error": 0.008649999999999991
+    },
+    {
+      "population": "Cleanup6",
+      "original": 169,
+      "retained": 169,
+      "frequency_error": 0.00044473684210526339
+    },
+    {
+      "population": "DNT",
+      "original": 5,
+      "retained": 5,
+      "frequency_error": 1.3157894736842094e-05
+    },
+    {
+      "population": "DPT",
+      "original": 3,
+      "retained": 3,
+      "frequency_error": 7.8947368421052782e-06
+    },
+    {
+      "population": "EarlyNK",
+      "original": 23,
+      "retained": 23,
+      "frequency_error": 6.0526315789473763e-05
+    },
+    {
+      "population": "Eosinophil",
+      "original": 30,
+      "retained": 30,
+      "frequency_error": 7.8947368421052565e-05
+    },
+    {
+      "population": "gdT",
+      "original": 11,
+      "retained": 11,
+      "frequency_error": 2.894736842105265e-05
+    },
+    {
+      "population": "Granulocyte",
+      "original": 620,
+      "retained": 620,
+      "frequency_error": 0.0016315789473684214
+    },
+    {
+      "population": "HLADRloCD123lo",
+      "original": 60,
+      "retained": 60,
+      "frequency_error": 0.00015789473684210513
+    },
+    {
+      "population": "IgDnegMemB",
+      "original": 75,
+      "retained": 75,
+      "frequency_error": 0.00019736842105263185
+    },
+    {
+      "population": "IgDposMemB",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 5.2631578947368431e-06
+    },
+    {
+      "population": "ILC",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "Ir",
+      "original": 380,
+      "retained": 380,
+      "frequency_error": 0.0010000000000000009
+    },
+    {
+      "population": "LateNK",
+      "original": 27,
+      "retained": 27,
+      "frequency_error": 7.1052631578947395e-05
+    },
+    {
+      "population": "mDC",
+      "original": 10,
+      "retained": 10,
+      "frequency_error": 2.6315789473684188e-05
+    },
+    {
+      "population": "Mononuclear",
+      "original": 22,
+      "retained": 22,
+      "frequency_error": 5.7894736842105301e-05
+    },
+    {
+      "population": "NaiveB",
+      "original": 132,
+      "retained": 132,
+      "frequency_error": 0.00034736842105263181
+    },
+    {
+      "population": "Neutrophil",
+      "original": 9055,
+      "retained": 9055,
+      "frequency_error": 0.023828947368421061
+    },
+    {
+      "population": "nnCD4",
+      "original": 3,
+      "retained": 3,
+      "frequency_error": 7.8947368421052782e-06
+    },
+    {
+      "population": "nnCD4CXCR5neg",
+      "original": 43,
+      "retained": 43,
+      "frequency_error": 0.00011315789473684192
+    },
+    {
+      "population": "nnCD4CXCR5pos",
+      "original": 33,
+      "retained": 33,
+      "frequency_error": 8.6842105263157951e-05
+    },
+    {
+      "population": "nnCD4CXCR5pos/activated",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "NonTh1NonTh17",
+      "original": 7,
+      "retained": 7,
+      "frequency_error": 1.8421052631578964e-05
+    },
+    {
+      "population": "NonTNonB",
+      "original": 62,
+      "retained": 62,
+      "frequency_error": 0.00016315789473684205
+    },
+    {
+      "population": "NonTNonBCD14neg",
+      "original": 12,
+      "retained": 12,
+      "frequency_error": 3.1578947368421113e-05
+    },
+    {
+      "population": "Th1",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "Th17",
+      "original": 96,
+      "retained": 96,
+      "frequency_error": 0.0002526315789473689
+    },
+    {
+      "population": "Th17/activated",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "Th2",
+      "original": 6,
+      "retained": 6,
+      "frequency_error": 1.5789473684210556e-05
+    },
+    {
+      "population": "TotalCD19B",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 2.6315789473684215e-06
+    },
+    {
+      "population": "TotalDC",
+      "original": 26,
+      "retained": 26,
+      "frequency_error": 6.8421052631578933e-05
+    },
+    {
+      "population": "TotalMonocyte",
+      "original": 4,
+      "retained": 4,
+      "frequency_error": 1.0526315789473686e-05
+    },
+    {
+      "population": "Treg",
+      "original": 9,
+      "retained": 9,
+      "frequency_error": 2.368421052631578e-05
+    },
+    {
+      "population": "Treg/activated",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 5.2631578947368431e-06
+    }
+  ],
+  "Vaccine": [
+    {
+      "population": "abT",
+      "original": 42,
+      "retained": 33,
+      "frequency_error": -0.00018695652173913026
+    },
+    {
+      "population": "Basophil",
+      "original": 40,
+      "retained": 36,
+      "frequency_error": 8.695652173913021e-05
+    },
+    {
+      "population": "Beads",
+      "original": 264,
+      "retained": 241,
+      "frequency_error": 0.00077101449275362305
+    },
+    {
+      "population": "CD14negCD56neg",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 1.5942028985507236e-05
+    },
+    {
+      "population": "CD20neg",
+      "original": 10,
+      "retained": 9,
+      "frequency_error": 2.1739130434782553e-05
+    },
+    {
+      "population": "CD45",
+      "original": 37,
+      "retained": 29,
+      "frequency_error": -0.00016884057971014508
+    },
+    {
+      "population": "CD45hiCD66bpos",
+      "original": 14,
+      "retained": 12,
+      "frequency_error": -4.3478260869564671e-06
+    },
+    {
+      "population": "CD4Naive",
+      "original": 142,
+      "retained": 120,
+      "frequency_error": -0.00014347826086956537
+    },
+    {
+      "population": "CD66bnegCD45lo",
+      "original": 102,
+      "retained": 86,
+      "frequency_error": -0.00011449275362318892
+    },
+    {
+      "population": "CD8",
+      "original": 35,
+      "retained": 33,
+      "frequency_error": 0.00016304347826086958
+    },
+    {
+      "population": "CD8/CD45RAnegCD27pos",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 7.971014492753618e-06
+    },
+    {
+      "population": "CD8Naive",
+      "original": 63,
+      "retained": 52,
+      "frequency_error": -0.00013550724637681174
+    },
+    {
+      "population": "CD8TCM",
+      "original": 114,
+      "retained": 90,
+      "frequency_error": -0.00048260869565217371
+    },
+    {
+      "population": "CD8TEM1",
+      "original": 102,
+      "retained": 88,
+      "frequency_error": 1.4492753623186055e-06
+    },
+    {
+      "population": "CD8TEM1/activated",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 7.971014492753618e-06
+    },
+    {
+      "population": "CD8TEM2",
+      "original": 5,
+      "retained": 5,
+      "frequency_error": 3.9855072463768103e-05
+    },
+    {
+      "population": "CD8TEM3",
+      "original": 24,
+      "retained": 20,
+      "frequency_error": -4.057971014492746e-05
+    },
+    {
+      "population": "CD8TEM3/activated",
+      "original": 1,
+      "retained": 0,
+      "frequency_error": -5.0000000000000002e-05
+    },
+    {
+      "population": "CD8TEMRA",
+      "original": 51,
+      "retained": 42,
+      "frequency_error": -0.00011521739130434822
+    },
+    {
+      "population": "cDC",
+      "original": 32,
+      "retained": 28,
+      "frequency_error": 2.3188405797101375e-05
+    },
+    {
+      "population": "ClassicalMono",
+      "original": 172,
+      "retained": 135,
+      "frequency_error": -0.00077391304347826026
+    },
+    {
+      "population": "Cleanup1",
+      "original": 3115,
+      "retained": 2666,
+      "frequency_error": -0.0011992753623188412
+    },
+    {
+      "population": "Cleanup2",
+      "original": 456,
+      "retained": 403,
+      "frequency_error": 0.00056231884057970916
+    },
+    {
+      "population": "Cleanup3",
+      "original": 603,
+      "retained": 526,
+      "frequency_error": 0.00034275362318840485
+    },
+    {
+      "population": "Cleanup4",
+      "original": 6344,
+      "retained": 5712,
+      "frequency_error": 0.013930434782608692
+    },
+    {
+      "population": "Cleanup5",
+      "original": 2,
+      "retained": 1,
+      "frequency_error": -4.2028985507246384e-05
+    },
+    {
+      "population": "Cleanup6",
+      "original": 2397,
+      "retained": 2030,
+      "frequency_error": -0.0021688405797101462
+    },
+    {
+      "population": "DNT",
+      "original": 10,
+      "retained": 10,
+      "frequency_error": 7.9710144927536207e-05
+    },
+    {
+      "population": "DPT",
+      "original": 13,
+      "retained": 11,
+      "frequency_error": -1.2318840579710099e-05
+    },
+    {
+      "population": "EarlyNK",
+      "original": 163,
+      "retained": 133,
+      "frequency_error": -0.00043985507246376704
+    },
+    {
+      "population": "Eosinophil",
+      "original": 176,
+      "retained": 150,
+      "frequency_error": -0.00010434782608695695
+    },
+    {
+      "population": "gdT",
+      "original": 27,
+      "retained": 22,
+      "frequency_error": -7.4637681159420328e-05
+    },
+    {
+      "population": "Granulocyte",
+      "original": 21,
+      "retained": 16,
+      "frequency_error": -0.00012246376811594201
+    },
+    {
+      "population": "HLADRloCD123lo",
+      "original": 17,
+      "retained": 10,
+      "frequency_error": -0.00027028985507246374
+    },
+    {
+      "population": "IgDnegMemB",
+      "original": 40,
+      "retained": 32,
+      "frequency_error": -0.00014492753623188419
+    },
+    {
+      "population": "IgDposMemB",
+      "original": 16,
+      "retained": 13,
+      "frequency_error": -4.6376811594202967e-05
+    },
+    {
+      "population": "ILC",
+      "original": 5,
+      "retained": 4,
+      "frequency_error": -1.8115942028985524e-05
+    },
+    {
+      "population": "Ir",
+      "original": 1395,
+      "retained": 1177,
+      "frequency_error": -0.0015181159420289969
+    },
+    {
+      "population": "LateNK",
+      "original": 249,
+      "retained": 202,
+      "frequency_error": -0.00073985507246376696
+    },
+    {
+      "population": "MAITNKT",
+      "original": 26,
+      "retained": 17,
+      "frequency_error": -0.00031449275362318836
+    },
+    {
+      "population": "mDC",
+      "original": 6,
+      "retained": 5,
+      "frequency_error": -1.0144927536231865e-05
+    },
+    {
+      "population": "Mononuclear",
+      "original": 5,
+      "retained": 5,
+      "frequency_error": 3.9855072463768103e-05
+    },
+    {
+      "population": "NA",
+      "original": 58,
+      "retained": 52,
+      "frequency_error": 0.00011449275362318849
+    },
+    {
+      "population": "NaiveB",
+      "original": 117,
+      "retained": 101,
+      "frequency_error": 5.0724637681159868e-06
+    },
+    {
+      "population": "Neutrophil",
+      "original": 2684,
+      "retained": 2218,
+      "frequency_error": -0.0056202898550724856
+    },
+    {
+      "population": "nnCD4",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 1.5942028985507236e-05
+    },
+    {
+      "population": "nnCD4CXCR5neg",
+      "original": 270,
+      "retained": 233,
+      "frequency_error": 7.2463768115947624e-06
+    },
+    {
+      "population": "nnCD4CXCR5pos",
+      "original": 92,
+      "retained": 77,
+      "frequency_error": -0.00013623188405797061
+    },
+    {
+      "population": "NonTh1NonTh17",
+      "original": 36,
+      "retained": 31,
+      "frequency_error": -2.8985507246376448e-06
+    },
+    {
+      "population": "NonTNonB",
+      "original": 22,
+      "retained": 21,
+      "frequency_error": 0.00011739130434782591
+    },
+    {
+      "population": "NonTNonBCD14neg",
+      "original": 4,
+      "retained": 4,
+      "frequency_error": 3.1884057971014472e-05
+    },
+    {
+      "population": "pDC",
+      "original": 6,
+      "retained": 6,
+      "frequency_error": 4.7826086956521789e-05
+    },
+    {
+      "population": "Plasmablast",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 7.971014492753618e-06
+    },
+    {
+      "population": "Th1",
+      "original": 122,
+      "retained": 100,
+      "frequency_error": -0.000302898550724638
+    },
+    {
+      "population": "Th17",
+      "original": 123,
+      "retained": 95,
+      "frequency_error": -0.00064275362318840564
+    },
+    {
+      "population": "Th17/activated",
+      "original": 2,
+      "retained": 2,
+      "frequency_error": 1.5942028985507236e-05
+    },
+    {
+      "population": "Th2",
+      "original": 36,
+      "retained": 29,
+      "frequency_error": -0.00011884057971014495
+    },
+    {
+      "population": "TotalCD19B",
+      "original": 11,
+      "retained": 9,
+      "frequency_error": -2.826086956521747e-05
+    },
+    {
+      "population": "TotalDC",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 7.971014492753618e-06
+    },
+    {
+      "population": "TotalMonocyte",
+      "original": 2,
+      "retained": 1,
+      "frequency_error": -4.2028985507246384e-05
+    },
+    {
+      "population": "Treg",
+      "original": 70,
+      "retained": 58,
+      "frequency_error": -0.00013768115942029008
+    },
+    {
+      "population": "Treg/activated",
+      "original": 1,
+      "retained": 1,
+      "frequency_error": 7.971014492753618e-06
+    }
+  ]
+}

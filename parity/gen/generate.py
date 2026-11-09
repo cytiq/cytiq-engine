@@ -71,8 +71,8 @@ def _detector_noise(rng: np.random.Generator, signal: np.ndarray, gain: float = 
     return signal + shot + rng.normal(0.0, electronic_sd, signal.shape)
 
 
-def gen_autospill(out: Path, n_events: int = 20_000) -> None:
-    rng = np.random.default_rng(SEED + 1)
+def gen_autospill(out: Path, n_events: int = 20_000, seed: int = SEED + 1) -> None:
+    rng = np.random.default_rng(seed)
     (out / "truth").mkdir(parents=True, exist_ok=True)
     rows = []
     autofluorescence = np.array([300.0, 250.0, 120.0, 60.0, 40.0, 30.0])

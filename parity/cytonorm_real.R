@@ -323,7 +323,9 @@ metrics <- list(schema_version = 1, dataset = "CytoNorm extdata / FR-FCM-Z247",
     "Distances are equal-weight means of within-cluster quantile-grid approximations.",
     "Real-data distances and stochastic ARI are descriptive, not biological acceptance criteria."))
 json(metrics, file.path(out, "metrics.json"))
-json(metrics, "parity/results/metrics_cytonorm_real.json")
+results <- Sys.getenv("CYTIQ_PARITY_RESULTS", unset="target/scientific/results")
+dir.create(results, recursive=TRUE, showWarnings=FALSE)
+json(metrics, file.path(results, "metrics_cytonorm_real.json"))
 cat(toJSON(metrics[c("conditional_max_absolute_error", "identity_mappings", "total_mappings",
                      "batch_distances_quantile_approx")], auto_unbox = TRUE, pretty = TRUE), "\n")
 cat("Real CytoNorm artifacts:", out, "\n")

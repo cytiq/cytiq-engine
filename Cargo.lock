@@ -830,6 +830,7 @@ dependencies = [
  "csv",
  "cytiq-fcs",
  "cytiq-mask",
+ "cytiq-provenance",
  "cytiq-publish",
  "log",
  "plotly",

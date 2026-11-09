@@ -9,6 +9,7 @@
   "clean_good_loss_max": 0.01,
   "final_bad_kept_max": 0.005,
   "final_keep_f1_min": 0.93,
+  "original_good_population_retention_min": 0.88,
   "gate_precision_min": 0.99,
   "gate_recall_min": 0.99,
   "rare_count_relative_error_max": 0.2,

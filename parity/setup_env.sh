@@ -1,87 +1,18 @@
 #!/usr/bin/env bash
-# Install the upstream reference tools into an isolated environment under
-# parity/.env (git-ignored): an R library and a uv-managed Python venv.
-#
-# Pinned: the Bioconductor release (BIOC_VERSION), the git commits of the
-# packages built from source, and the Python packages (parity/requirements.txt).
-# CRAN packages come from PARITY_CRAN (default: the CRAN cloud mirror); the
-# versions actually installed are written to parity/versions.txt.
+# Restore reviewed R archives and Python wheels without resolving latest deps.
 set -euo pipefail
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_DIR="$ROOT/parity/.env"
 export R_LIBS_USER="$ENV_DIR/Rlib"
-export BIOC_VERSION="${BIOC_VERSION:-3.22}"
-export PARITY_CRAN="${PARITY_CRAN:-https://cloud.r-project.org}"
-mkdir -p "$R_LIBS_USER"
-
-# mise.toml pins R, which mise cannot install (see CONTRIBUTING.md).
-r_expected="${CYTIQ_R_VERSION:?run through just parity-setup, which sets the R version from mise.toml}"
-r_found="$(Rscript -e 'cat(as.character(getRversion()))')"
-if [[ "$r_found" != "$r_expected" ]]; then
-  echo "parity needs R $r_expected (mise.toml); found R $r_found" >&2
+expected="${CYTIQ_R_VERSION:?run through just parity-setup}"
+found="$(Rscript -e 'cat(as.character(getRversion()))')"
+if [[ "$found" != "$expected" ]]; then
+  echo "parity requires R $expected; found $found" >&2
   exit 1
 fi
-
-Rscript - <<'R'
-lib <- Sys.getenv("R_LIBS_USER")
-.libPaths(c(lib, .libPaths()))
-options(repos = c(CRAN = Sys.getenv("PARITY_CRAN")), Ncpus = parallel::detectCores())
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager", lib = lib)
-BiocManager::install(version = Sys.getenv("BIOC_VERSION"), lib = lib, ask = FALSE, update = FALSE)
-BiocManager::install(c("flowCore", "flowWorkspace", "FlowSOM", "PeacoQC", "ConsensusClusterPlus",
-                       "remotes", "MASS", "deldir", "flowFP", "isotree", "mclust", "transport",
-                       "doParallel", "foreach", "ggridges", "ggrepel", "gridExtra", "dplyr",
-                       "jsonlite", "flowDensity", "ggpubr", "emdist", "pheatmap", "tidyr", "stringr"), lib = lib, ask = FALSE, update = FALSE)
-R
-
-# Packages built from git, at the commits the parity report was produced with.
-for pin in carlosproca/autospill@1e60e86337b297f1dd9ffec6701d8010dd06175b \
-  DrCytometer/AutoSpectral@292dfeaae6b382d1a7c9c263c5bb4de35ff67207 \
-  AUMC-HEMA/CytoScan@c97f403d3ad6c673bed67f1f7dff4062e2f28e19 \
-  Olsman/CompensAID@db748036e977571e09ddb4267ca598a1d700f2fc \
-  saeyslab/CytoNorm@278f352d8edffd7a5d3e6b0b76c402d991a1e7a9; do
-  repo="${pin%@*}"
-  commit="${pin#*@}"
-  name="${repo#*/}"
-  src="$ENV_DIR/$name-src"
-  if [[ ! -d "$src/.git" ]]; then
-    git init -q "$src"
-    git -C "$src" remote add origin "https://github.com/$repo.git"
-  fi
-  if [[ "$(git -C "$src" rev-parse -q --verify HEAD || true)" != "$commit" ]]; then
-    git -C "$src" fetch -q --depth 1 origin "$commit"
-    git -C "$src" checkout -q --detach FETCH_HEAD
-  fi
-  # Dependencies come from the pinned Bioconductor release. remotes would also
-  # resolve the DESCRIPTION's Remotes field through the GitHub API, which
-  # rate-limits unauthenticated CI runners.
-  Rscript - "$src" <<'R'
-lib <- Sys.getenv("R_LIBS_USER")
-.libPaths(c(lib, .libPaths()))
-options(repos = c(CRAN = Sys.getenv("PARITY_CRAN")), Ncpus = parallel::detectCores())
-src <- commandArgs(trailingOnly = TRUE)[1]
-deps <- remotes::local_package_deps(src, dependencies = c("Depends", "Imports", "LinkingTo"))
-missing <- setdiff(deps, c(rownames(installed.packages()), "R"))
-if (length(missing) > 0) BiocManager::install(missing, lib = lib, ask = FALSE, update = FALSE)
-R
-  R CMD INSTALL --library="$R_LIBS_USER" "$src"
-done
-
-# The Python that mise.toml pins, which `just` puts first on PATH.
+python3 "$ROOT/parity/scientific/r_packages.py" install --library "$R_LIBS_USER" --lock "$ROOT/parity/r-packages.lock.json" --cache "$ROOT/target/scientific/r-sources"
 uv venv -q --allow-existing "$ENV_DIR/py" --python "$(command -v python3)"
-VIRTUAL_ENV="$ENV_DIR/py" uv pip install -q -r "$ROOT/parity/requirements.txt"
-
-{
-  Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths()));
-    for (p in c('flowCore','flowWorkspace','FlowSOM','PeacoQC','autospill','AutoSpectral','MASS',
-                'CytoScan','flowFP','isotree','mclust','transport','flowDensity','CompensAID','CytoNorm','ConsensusClusterPlus'))
-      cat(p, as.character(packageVersion(p)), '\n')"
-  R --version | head -1
-  VIRTUAL_ENV="$ENV_DIR/py" uv pip freeze | grep -Ei '^(flowkit|flowio|numpy|pandas|pyarrow|scikit-learn|scipy)=='
-  for name in autospill AutoSpectral CytoScan CompensAID CytoNorm; do
-    echo "$name git $(git -C "$ENV_DIR/$name-src" rev-parse --short HEAD)"
-  done
-  rustc --version
-} > "$ROOT/parity/versions.txt"
-cat "$ROOT/parity/versions.txt"
+uv pip sync -q --python "$ENV_DIR/py/bin/python" --require-hashes "$ROOT/parity/requirements.lock"
+mkdir -p "$ROOT/target/scientific/environment"
+Rscript -e 'write.table(installed.packages(lib.loc=Sys.getenv("R_LIBS_USER"))[,c("Package","Version")],stdout(),row.names=FALSE)' > "$ROOT/target/scientific/environment/r-versions.txt"
+uv pip freeze --python "$ENV_DIR/py/bin/python" > "$ROOT/target/scientific/environment/python-versions.txt"

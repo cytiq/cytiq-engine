@@ -1,0 +1,611 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "6826fc0216b02d128b216a1f5b57f0a33d30608b",
+  "baseline_binary_sha256": "4b7f6f3d88fa8e0a0f148081bfa440e7e32b6a6ddd0d0d0b2eda653ecc0ffe73",
+  "source_sha256": "ca170742cbf0e0d6303e140a9c43cc70df234815239d7f0c01d923501c435dc5",
+  "truth_sha256": "e84d77c6245951e4f70c60920507f6fd17e5565d7e312ab6b9e87d3216f24926",
+  "attenuation": 0.05,
+  "positive_marker": "CD19",
+  "cases": {
+    "original": {
+      "stages": [
+        {
+          "stage": "margins",
+          "kept": 14883,
+          "newly_removed": 117,
+          "populations": {
+            "b": {
+              "original": 2081,
+              "eligible": 2081,
+              "retained": 2066,
+              "conditional_retention": 0.9927919269581932,
+              "retention": 0.9927919269581932,
+              "frequency_before": 0.15126844515519372,
+              "frequency_after": 0.1512445095168375,
+              "frequency_error": -2.3935638356231692e-05,
+              "relative_frequency_error": -0.00015823285769662633,
+              "good_retention": 1.0,
+              "technical_removed": 15
+            },
+            "cd4_t": {
+              "original": 4331,
+              "eligible": 4331,
+              "retained": 4303,
+              "conditional_retention": 0.9935349803740475,
+              "retention": 0.9935349803740475,
+              "frequency_before": 0.3148215453950716,
+              "frequency_after": 0.3150073206442167,
+              "frequency_error": 0.00018577524914509258,
+              "relative_frequency_error": 0.000590096998958448,
+              "good_retention": 1.0,
+              "technical_removed": 28
+            },
+            "cd8_t": {
+              "original": 2774,
+              "eligible": 2774,
+              "retained": 2755,
+              "conditional_retention": 0.9931506849315068,
+              "retention": 0.9931506849315068,
+              "frequency_before": 0.2016428000290761,
+              "frequency_after": 0.20168374816983894,
+              "frequency_error": 4.094814076283093e-05,
+              "relative_frequency_error": 0.00020307266491501988,
+              "good_retention": 1.0,
+              "technical_removed": 19
+            },
+            "dn_t": {
+              "original": 698,
+              "eligible": 698,
+              "retained": 695,
+              "conditional_retention": 0.995702005730659,
+              "retention": 0.995702005730659,
+              "frequency_before": 0.05073780620774878,
+              "frequency_after": 0.05087847730600293,
+              "frequency_error": 0.0001406710982541498,
+              "relative_frequency_error": 0.0027725104565649557,
+              "good_retention": 1.0,
+              "technical_removed": 3
+            },
+            "mono": {
+              "original": 2423,
+              "eligible": 2423,
+              "retained": 2400,
+              "conditional_retention": 0.9905076351630211,
+              "retention": 0.9905076351630211,
+              "frequency_before": 0.17612851639165517,
+              "frequency_after": 0.17569546120058566,
+              "frequency_error": -0.00043305519106950907,
+              "relative_frequency_error": -0.002458745465762788,
+              "good_retention": 1.0,
+              "technical_removed": 23
+            },
+            "nk": {
+              "original": 1409,
+              "eligible": 1409,
+              "retained": 1400,
+              "conditional_retention": 0.99361249112846,
+              "retention": 0.99361249112846,
+              "frequency_before": 0.10242058588355019,
+              "frequency_after": 0.10248901903367497,
+              "frequency_error": 6.843315012478035e-05,
+              "relative_frequency_error": 0.0006681581591672131,
+              "good_retention": 1.0,
+              "technical_removed": 9
+            },
+            "rare": {
+              "original": 41,
+              "eligible": 41,
+              "retained": 41,
+              "conditional_retention": 1.0,
+              "retention": 1.0,
+              "frequency_before": 0.0029803009377044414,
+              "frequency_after": 0.003001464128843338,
+              "frequency_error": 2.1163191138896635e-05,
+              "relative_frequency_error": 0.007101024890190269,
+              "good_retention": 1.0,
+              "technical_removed": 0
+            }
+          }
+        },
+        {
+          "stage": "peacoqc",
+          "kept": 12653,
+          "newly_removed": 2230,
+          "populations": {
+            "b": {
+              "original": 2081,
+              "eligible": 2066,
+              "retained": 1751,
+              "conditional_retention": 0.8475314617618587,
+              "retention": 0.8414223930802499,
+              "frequency_before": 0.15126844515519372,
+              "frequency_after": 0.15100034494653328,
+              "frequency_error": -0.0002681002086604434,
+              "relative_frequency_error": -0.001772347222749505,
+              "good_retention": 0.9028950542822678,
+              "technical_removed": 169
+            },
+            "cd4_t": {
+              "original": 4331,
+              "eligible": 4303,
+              "retained": 3670,
+              "conditional_retention": 0.8528933302347199,
+              "retention": 0.8473793581159086,
+              "frequency_before": 0.3148215453950716,
+              "frequency_after": 0.3164884442911349,
+              "frequency_error": 0.0016668988960632514,
+              "relative_frequency_error": 0.005294742118019429,
+              "good_retention": 0.9014289880431613,
+              "technical_removed": 323
+            },
+            "cd8_t": {
+              "original": 2774,
+              "eligible": 2755,
+              "retained": 2324,
+              "conditional_retention": 0.8435571687840291,
+              "retention": 0.8377793799567411,
+              "frequency_before": 0.2016428000290761,
+              "frequency_after": 0.2004139358399448,
+              "frequency_error": -0.001228864189131318,
+              "relative_frequency_error": -0.006094262671189452,
+              "good_retention": 0.9073812881993418,
+              "technical_removed": 253
+            },
+            "dn_t": {
+              "original": 698,
+              "eligible": 695,
+              "retained": 591,
+              "conditional_retention": 0.8503597122302158,
+              "retention": 0.8467048710601719,
+              "frequency_before": 0.05073780620774878,
+              "frequency_after": 0.05096585029320455,
+              "frequency_error": 0.0002280440854557711,
+              "relative_frequency_error": 0.004494559432113242,
+              "good_retention": 0.8928571428571429,
+              "technical_removed": 47
+            },
+            "mono": {
+              "original": 2423,
+              "eligible": 2400,
+              "retained": 2041,
+              "conditional_retention": 0.8504166666666667,
+              "retention": 0.8423442014032192,
+              "frequency_before": 0.17612851639165517,
+              "frequency_after": 0.17600896860986548,
+              "frequency_error": -0.00011954778178968617,
+              "relative_frequency_error": -0.0006787531300374381,
+              "good_retention": 0.9049844236760125,
+              "technical_removed": 199
+            },
+            "nk": {
+              "original": 1409,
+              "eligible": 1400,
+              "retained": 1189,
+              "conditional_retention": 0.8492857142857143,
+              "retention": 0.843860894251242,
+              "frequency_before": 0.10242058588355019,
+              "frequency_after": 0.10253535701966195,
+              "frequency_error": 0.00011477113611176037,
+              "relative_frequency_error": 0.0011205866000635115,
+              "good_retention": 0.9090909090909091,
+              "technical_removed": 121
+            },
+            "rare": {
+              "original": 41,
+              "eligible": 41,
+              "retained": 30,
+              "conditional_retention": 0.7317073170731707,
+              "retention": 0.7317073170731707,
+              "frequency_before": 0.0029803009377044414,
+              "frequency_after": 0.0025870989996550535,
+              "frequency_error": -0.0003932019380493879,
+              "relative_frequency_error": -0.13193363565232755,
+              "good_retention": 0.9,
+              "technical_removed": 8
+            }
+          }
+        },
+        {
+          "stage": "clean",
+          "kept": 9768,
+          "newly_removed": 2885,
+          "populations": {
+            "b": {
+              "original": 2081,
+              "eligible": 1751,
+              "retained": 1496,
+              "conditional_retention": 0.8543689320388349,
+              "retention": 0.7188851513695339,
+              "frequency_before": 0.15126844515519372,
+              "frequency_after": 0.15318451771451977,
+              "frequency_error": 0.0019160725593260486,
+              "relative_frequency_error": 0.01266670360338705,
+              "good_retention": 0.902291917973462,
+              "technical_removed": 423
+            },
+            "cd4_t": {
+              "original": 4331,
+              "eligible": 3670,
+              "retained": 3086,
+              "conditional_retention": 0.8408719346049046,
+              "retention": 0.7125375202031863,
+              "frequency_before": 0.3148215453950716,
+              "frequency_after": 0.3159942658201925,
+              "frequency_error": 0.001172720425120899,
+              "relative_frequency_error": 0.0037250322993276856,
+              "good_retention": 0.8999708369787109,
+              "technical_removed": 902
+            },
+            "cd8_t": {
+              "original": 2774,
+              "eligible": 2324,
+              "retained": 1926,
+              "conditional_retention": 0.8287435456110155,
+              "retention": 0.6943042537851478,
+              "frequency_before": 0.2016428000290761,
+              "frequency_after": 0.1972148269506451,
+              "frequency_error": -0.004427973078431013,
+              "relative_frequency_error": -0.021959490136977452,
+              "good_retention": 0.9050305594734368,
+              "technical_removed": 646
+            },
+            "dn_t": {
+              "original": 698,
+              "eligible": 591,
+              "retained": 500,
+              "conditional_retention": 0.8460236886632826,
+              "retention": 0.7163323782234957,
+              "frequency_before": 0.05073780620774878,
+              "frequency_after": 0.05119803399549457,
+              "frequency_error": 0.00046022778774579276,
+              "relative_frequency_error": 0.00907070727223334,
+              "good_retention": 0.8928571428571429,
+              "technical_removed": 138
+            },
+            "mono": {
+              "original": 2423,
+              "eligible": 2041,
+              "retained": 1743,
+              "conditional_retention": 0.8539931406173444,
+              "retention": 0.719356170037144,
+              "frequency_before": 0.17612851639165517,
+              "frequency_after": 0.17847634650829408,
+              "frequency_error": 0.002347830116638916,
+              "relative_frequency_error": 0.013330210034916041,
+              "good_retention": 0.9044652128764278,
+              "technical_removed": 496
+            },
+            "nk": {
+              "original": 1409,
+              "eligible": 1189,
+              "retained": 988,
+              "conditional_retention": 0.830950378469302,
+              "retention": 0.7012065294535131,
+              "frequency_before": 0.10242058588355019,
+              "frequency_after": 0.10116731517509728,
+              "frequency_error": -0.0012532707084529082,
+              "relative_frequency_error": -0.012236511807087763,
+              "good_retention": 0.9072543617998163,
+              "technical_removed": 320
+            },
+            "rare": {
+              "original": 41,
+              "eligible": 30,
+              "retained": 27,
+              "conditional_retention": 0.9,
+              "retention": 0.6585365853658537,
+              "frequency_before": 0.0029803009377044414,
+              "frequency_after": 0.002764693835756707,
+              "frequency_error": -0.00021560710194773458,
+              "relative_frequency_error": -0.07234407076817036,
+              "good_retention": 0.9,
+              "technical_removed": 11
+            }
+          }
+        }
+      ],
+      "technical_good_retention": 0.9024863665773177,
+      "technical_artifact_removal": 0.9990432910786893
+    },
+    "weak": {
+      "stages": [
+        {
+          "stage": "margins",
+          "kept": 14889,
+          "newly_removed": 111,
+          "populations": {
+            "b": {
+              "original": 2081,
+              "eligible": 2081,
+              "retained": 2072,
+              "conditional_retention": 0.9956751561749159,
+              "retention": 0.9956751561749159,
+              "frequency_before": 0.15126844515519372,
+              "frequency_after": 0.15161715205619786,
+              "frequency_error": 0.0003487069010041366,
+              "relative_frequency_error": 0.0023052190471474806,
+              "good_retention": 1.0,
+              "technical_removed": 9
+            },
+            "cd4_t": {
+              "original": 4331,
+              "eligible": 4331,
+              "retained": 4303,
+              "conditional_retention": 0.9935349803740475,
+              "retention": 0.9935349803740475,
+              "frequency_before": 0.3148215453950716,
+              "frequency_after": 0.3148690180008781,
+              "frequency_error": 4.7472605806453405e-05,
+              "relative_frequency_error": 0.00015079211223259742,
+              "good_retention": 1.0,
+              "technical_removed": 28
+            },
+            "cd8_t": {
+              "original": 2774,
+              "eligible": 2774,
+              "retained": 2755,
+              "conditional_retention": 0.9931506849315068,
+              "retention": 0.9931506849315068,
+              "frequency_before": 0.2016428000290761,
+              "frequency_after": 0.20159519976584223,
+              "frequency_error": -4.7600263233887885e-05,
+              "relative_frequency_error": -0.00023606230039963794,
+              "good_retention": 1.0,
+              "technical_removed": 19
+            },
+            "dn_t": {
+              "original": 698,
+              "eligible": 698,
+              "retained": 695,
+              "conditional_retention": 0.995702005730659,
+              "retention": 0.995702005730659,
+              "frequency_before": 0.05073780620774878,
+              "frequency_after": 0.050856139323869454,
+              "frequency_error": 0.00011833311612067382,
+              "relative_frequency_error": 0.0023322473903611887,
+              "good_retention": 1.0,
+              "technical_removed": 3
+            },
+            "mono": {
+              "original": 2423,
+              "eligible": 2423,
+              "retained": 2400,
+              "conditional_retention": 0.9905076351630211,
+              "retention": 0.9905076351630211,
+              "frequency_before": 0.17612851639165517,
+              "frequency_after": 0.17561832284501683,
+              "frequency_error": -0.0005101935466383378,
+              "relative_frequency_error": -0.002896711770987872,
+              "good_retention": 1.0,
+              "technical_removed": 23
+            },
+            "nk": {
+              "original": 1409,
+              "eligible": 1409,
+              "retained": 1400,
+              "conditional_retention": 0.99361249112846,
+              "retention": 0.99361249112846,
+              "frequency_before": 0.10242058588355019,
+              "frequency_after": 0.10244402165959315,
+              "frequency_error": 2.3435776042968204e-05,
+              "relative_frequency_error": 0.00022881900001640426,
+              "good_retention": 1.0,
+              "technical_removed": 9
+            },
+            "rare": {
+              "original": 41,
+              "eligible": 41,
+              "retained": 41,
+              "conditional_retention": 1.0,
+              "retention": 1.0,
+              "frequency_before": 0.0029803009377044414,
+              "frequency_after": 0.003000146348602371,
+              "frequency_error": 1.9845410897929502e-05,
+              "relative_frequency_error": 0.006658861407873565,
+              "good_retention": 1.0,
+              "technical_removed": 0
+            }
+          }
+        },
+        {
+          "stage": "peacoqc",
+          "kept": 12658,
+          "newly_removed": 2231,
+          "populations": {
+            "b": {
+              "original": 2081,
+              "eligible": 2072,
+              "retained": 1756,
+              "conditional_retention": 0.8474903474903475,
+              "retention": 0.8438250840941854,
+              "frequency_before": 0.15126844515519372,
+              "frequency_after": 0.1513662615291785,
+              "frequency_error": 9.781637398478815e-05,
+              "relative_frequency_error": 0.0006466409692016966,
+              "good_retention": 0.9028950542822678,
+              "technical_removed": 164
+            },
+            "cd4_t": {
+              "original": 4331,
+              "eligible": 4303,
+              "retained": 3670,
+              "conditional_retention": 0.8528933302347199,
+              "retention": 0.8473793581159086,
+              "frequency_before": 0.3148215453950716,
+              "frequency_after": 0.31635203861736055,
+              "frequency_error": 0.0015304932222889311,
+              "relative_frequency_error": 0.004861462770498459,
+              "good_retention": 0.9014289880431613,
+              "technical_removed": 323
+            },
+            "cd8_t": {
+              "original": 2774,
+              "eligible": 2755,
+              "retained": 2324,
+              "conditional_retention": 0.8435571687840291,
+              "retention": 0.8377793799567411,
+              "frequency_before": 0.2016428000290761,
+              "frequency_after": 0.2003275579691406,
+              "frequency_error": -0.001315242059935523,
+              "relative_frequency_error": -0.006522633388079665,
+              "good_retention": 0.9073812881993418,
+              "technical_removed": 253
+            },
+            "dn_t": {
+              "original": 698,
+              "eligible": 695,
+              "retained": 591,
+              "conditional_retention": 0.8503597122302158,
+              "retention": 0.8467048710601719,
+              "frequency_before": 0.05073780620774878,
+              "frequency_after": 0.050943884147918284,
+              "frequency_error": 0.0002060779401695037,
+              "relative_frequency_error": 0.0040616249611917805,
+              "good_retention": 0.8928571428571429,
+              "technical_removed": 47
+            },
+            "mono": {
+              "original": 2423,
+              "eligible": 2400,
+              "retained": 2041,
+              "conditional_retention": 0.8504166666666667,
+              "retention": 0.8423442014032192,
+              "frequency_before": 0.17612851639165517,
+              "frequency_after": 0.17593310921472288,
+              "frequency_error": -0.00019540717693228293,
+              "relative_frequency_error": -0.001109457917068682,
+              "good_retention": 0.9049844236760125,
+              "technical_removed": 199
+            },
+            "nk": {
+              "original": 1409,
+              "eligible": 1400,
+              "retained": 1189,
+              "conditional_retention": 0.8492857142857143,
+              "retention": 0.843860894251242,
+              "frequency_before": 0.10242058588355019,
+              "frequency_after": 0.10249116455477976,
+              "frequency_error": 7.057867122957362e-05,
+              "relative_frequency_error": 0.000689106302416781,
+              "good_retention": 0.9090909090909091,
+              "technical_removed": 121
+            },
+            "rare": {
+              "original": 41,
+              "eligible": 41,
+              "retained": 30,
+              "conditional_retention": 0.7317073170731707,
+              "retention": 0.7317073170731707,
+              "frequency_before": 0.0029803009377044414,
+              "frequency_after": 0.002585983966899405,
+              "frequency_error": -0.0003943169708050362,
+              "relative_frequency_error": -0.13230776993572885,
+              "good_retention": 0.9,
+              "technical_removed": 8
+            }
+          }
+        },
+        {
+          "stage": "clean",
+          "kept": 9773,
+          "newly_removed": 2885,
+          "populations": {
+            "b": {
+              "original": 2081,
+              "eligible": 1756,
+              "retained": 1501,
+              "conditional_retention": 0.8547835990888383,
+              "retention": 0.7212878423834694,
+              "frequency_before": 0.15126844515519372,
+              "frequency_after": 0.15361784873605566,
+              "frequency_error": 0.002349403580861942,
+              "relative_frequency_error": 0.015531352744794683,
+              "good_retention": 0.902291917973462,
+              "technical_removed": 418
+            },
+            "cd4_t": {
+              "original": 4331,
+              "eligible": 3670,
+              "retained": 3086,
+              "conditional_retention": 0.8408719346049046,
+              "retention": 0.7125375202031863,
+              "frequency_before": 0.3148215453950716,
+              "frequency_after": 0.315832565755808,
+              "frequency_error": 0.0010110203607363588,
+              "relative_frequency_error": 0.003211407781724795,
+              "good_retention": 0.8999708369787109,
+              "technical_removed": 902
+            },
+            "cd8_t": {
+              "original": 2774,
+              "eligible": 2324,
+              "retained": 1926,
+              "conditional_retention": 0.8287435456110155,
+              "retention": 0.6943042537851478,
+              "frequency_before": 0.2016428000290761,
+              "frequency_after": 0.197113908504759,
+              "frequency_error": -0.004528891524317125,
+              "relative_frequency_error": -0.022459971413132905,
+              "good_retention": 0.9050305594734368,
+              "technical_removed": 646
+            },
+            "dn_t": {
+              "original": 698,
+              "eligible": 591,
+              "retained": 500,
+              "conditional_retention": 0.8460236886632826,
+              "retention": 0.7163323782234957,
+              "frequency_before": 0.05073780620774878,
+              "frequency_after": 0.05117183502200389,
+              "frequency_error": 0.00043402881425511075,
+              "relative_frequency_error": 0.008554347274652664,
+              "good_retention": 0.8928571428571429,
+              "technical_removed": 138
+            },
+            "mono": {
+              "original": 2423,
+              "eligible": 2041,
+              "retained": 1743,
+              "conditional_retention": 0.8539931406173444,
+              "retention": 0.719356170037144,
+              "frequency_before": 0.17612851639165517,
+              "frequency_after": 0.17838501688670555,
+              "frequency_error": 0.002256500495050384,
+              "relative_frequency_error": 0.012811670371608805,
+              "good_retention": 0.9044652128764278,
+              "technical_removed": 496
+            },
+            "nk": {
+              "original": 1409,
+              "eligible": 1189,
+              "retained": 988,
+              "conditional_retention": 0.830950378469302,
+              "retention": 0.7012065294535131,
+              "frequency_before": 0.10242058588355019,
+              "frequency_after": 0.10111554600347969,
+              "frequency_error": -0.0013050398800704965,
+              "relative_frequency_error": -0.012741968509673402,
+              "good_retention": 0.9072543617998163,
+              "technical_removed": 320
+            },
+            "rare": {
+              "original": 41,
+              "eligible": 30,
+              "retained": 27,
+              "conditional_retention": 0.9,
+              "retention": 0.6585365853658537,
+              "frequency_before": 0.0029803009377044414,
+              "frequency_after": 0.00276327909118821,
+              "frequency_error": -0.0002170218465162312,
+              "relative_frequency_error": -0.0728187693298486,
+              "good_retention": 0.9,
+              "technical_removed": 11
+            }
+          }
+        }
+      ],
+      "technical_good_retention": 0.9024863665773177,
+      "technical_artifact_removal": 0.9978474049270509
+    }
+  }
+}

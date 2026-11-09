@@ -104,17 +104,22 @@ def write_controls(controls: list[dict], target: Path) -> None:
 def main() -> None:
     out_dir = Path(sys.argv[1])
     registry = json.loads((Path(__file__).parent / "datasets.json").read_text())
+    selected = set(filter(None, os.environ.get("CYTIQ_REAL_DATASETS", "").split(",")))
+    if selected:
+        selected |= {"flowsom_68983", "peacoqc_111", "compensaid_68983"}
+    known = {dataset["name"] for dataset in registry["datasets"]}
+    if selected - known:
+        raise ValueError(f"unknown required datasets: {sorted(selected-known)}")
     for dataset in registry["datasets"]:
+        if selected and dataset["name"] not in selected:
+            continue
         if dataset.get("slow") and os.environ.get("CYTIQ_REAL_SLOW") != "1":
             print(f"skipping {dataset['name']}: slow, set CYTIQ_REAL_SLOW=1 to run it", file=sys.stderr)
             continue
         try:
             materialise(dataset, out_dir)
         except OSError as error:
-            if not dataset.get("optional"):
-                raise
-            print(f"skipping {dataset['name']}: {error}", file=sys.stderr)
-            continue
+            raise RuntimeError(f"required dataset {dataset['name']} unavailable: {error}") from error
         print(f"{dataset['name']}\t{dataset['chain']}")
 
 

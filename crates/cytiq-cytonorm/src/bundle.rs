@@ -7,7 +7,8 @@ use arrow_array::{Array, ArrayRef, Float64Array, RecordBatch, StringArray, UInt6
 use arrow_schema::{DataType, Field, Schema};
 use cytiq_fcs::TransformContract;
 use cytiq_flowsom::FlowSomModel;
-use parquet::arrow::{ArrowWriter, arrow_reader::ParquetRecordBatchReaderBuilder};
+use cytiq_mask::parquet::{ParquetReadLimits, ScalarParquetReader};
+use parquet::arrow::ArrowWriter;
 use serde::{Deserialize, Serialize};
 
 use crate::{Mode, MonotoneSpline, Panel, Result, SomSettings, SparsePolicy, Target, invalid};
@@ -72,8 +73,9 @@ impl CytoNormModel {
     /// # Errors
     /// Rejects missing, corrupted, incompatible or incomplete bundles.
     pub fn load(directory: &Path) -> Result<Self> {
-        let document: ModelDocument =
-            serde_json::from_reader(File::open(directory.join("model.json"))?)?;
+        let document: ModelDocument = serde_json::from_slice(
+            &cytiq_provenance::input::document_bytes(&directory.join("model.json"))?,
+        )?;
         if document.schema_version != 1
             || document.algorithm != "cytonorm-2.0"
             || document
@@ -92,8 +94,9 @@ impl CytoNormModel {
                 return Err(invalid(format!("model checksum mismatch: {file}")));
             }
         }
-        let markers: MarkerContract =
-            serde_json::from_reader(File::open(directory.join("markers.json"))?)?;
+        let markers: MarkerContract = serde_json::from_slice(
+            &cytiq_provenance::input::document_bytes(&directory.join("markers.json"))?,
+        )?;
         let som = FlowSomModel::load(&directory.join("som.json"))?;
         let mappings = read_mappings(&directory.join("splines.parquet"))?;
         let model = Self {
@@ -385,12 +388,12 @@ pub(crate) fn write_mappings(path: &Path, mappings: &[Mapping]) -> Result<()> {
 fn read_mappings(path: &Path) -> Result<Vec<Mapping>> {
     type Key = (String, usize, String);
     type Row = (usize, f64, f64, f64, usize, Option<String>);
-    let reader = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
+    let reader = ScalarParquetReader::new(File::open(path)?, ParquetReadLimits::default())?;
     if reader.schema().as_ref() != &mapping_schema() {
         return Err(invalid("unsupported spline Parquet schema"));
     }
     let mut grouped: BTreeMap<Key, Vec<Row>> = BTreeMap::new();
-    for record in reader.build()? {
+    for record in reader {
         let record = record?;
         macro_rules! col {
             ($i:expr,$ty:ty) => {

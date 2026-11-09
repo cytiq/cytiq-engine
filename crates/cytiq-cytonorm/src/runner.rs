@@ -167,8 +167,8 @@ fn load_cohort(manifest: &Manifest, selected_channels: &[String]) -> Result<Trai
         if rows.is_empty() {
             return Err(invalid(format!("sample {} has no kept events", sample.id)));
         }
-        let mut values = panel_values(&dataset, &manifest.panel, &rows)?;
-        let available = values.len();
+        let mut rows = rows;
+        let available = rows.len();
         if sample.role == Role::Train {
             let hashes = std::iter::once(&sample.file)
                 .chain(&sample.masks)
@@ -187,9 +187,17 @@ fn load_cohort(manifest: &Manifest, selected_channels: &[String]) -> Result<Trai
                         "training_events is smaller than the balanced file quotas",
                     ));
                 }
-                values = subsample(&values, quota, sample_seed(manifest.som.seed, &sample.id));
+                rows = subsample_indices(
+                    rows.len(),
+                    quota,
+                    sample_seed(manifest.som.seed, &sample.id),
+                )
+                .into_iter()
+                .map(|i| rows[i])
+                .collect();
             }
         }
+        let values = panel_values(&dataset, &manifest.panel, &rows)?;
         sampling.push(json!({"sample":sample.id,"batch":sample.batch,"role":sample.role,"available_events":available,"selected_events":values.len()}));
         samples.push(LoadedSample {
             id: sample.id.clone(),
@@ -420,12 +428,17 @@ fn balanced_training_values(
             .iter()
             .filter(|s| s.role == Role::Train && s.batch == *batch)
         {
-            let rows = subsample(
-                &sample.values,
+            let rows = subsample_indices(
+                sample.values.len(),
                 quota,
                 sample_seed(manifest.som.seed, &sample.id),
             );
-            som_values.extend(select_columns(&rows, cluster_indices));
+            som_values.extend(rows.iter().map(|&i| {
+                cluster_indices
+                    .iter()
+                    .map(|&j| sample.values[i][j])
+                    .collect::<Vec<_>>()
+            }));
         }
     }
     Ok(som_values)
@@ -808,20 +821,19 @@ fn sample_seed(seed: u64, id: &str) -> u64 {
     })
 }
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn subsample(values: &[Vec<f64>], quota: usize, mut seed: u64) -> Vec<Vec<f64>> {
-    let n = quota.min(values.len());
-    let mut ids = (0..values.len()).collect::<Vec<_>>();
+fn subsample_indices(events: usize, quota: usize, mut seed: u64) -> Vec<usize> {
+    let n = quota.min(events);
+    let mut ids = (0..events).collect::<Vec<_>>();
     for i in 0..n {
         seed = seed
             .wrapping_mul(6_364_136_223_846_793_005)
             .wrapping_add(1_442_695_040_888_963_407);
-        let j =
-            i + ((seed >> 11) as f64 / (1_u64 << 53) as f64 * (values.len() - i) as f64) as usize;
-        ids.swap(i, j.min(values.len() - 1));
+        let j = i + ((seed >> 11) as f64 / (1_u64 << 53) as f64 * (events - i) as f64) as usize;
+        ids.swap(i, j.min(events - 1));
     }
     ids.truncate(n);
     ids.sort_unstable();
-    ids.into_iter().map(|i| values[i].clone()).collect()
+    ids
 }
 fn quantiles(sorted: &[f64], probabilities: &[f64]) -> Vec<f64> {
     if sorted.is_empty() {

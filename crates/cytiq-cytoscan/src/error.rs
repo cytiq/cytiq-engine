@@ -4,6 +4,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CytoScanError {
+    #[error(
+        "FCS input `{path}` has preprocessing/channel mapping incompatible with `{reference}`; use one effective scale and panel for the cohort"
+    )]
+    IncompatiblePreprocessing { path: PathBuf, reference: PathBuf },
     #[error("at least one `--input` value is required")]
     EmptyInputs,
     #[error(

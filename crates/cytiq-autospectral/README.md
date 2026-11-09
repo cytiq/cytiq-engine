@@ -146,10 +146,29 @@ The optional detectors CSV uses the [AutoSpill detector format](../cytiq-autospi
 - Duplicate sample stems get a `-<row>` suffix.
 - Existing output files are replaced; there is no `--overwrite` check.
 
+## Scientific diagnostics
+
+`diagnostics/run.json` includes `reference_diagnostics`: AF peak detector and
+detector means, singular values, fluorophore-only conditioning, pairwise spectral
+cosines, and `unit_noise_covariance = P Pᵀ` for the OLS inverse operator P.
+This covariance assumes independent unit-variance detector noise; it measures
+noise sensitivity and is not empirical spreading. Sample diagnostics also report
+per-detector residual RMS, relative residual RMS (null for a zero signal norm),
+and component negative fractions. High cosine, poor conditioning or a small
+residual alone cannot establish biological accuracy.
+
+OLS Householder QR remains the baseline. Controls are fitted before sample DATA
+are loaded; per-event solve buffers are reused without changing operation order.
+Offline AF/bootstrap and alternative-solver experiments live in
+[`parity/scientific`](../../parity/scientific). WLS requires calibrated detector
+variances, Poisson likelihood requires count-scale measurements, and multiple AF
+components require independent identifiable references; none is inferred from
+arbitrary ADC fluorescence or normalized CyTOF data.
+
 ## Dependencies
 
 - [`cytiq-fcs`](../cytiq-fcs) for reading and writing FCS
-- `nalgebra` (SVD, inverse), `rayon` (parallel loading and unmixing),
+- `nalgebra` (QR, SVD), `rayon` (parallel loading and unmixing),
   `csv`, `serde` / `serde_json`
 
 ## Tests

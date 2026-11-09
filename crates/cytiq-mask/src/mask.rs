@@ -3,13 +3,13 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::parquet::{ParquetReadLimits, ScalarParquetReader};
 use arrow_array::{Array, ArrayRef, BooleanArray, RecordBatch, UInt64Array};
 use arrow_schema::{DataType, Field, Schema};
 use cytiq_fcs::FcsDataset;
 use cytiq_publish::{Existing, Publication};
 use log::debug;
 use parquet::arrow::ArrowWriter;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::file::metadata::KeyValue;
 use parquet::file::properties::WriterProperties;
 
@@ -199,15 +199,13 @@ impl EventMask {
             path: path.to_path_buf(),
             source,
         })?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+        let builder = ScalarParquetReader::new(file, ParquetReadLimits::default())
             .map_err(|error| parquet_error(error.to_string()))?;
         let acquisition = read_acquisition(
             path,
             builder.metadata().file_metadata().key_value_metadata(),
         )?;
-        let reader = builder
-            .build()
-            .map_err(|error| parquet_error(error.to_string()))?;
+        let reader = builder;
 
         let mut event_ids = Vec::new();
         let mut source_event_ids = Vec::new();

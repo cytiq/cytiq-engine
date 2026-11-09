@@ -284,6 +284,19 @@ pub fn compensate(columns: &[Vec<f64>], compensation: &[f64]) -> Vec<Vec<f64>> {
 }
 
 impl ColumnData {
+    /// Read one value with the same conversion as [`Self::to_f64_vec`], without
+    /// allocating a converted column. Integer values above 2^53 have the same
+    /// f64 rounding as the full conversion. Out-of-range rows return `None`.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn get_f64(&self, row: usize) -> Option<f64> {
+        match self {
+            Self::UInt(values) => values.get(row).map(|&value| value as f64),
+            Self::F32(values) => values.get(row).map(|&value| f64::from(value)),
+            Self::F64(values) => values.get(row).copied(),
+        }
+    }
+
     /// Convert the column to `f64` values.
     #[must_use]
     #[allow(clippy::cast_precision_loss)]
@@ -342,6 +355,20 @@ impl Parameter {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn scalar_access_matches_full_conversion_including_precision_and_signed_zero() {
+        for column in [
+            super::ColumnData::UInt(vec![0, 16_777_217, (1_u64 << 53) + 1, u64::MAX]),
+            super::ColumnData::F32(vec![-0.0, 1.25, f32::INFINITY]),
+            super::ColumnData::F64(vec![-0.0, 1.25, f64::MIN_POSITIVE]),
+        ] {
+            let expected = column.to_f64_vec();
+            for (i, value) in expected.iter().enumerate() {
+                assert_eq!(column.get_f64(i).unwrap().to_bits(), value.to_bits());
+            }
+            assert_eq!(column.get_f64(column.len()), None);
+        }
+    }
     use super::*;
 
     fn assert_close(left: &[f64], right: &[f64]) {

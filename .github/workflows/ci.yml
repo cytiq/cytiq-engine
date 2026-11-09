@@ -115,6 +115,11 @@ jobs:
         id: coverage
         run: bash .github/scripts/crap.sh coverage
 
+      - name: Verify scientific fixtures
+        run: |
+          python3 parity/scientific/check_fixtures.py
+          python3 -m unittest discover -s parity/scientific -p 'test_registry.py'
+
       - name: Report CRAP
         id: crap
         run: bash .github/scripts/crap.sh report

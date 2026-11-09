@@ -58,5 +58,12 @@
   "data/fixtures/parity/spillqc/tube_1.fcs": "63b5dcb68ca969bb3f173c6e6670df82a2415f1c819b272e7ab09ff6186c0a6f",
   "data/fixtures/parity/spillqc/tube_2.fcs": "d6f4a0f696796f20b430df972443fdf433f2c0930b34e4e2da710fe7fdc60556",
   "data/fixtures/parity/spillqc/tube_3.fcs": "68d15f23bbb92fb53d22784bee1a308777edac109a02160277297654169800cd",
-  "data/fixtures/pipeline/sample.fcs": "5632fef1aed1ab57ef6920e039639dd12cd331908f3011867868fac63073ad6d"
+  "data/fixtures/pipeline/sample.fcs": "5632fef1aed1ab57ef6920e039639dd12cd331908f3011867868fac63073ad6d",
+  "data/fixtures/scientific/normal/sample_2.fcs": "eb7e302fddede9b46de7062ebe25b58ce874718cb31ca1dba24fb05631ab0f0c",
+  "data/fixtures/scientific/normal/sample_4.fcs": "4f1c1ab825a4a24c232625d7b0b8649c178f0f4dd5139569355988484891b610",
+  "data/fixtures/scientific/normal/sample_6.fcs": "b69ee3a8036d46a81b08eeba270c67323a30278a82221de52fb76d92c747b319",
+  "data/fixtures/scientific/normal/sample_8.fcs": "2401d9370bdf4713c21cf328a1f0f90c2a58c321e99719ac58989df9599d1e25",
+  "data/fixtures/scientific/retention/Acute2020.fcs": "817622060e59bda3e1b734b4e5a7b4369c88a5a475b808fe44ff125a3e64130a",
+  "data/fixtures/scientific/retention/Acute2021.fcs": "00b86e6e88d65d35e3940158426fdc3b41b2f428c7a20cc259169e3fd77769f1",
+  "data/fixtures/scientific/retention/Vaccine.fcs": "2544b44dc0bc074fa2ee5f18b4dc1daebc0f9b473e0834dd3f6489b775b52a64"
 }

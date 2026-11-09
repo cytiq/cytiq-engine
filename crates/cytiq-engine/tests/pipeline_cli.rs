@@ -418,6 +418,40 @@ fn golden_chain_recovers_the_known_truth() {
 
     // The combined analysis mask against the true good events.
     let analysis = read_mask(&directory, "analysis.parquet");
+    let margins = read_mask(&directory, "s.comp.masks.parquet");
+    let peacoqc = read_mask(&directory, "s.peacoqc.masks.parquet");
+    let labels = truth
+        .population
+        .iter()
+        .cloned()
+        .map(Some)
+        .collect::<Vec<_>>();
+    let retention = cytiq_qc::retention::population_retention(
+        &analysis.acquisition,
+        &labels,
+        Some(&good),
+        &[
+            ("margins", &margins),
+            ("peacoqc", &peacoqc),
+            ("clean", &clean),
+            ("combined", &analysis),
+        ],
+    )
+    .expect("population retention");
+    fs::write(
+        directory.join("population_retention.json"),
+        serde_json::to_vec_pretty(&retention).unwrap(),
+    )
+    .unwrap();
+    for population in &retention.last().unwrap().populations {
+        if population.good_original.unwrap_or(0) != 0 {
+            limits.at_least(
+                "original_good_population_retention_min",
+                population.good_retention.unwrap(),
+                &population.population,
+            );
+        }
+    }
     let kept = removed(&analysis, "keep", rows)
         .into_iter()
         .map(|removed| !removed)

@@ -20,6 +20,14 @@ pub(crate) struct NoveltyModel {
 }
 
 impl NoveltyModel {
+    pub(crate) fn effective_counts(&self, rows: usize) -> Vec<f64> {
+        #[allow(clippy::cast_precision_loss)]
+        self.mixture
+            .components
+            .iter()
+            .map(|component| component.log_weight.exp() * rows as f64)
+            .collect()
+    }
     pub(crate) fn components(&self) -> usize {
         self.mixture.components.len()
     }

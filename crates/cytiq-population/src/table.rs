@@ -6,7 +6,9 @@ use crate::{
     Result, Target, TargetKind, require,
 };
 use arrow_schema::{DataType, Field, Schema};
-use parquet::arrow::{ArrowWriter, arrow_reader::ParquetRecordBatchReaderBuilder};
+pub use cytiq_mask::parquet::ParquetReadLimits;
+use cytiq_mask::parquet::ScalarParquetReader;
+use parquet::arrow::ArrowWriter;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::Path, sync::Arc};
 
@@ -82,7 +84,19 @@ pub fn read(path: &Path) -> Result<Vec<PopulationObservation>> {
 pub fn read_from<R: parquet::file::reader::ChunkReader + 'static>(
     reader: R,
 ) -> Result<Vec<PopulationObservation>> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(reader)?;
+    read_from_with_limits(reader, ParquetReadLimits::default())
+}
+
+/// Read with caller-supplied resource budgets, still enforcing the observation
+/// table's fixed maximum row count. Useful for restricted ingestion and fuzzing.
+/// # Errors
+/// Rejects invalid tables and inputs exceeding either budget or schema limits.
+pub fn read_from_with_limits<R: parquet::file::reader::ChunkReader + 'static>(
+    reader: R,
+    mut limits: ParquetReadLimits,
+) -> Result<Vec<PopulationObservation>> {
+    limits.rows = limits.rows.min(MAX_OBSERVATIONS as u64);
+    let builder = ScalarParquetReader::new(reader, limits)?;
     require(
         builder.schema().fields().len() == COLUMNS.len(),
         "unexpected observation columns",
@@ -103,7 +117,7 @@ pub fn read_from<R: parquet::file::reader::ChunkReader + 'static>(
         "too many observation rows",
     )?;
     let mut result = Vec::new();
-    for batch in builder.with_batch_size(crate::DEFAULT_BATCH_SIZE).build()? {
+    for batch in builder {
         let batch = batch?;
         // serde_arrow can coerce compatible numeric Arrow types. The v1 table
         // contract deliberately accepts only the original physical types.
@@ -125,6 +139,10 @@ pub fn read_from<R: parquet::file::reader::ChunkReader + 'static>(
             require(
                 target_id == observation.target.id && target_kind == observation.target.kind,
                 "target columns disagree",
+            )?;
+            require(
+                result.len() < MAX_OBSERVATIONS,
+                "too many decoded observation rows",
             )?;
             result.push(observation);
         }
