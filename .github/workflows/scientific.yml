@@ -78,7 +78,7 @@ jobs:
           r-version: '4.5.3'
           use-public-rspm: false
       - name: Install system build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libhdf5-dev libgit2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff-dev libjpeg-dev libgsl-dev libglpk-dev libzstd-dev
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libhdf5-dev libgit2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff-dev libjpeg-dev libwebp-dev libnlopt-dev libgsl-dev libglpk-dev libzstd-dev
       - name: Restore reference environment
         uses: actions/cache/restore@v6
         with:

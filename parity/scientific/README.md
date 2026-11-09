@@ -28,6 +28,12 @@ signed tag cannot be moved on retry; a conflicting tag fails publication.
 
 `setup_env.sh` restores `requirements.lock` (transitive wheel hashes) and
 `r-packages.lock.json` (source tarball versions/hashes and dependency order).
+The R lock includes the complete Depends/Imports/LinkingTo closure, including
+packages found outside the managed library and recommended R packages. Only
+base packages are provided by the pinned R runtime. Restore validates closure
+and installation order before consulting an existing library, so a warm local
+environment cannot conceal a missing dependency. Setup logs are retained in
+`target/scientific/environment/` even when package restoration fails.
 Changing a reference environment requires an explicit lock update and review.
 `check_fixtures.py` verifies contents and inventory of both fixture families.
 Do not regenerate goldens or widen tolerances to accommodate changed results.

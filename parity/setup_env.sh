@@ -3,16 +3,19 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_DIR="$ROOT/parity/.env"
+ENVIRONMENT_DIR="$ROOT/target/scientific/environment"
 export R_LIBS_USER="$ENV_DIR/Rlib"
 expected="${CYTIQ_R_VERSION:?run through just parity-setup}"
+mkdir -p "$ENVIRONMENT_DIR"
+printf 'Expected R: %s\n' "$expected" > "$ENVIRONMENT_DIR/setup.txt"
 found="$(Rscript -e 'cat(as.character(getRversion()))')"
+printf '%s\n' "$found" > "$ENVIRONMENT_DIR/r-version.txt"
 if [[ "$found" != "$expected" ]]; then
   echo "parity requires R $expected; found $found" >&2
   exit 1
 fi
-python3 "$ROOT/parity/scientific/r_packages.py" install --library "$R_LIBS_USER" --lock "$ROOT/parity/r-packages.lock.json" --cache "$ROOT/target/scientific/r-sources"
+python3 "$ROOT/parity/scientific/r_packages.py" install --library "$R_LIBS_USER" --lock "$ROOT/parity/r-packages.lock.json" --cache "$ROOT/target/scientific/r-sources" 2>&1 | tee "$ENVIRONMENT_DIR/r-restore.log"
 uv venv -q --allow-existing "$ENV_DIR/py" --python "$(command -v python3)"
-uv pip sync -q --python "$ENV_DIR/py/bin/python" --require-hashes "$ROOT/parity/requirements.lock"
-mkdir -p "$ROOT/target/scientific/environment"
+uv pip sync -q --python "$ENV_DIR/py/bin/python" --require-hashes "$ROOT/parity/requirements.lock" 2>&1 | tee "$ENVIRONMENT_DIR/python-restore.log"
 Rscript -e 'write.table(installed.packages(lib.loc=Sys.getenv("R_LIBS_USER"))[,c("Package","Version")],stdout(),row.names=FALSE)' > "$ROOT/target/scientific/environment/r-versions.txt"
 uv pip freeze --python "$ENV_DIR/py/bin/python" > "$ROOT/target/scientific/environment/python-versions.txt"
