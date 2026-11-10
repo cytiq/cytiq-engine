@@ -43,7 +43,7 @@ jobs:
 
       # No tool cache: nothing another workflow wrote runs before the token exists.
       - name: Install Rust and Python
-        uses: cytiq/cytiq-ci/.github/actions/mise@4765ebc677f78300946546051b0d9b25bb13a1dc # main, squash merge of cytiq-ci#26
+        uses: cytiq/cytiq-ci/.github/actions/mise@0.5.0
         with:
           tools: rust,python
           cache: false

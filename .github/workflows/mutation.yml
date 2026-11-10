@@ -28,7 +28,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust, Python and cargo-mutants
-        uses: cytiq/cytiq-ci/.github/actions/mise@4765ebc677f78300946546051b0d9b25bb13a1dc # main, squash merge of cytiq-ci#26
+        uses: cytiq/cytiq-ci/.github/actions/mise@0.5.0
         with:
           tools: rust,python,cargo:cargo-mutants
       - name: Run mutation tests
