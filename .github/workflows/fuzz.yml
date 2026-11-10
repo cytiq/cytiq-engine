@@ -63,7 +63,7 @@ jobs:
 
       # just fuzz installs the nightly that mise.toml pins (CYTIQ_FUZZ_TOOLCHAIN).
       - name: Install Rust and cargo-fuzz
-        uses: cytiq/cytiq-ci/.github/actions/mise@9cdadc1e6a8f76bcd50360569fd309760b645922 # feat/mise (cytiq-ci#26)
+        uses: cytiq/cytiq-ci/.github/actions/mise@4765ebc677f78300946546051b0d9b25bb13a1dc # main, squash merge of cytiq-ci#26
         with:
           tools: rust,cargo:cargo-fuzz
 
