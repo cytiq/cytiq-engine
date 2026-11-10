@@ -11,6 +11,7 @@
 
 mod error;
 mod policy;
+pub mod retention;
 mod runner;
 
 #[cfg(feature = "preflight")]

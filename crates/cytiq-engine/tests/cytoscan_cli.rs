@@ -143,6 +143,19 @@ fn cli_runs_cytoscan_novelty_with_reference() {
     // diagonal structures only, with a warning.
     let config: serde_json::Value = serde_json::from_str(&config).expect("config should be JSON");
     let diagnostics = &config["diagnostics"];
+    assert_eq!(
+        diagnostics["novelty_calibration_status"],
+        "insufficient_reference"
+    );
+    assert!(diagnostics["reference_effective_rank"].is_u64());
+    assert!(diagnostics["novelty_component_effective_counts"].is_array());
+    assert!(
+        diagnostics["preprocessing"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|channel| channel["compensated"] == true && channel["arcsinh_cofactor"] == 150.0)
+    );
     assert!(
         ["XII", "XXI", "EII", "VII", "EEI", "VEI", "EVI", "VVI"]
             .contains(&diagnostics["novelty_model"].as_str().unwrap_or_default()),
@@ -447,13 +460,12 @@ fn cli_strict_rejects_files_without_spillover() {
 
     let lenient = run(false, "lenient");
     assert!(
-        lenient.status.success(),
+        !lenient.status.success(),
         "stderr: {}",
         String::from_utf8_lossy(&lenient.stderr)
     );
-    let summary = fs::read_to_string(directory.join("lenient/cytoscan_summary.csv"))
-        .expect("summary should exist");
-    assert!(summary.contains("spillover metadata was not found"));
+    assert!(String::from_utf8_lossy(&lenient.stderr).contains("incompatible"));
+    assert!(!directory.join("lenient/cytoscan_summary.csv").exists());
 
     let strict = run(true, "strict");
     assert!(!strict.status.success());

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "files": {
+    "data/fixtures/scientific/cymae.lock.json": "b80b2ededac4389dc338b6296cf2926665aade3124166c64068fd0fb697373b7",
+    "data/fixtures/scientific/normal/export.json": "cc29d4acd0fa801034f703417ce41fab65c47e6176d7746e708580d8da768fb7",
+    "data/fixtures/scientific/normal/panel.csv": "0f52084b089149e97b927ff54deabc174f648a07772e8bd2edc90880edbd3436",
+    "data/fixtures/scientific/normal/sample_2.fcs": "7c5674ed22e3fe7efaad2d0a297d4e3b4819df59250fa936c2cc4e9e5585496c",
+    "data/fixtures/scientific/normal/sample_4.fcs": "e7e5cfa97391591807e1bfe9804ff54fe3f1f8e3c1230f58c7e68096f54cf168",
+    "data/fixtures/scientific/normal/sample_6.fcs": "99501b9dcb38b95dbbf08904df835be1f9da0bc9b36f96b0851137c8f1bacaad",
+    "data/fixtures/scientific/normal/sample_8.fcs": "3cfc756a923625a56a354bf43644737b51cca12733f77651249ef9fbb74db745",
+    "data/fixtures/scientific/normal/source.json": "640e9ce770a9603d86b3c5cf7451d0edc605fcc16a99d0b7d7e96da0d4c0a51f",
+    "data/fixtures/scientific/normal/subjects.csv": "4e42d08469ac67b79269c1526aa21631d2d0dbec9dec5a3bff77f15b25b96ac4",
+    "data/fixtures/scientific/parquet/gzip-size-mismatch.parquet": "d5396e6a86636bda022e344793cdec1ae050cba1c464439b80b65e0cb001f495",
+    "data/fixtures/scientific/retention/Acute2020.fcs": "e6fd6fbbb01cf34378a8a08883acd97fe3aaabd327c37574af8afe2515e7e59a",
+    "data/fixtures/scientific/retention/Acute2020.r-bounded-mask.json": "57cc92d57bac88d781680874ea6d6326ec2b223e34d24a40276044c4a43dddb9",
+    "data/fixtures/scientific/retention/Acute2020.r-mask.json": "62db46a2f28d885e7b20c343c40f21c9d66078537572d854921db968eaa1bac8",
+    "data/fixtures/scientific/retention/Acute2021.fcs": "40a14555d21e1c1f2e4f440e2578c5c6cd775c4d0869171bc6db7d5f8c47c001",
+    "data/fixtures/scientific/retention/Acute2021.r-bounded-mask.json": "4cd621d41c5fafe210ba026564ea4293146cdc7c71a10840df47ce5ddea76d75",
+    "data/fixtures/scientific/retention/Acute2021.r-mask.json": "2a13ea5d78d5b422209954ad8d7a397f9fe17c4e7117577fe22f5a7b1b140fd8",
+    "data/fixtures/scientific/retention/Vaccine.fcs": "743ecc7437078196afc468a0c744983fbe1fcf08a7efeb38df308be2c0d0eb16",
+    "data/fixtures/scientific/retention/Vaccine.r-bounded-mask.json": "0bdd65447fa6bf4a1bd98f88e1a1f2e4f3a695b9e9b7a86926738435b78bf50d",
+    "data/fixtures/scientific/retention/Vaccine.r-mask.json": "072881584b4c7981ef052e5d833bde2fd2cfde2018e2cb0009d9439eefa9c8d6",
+    "data/fixtures/scientific/retention/r-population-retention.json": "a03d61d924bf7350b8dba1e38aa7dd42217d18382b8ca6646f1d7862abe063d2",
+    "data/fixtures/scientific/retention/retention.json": "23530484bbc1452fae17868a6eb2bd3272414ebf8548c773252c6a3247b932fa",
+    "data/fixtures/scientific/weak-retention.json": "647cda99f0dac3504eabfe9cd2ca510b2208be782c9b6e4b406460302381fef1"
+  }
+}

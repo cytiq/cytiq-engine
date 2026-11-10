@@ -25,6 +25,7 @@
 
 mod error;
 mod mask;
+pub mod parquet;
 mod runner;
 
 pub use crate::error::MaskError;

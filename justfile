@@ -52,6 +52,14 @@ parity-setup:
 parity:
     parity/run_all.sh
 
+# Fast scientific tests run without an R installation or external datasets.
+[group('validation')]
+scientific:
+    python3 parity/scientific/check_fixtures.py
+    python3 -m unittest discover -s parity/scientific -p 'test_registry.py'
+    cargo test --locked -p cytiq-engine --test parity_smoke --test pipeline_cli --test biological_retention
+    cargo test --locked -p cytiq-qc --lib retention
+
 # ---- Validate on real acquisitions shipped with the R packages (and CYTIQ_REAL_DATA)
 [group('validation')]
 parity-real:
@@ -131,7 +139,7 @@ fuzz crate target seconds="300":
     # musl (no sanitizers) for prebuilt Linux binaries.
     export RUSTUP_TOOLCHAIN="$CYTIQ_FUZZ_TOOLCHAIN" && cd crates/{{ crate }} && \
       cargo fuzz run {{ target }} --target "$(rustc -vV | sed -n 's/^host: //p')" \
-      -- -max_total_time={{ seconds }} -timeout=10
+      -- -max_total_time={{ seconds }} -timeout=10 -rss_limit_mb=2048 -malloc_limit_mb=512 -max_len=4194304
 
 # ---- Fuzz read_fcs or spillover_keyword: `just fuzz cytiq-fcs <target>`
 [group('validation')]

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "source_commit": "093e4f5755cf208500087f809ed40212761f34cd",
+  "source_files": [
+    {
+      "path": "PBMC_fs.rda",
+      "sha256": "913f48da9ba8f62f0d84614a21c5ecfcd78d16069d5c377185909e24fad3d34a",
+      "bytes": 469404,
+      "url": "https://raw.githubusercontent.com/HelenaLC/CATALYST/093e4f5755cf208500087f809ed40212761f34cd/data/PBMC_fs.rda"
+    },
+    {
+      "path": "PBMC_md.rda",
+      "sha256": "5907ed23e6e0e83fb3d379c0c9f3b96a6f8b791d2b6e11dd30667c7082a5c323",
+      "bytes": 327,
+      "url": "https://raw.githubusercontent.com/HelenaLC/CATALYST/093e4f5755cf208500087f809ed40212761f34cd/data/PBMC_md.rda"
+    },
+    {
+      "path": "PBMC_panel.rda",
+      "sha256": "c3d5e897b1571c98b905f93a026c5894a4e5bad4c996e703c3384c51c07dce3a",
+      "bytes": 496,
+      "url": "https://raw.githubusercontent.com/HelenaLC/CATALYST/093e4f5755cf208500087f809ed40212761f34cd/data/PBMC_panel.rda"
+    }
+  ],
+  "normal_samples": [
+    2,
+    4,
+    6,
+    8
+  ],
+  "independent_subjects": 4,
+  "warning": "Four unstimulated donors only; not a clinical calibration cohort. Full source export lists stimulated samples which are not included."
+}

@@ -1,5 +1,4 @@
 //! Portable SOM inference and independently implemented consensus clustering.
-use std::fs::File;
 
 use cytiq_fcs::{SignalState, TransformContract};
 use cytiq_publish::{Existing, Publication};
@@ -124,16 +123,18 @@ impl FlowSomModel {
                     requested_name: name.clone(),
                     parameter_name: name.clone(),
                     display_name: name.clone(),
-                    values: Vec::new(),
+                    parameter_index: 0,
                 })
                 .collect::<Vec<_>>();
             let scaled = scale_matrix(values.to_vec(), &channels, config.scale);
             let rows = training_rows(values.len(), config);
-            let training = rows.map_or_else(
-                || scaled.values.clone(),
-                |r| r.into_iter().map(|i| scaled.values[i].clone()).collect(),
-            );
-            let codebook = train_som(&training, SomGrid::of(config), config.seed);
+            let training_sample = rows.map(|r| {
+                r.into_iter()
+                    .map(|i| scaled.values[i].clone())
+                    .collect::<Vec<_>>()
+            });
+            let training = training_sample.as_deref().unwrap_or(&scaled.values);
+            let codebook = train_som(training, SomGrid::of(config), config.seed);
             let node_metaclusters = match method {
                 Metaclustering::Average => {
                     hierarchical_metaclusters(&codebook, config.metaclusters)
@@ -236,7 +237,7 @@ impl FlowSomModel {
             }
             resolved = Some(names);
             contract = Some(current);
-            matrix.extend(channel_matrix(&channels, rows.len()));
+            matrix.extend(channel_matrix(&channels, &dataset, &rows)?);
         }
         let mut config = config.clone();
         config.channels = resolved.ok_or_else(|| invalid("no training files"))?;
@@ -354,7 +355,7 @@ impl FlowSomModel {
     /// # Errors
     /// Returns I/O, JSON or model validation errors.
     pub fn load(path: &Path) -> Result<Self, FlowSomError> {
-        let model: Self = serde_json::from_reader(File::open(path)?)?;
+        let model: Self = serde_json::from_slice(&cytiq_provenance::input::document_bytes(path)?)?;
         model.validate()?;
         Ok(model)
     }
@@ -434,7 +435,7 @@ impl FlowSomModel {
                     }
                 }
             }
-            let assigned = self.assign(&channel_matrix(&channels, rows.len()))?;
+            let assigned = self.assign(&channel_matrix(&channels, &dataset, &rows)?)?;
             let source =
                 cytiq_fcs::source_event_ids(&dataset).map_err(|source| FlowSomError::FcsRead {
                     path: input.to_path_buf(),

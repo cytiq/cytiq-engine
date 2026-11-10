@@ -91,6 +91,34 @@ let keep: Vec<bool> = analysis.keep_for(&dataset, &acquisition)?; // one entry p
 - Reading rejects masks without `keep`/`source_event_id`, with nulls in them,
   with non-Boolean filter columns, or with a repeated `source_event_id`.
 
+## Bounded Parquet input
+
+`parquet::ScalarParquetReader` is shared by masks, population observations and
+CytoNorm spline tables. It accepts flat Boolean/UInt64/Float64/Utf8 columns and
+preserves Arrow metadata. Defaults cap files at 8 GiB, metadata at 16 MiB,
+compressed and decoded pages at 64 MiB, cumulative decoded allocations at 8 GiB,
+pages at 2^20, rows at 2^30 and columns at 1,024. Dictionary storage and Arrow
+arrays share one allocation budget; repeated dictionary strings are checked
+before materialization, with exact-capacity string buffers. A bounded compact
+Thrift preflight checks the flat schema before upstream metadata parsing, so a
+forged child count cannot trigger an allocation or recursion in that parser.
+Population observations apply their existing tighter row budget; callers can
+override the defaults with `table::read_from_with_limits`. Library callers can
+supply `ParquetReadLimits` for the configurable byte/row/page budgets.
+Nested schemas and over-budget inputs return errors. Page sizes and dictionary
+ordering/payloads are validated before the upstream decoder is called, including
+regressions for malformed packed definition levels, truncated byte dictionaries
+dictionary-encoded data without a dictionary, and an excessive schema child
+count. The observation fuzz target uses smaller limits: 4 MiB input, 1 MiB
+metadata, 8 MiB pages, 64 MiB decoded allocations, 100,000 rows and 10,000 pages.
+
+Compression features remain disabled in the workspace. Even if another crate
+enables them through Cargo feature unification, GZIP, Brotli and legacy LZ4 are
+rejected before decompression: their upstream decoders do not bound output by
+the declared page size. Only codecs with bounded output buffers may be enabled
+(Snappy, Zstd and LZ4_RAW). An independently generated GZIP fixture with a false
+page size permanently tests this fail-closed boundary.
+
 ## Dependencies
 
 - [`cytiq-fcs`](../cytiq-fcs) for event lineage (`source_event_ids`,

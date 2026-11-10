@@ -13,6 +13,7 @@ csv.workspace = true
 cytiq-fcs.workspace = true
 cytiq-mask.workspace = true
 cytiq-publish.workspace = true
+cytiq-provenance.workspace = true
 log.workspace = true
 plotly.workspace = true
 rayon.workspace = true

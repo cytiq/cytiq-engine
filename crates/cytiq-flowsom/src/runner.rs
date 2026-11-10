@@ -190,7 +190,7 @@ struct ResolvedChannel {
     requested_name: String,
     parameter_name: String,
     display_name: String,
-    values: Vec<f64>,
+    parameter_index: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -281,8 +281,14 @@ impl FlowSomRunner {
         let events = rows.len();
         let channels = resolve_channels(input, &dataset, &config.channels, &rows)?;
         warn_untransformed(input, &dataset, &channels)?;
-        let matrix = channel_matrix(&channels, events);
+        let matrix = channel_matrix(&channels, &dataset, &rows)?;
         let scaled = scale_matrix(matrix, &channels, config.scale);
+        let source_event_ids =
+            cytiq_fcs::source_event_ids(&dataset).map_err(|source| FlowSomError::FcsRead {
+                path: input.to_path_buf(),
+                source,
+            })?;
+        drop(dataset);
         info!(
             "flowsom pipeline: loaded {} events and {} selected channels from {}",
             events,
@@ -309,11 +315,6 @@ impl FlowSomRunner {
         let node_assignments = assign_events(&scaled.values, &codebook);
         let node_counts = count_nodes(&node_assignments, codebook.len());
         let node_metaclusters = hierarchical_metaclusters(&codebook, config.metaclusters);
-        let source_event_ids =
-            cytiq_fcs::source_event_ids(&dataset).map_err(|source| FlowSomError::FcsRead {
-                path: input.to_path_buf(),
-                source,
-            })?;
         let assignments = build_assignments(
             &node_assignments,
             &node_metaclusters,
@@ -523,14 +524,14 @@ fn resolve_channels(
                 });
             };
             let parameter = dataset.parameters[parameter_index].clone();
-            let column = column_to_f64(
-                dataset
-                    .data
-                    .column(parameter_index)
-                    .expect("parameter index should have a data column"),
-            );
-            let values = rows.iter().map(|row| column[*row]).collect::<Vec<_>>();
-            if values.iter().any(|value| !value.is_finite()) {
+            let column = dataset
+                .data
+                .column(parameter_index)
+                .expect("parameter index should have a data column");
+            if rows
+                .iter()
+                .any(|&row| !column_value(column, row).is_finite())
+            {
                 return Err(FlowSomError::NonFiniteChannel {
                     path: path.to_path_buf(),
                     channel: channel.clone(),
@@ -540,7 +541,7 @@ fn resolve_channels(
                 requested_name: channel.clone(),
                 parameter_name: parameter.name.clone(),
                 display_name: display_parameter_identifier(&parameter),
-                values,
+                parameter_index,
             })
         },
     )?;
@@ -557,28 +558,37 @@ fn resolve_channels(
     Ok(channels)
 }
 
-fn channel_matrix(channels: &[ResolvedChannel], events: usize) -> Vec<Vec<f64>> {
-    if events < 2 {
-        return (0..events)
-            .map(|event_index| {
-                channels
-                    .iter()
-                    .map(|channel| channel.values[event_index])
-                    .collect()
-            })
-            .collect();
-    }
+fn column_value(column: &ColumnData, row: usize) -> f64 {
+    column.get_f64(row).expect("validated selected row")
+}
 
-    debug!("parallelizing FlowSOM event matrix assembly with rayon for {events} events");
-    (0..events)
-        .into_par_iter()
-        .map(|event_index| {
-            channels
+fn channel_matrix(
+    channels: &[ResolvedChannel],
+    dataset: &FcsDataset,
+    rows: &[usize],
+) -> Result<Vec<Vec<f64>>, FlowSomError> {
+    let bytes = rows
+        .len()
+        .checked_mul(channels.len())
+        .and_then(|n| n.checked_mul(8));
+    if bytes.is_none_or(|n| n as u64 > cytiq_fcs::FcsReadLimits::default().decoded_bytes_max) {
+        return Err(FlowSomError::InvalidConfig(
+            "selected FlowSOM matrix exceeds the 8 GiB decoded-data budget".into(),
+        ));
+    }
+    let columns = channels
+        .iter()
+        .map(|channel| &dataset.data.columns[channel.parameter_index])
+        .collect::<Vec<_>>();
+    Ok(rows
+        .par_iter()
+        .map(|&row| {
+            columns
                 .iter()
-                .map(|channel| channel.values[event_index])
+                .map(|column| column_value(column, row))
                 .collect()
         })
-        .collect()
+        .collect())
 }
 
 fn scale_matrix(
@@ -1015,14 +1025,6 @@ fn display_parameter_identifier(parameter: &Parameter) -> String {
 
 fn event_count(dataset: &FcsDataset) -> usize {
     dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    match column {
-        ColumnData::UInt(values) => values.iter().map(|value| *value as f64).collect(),
-        ColumnData::F32(values) => values.iter().map(|value| f64::from(*value)).collect(),
-        ColumnData::F64(values) => values.clone(),
-    }
 }
 
 #[cfg(test)]

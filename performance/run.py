@@ -100,7 +100,8 @@ def measure(command, log_prefix, env):
             raise RuntimeError(f"command exited {process.returncode}: {command}; "
                                f"see {log_prefix.with_suffix('.stderr')}")
     return {"wall_seconds": elapsed, "user_seconds": usage.ru_utime,
-            "system_seconds": usage.ru_stime, "peak_rss_bytes": rss_bytes(usage.ru_maxrss)}
+            "system_seconds": usage.ru_stime, "peak_rss_bytes": rss_bytes(usage.ru_maxrss),
+            "input_blocks": usage.ru_inblock, "output_blocks": usage.ru_oublock}
 
 
 def percentile(values, fraction):

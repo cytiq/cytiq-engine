@@ -1,0 +1,155 @@
+name: Scientific validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Include the complete pinned CyMAE biological cohort
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact commit to validate
+        type: string
+        default: ''
+      full:
+        description: Include release biological validation
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scientific-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  selection:
+    runs-on: ubuntu-24.04
+    outputs:
+      required: ${{ steps.select.outputs.required }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          FORCE_FULL: ${{ inputs.full || inputs.ref != '' || github.event_name == 'schedule' }}
+        run: |
+          if [[ "$FORCE_FULL" != true && ( "$EVENT" == pull_request || "$EVENT" == push ) && "$BASE" =~ ^[0-9a-f]{40}$ && "$BASE" != 0000000000000000000000000000000000000000 && "$GITHUB_REF" != refs/tags/* ]]; then
+            python3 parity/scientific/selection.py "$BASE" "$HEAD" >> "$GITHUB_OUTPUT"
+          else
+            echo 'required=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  parity:
+    needs: selection
+    if: needs.selection.outputs.required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      R_LIBS_USER: ${{ github.workspace }}/parity/.env/Rlib
+      CYTIQ_REAL_DATASETS: flowsom_68983,peacoqc_111,compensaid_68983,celesta_mdsc_controls,aurora_pbmc_spectral
+      RAYON_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - name: Install pinned tools
+        uses: cytiq/cytiq-ci/.github/actions/mise@9cdadc1e6a8f76bcd50360569fd309760b645922
+        with:
+          tools: rust,python,uv
+      - name: Install pinned R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
+        with:
+          r-version: '4.5.3'
+          use-public-rspm: false
+      - name: Install system build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libhdf5-dev libgit2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff-dev libjpeg-dev libwebp-dev libnlopt-dev libgsl-dev libglpk-dev libzstd-dev
+      - name: Restore reference environment
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            parity/.env/Rlib
+            parity/.env/py
+            target/scientific/r-sources
+            parity/.data/real-cache
+          key: scientific-${{ runner.os }}-${{ hashFiles('parity/r-packages.lock.json', 'parity/requirements.lock', 'mise.lock') }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          key: scientific
+      - name: Restore and verify reference packages
+        run: just parity-setup
+      - name: Numerical parity
+        run: just parity
+      - name: Real acquisitions
+        run: just parity-real
+      - name: CytoNorm numerical and held-out donor parity
+        run: |
+          just parity-cytonorm
+          just parity-cytonorm-real
+      - name: Independent scientific metrics
+        run: parity/.env/py/bin/python -m unittest discover -s parity/scientific -p 'test_*.py'
+      - name: Complete biological acquisition cohort
+        if: inputs.full || github.event_name == 'schedule'
+        run: |
+          python3 parity/scientific/datasets.py fetch --lock data/fixtures/scientific/cymae.lock.json --cache target/scientific/cymae
+          parity/.env/py/bin/python parity/scientific/run.py retention --binary target/release/cytiq --registry data/fixtures/scientific/cymae.lock.json --cache target/scientific/cymae --output target/scientific/results/cymae-retention
+      - name: Independent normal donors
+        if: inputs.full || github.event_name == 'schedule'
+        run: parity/.env/py/bin/python parity/scientific/normal.py --binary target/release/cytiq --output target/scientific/results/normal-donors
+      - name: Weak phenotype retention sensitivity
+        if: inputs.full || github.event_name == 'schedule'
+        run: parity/.env/py/bin/python parity/scientific/weak_population.py --binary target/release/cytiq --output target/scientific/results/weak-populations
+      - name: Save reference environment
+        if: success() && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            parity/.env/Rlib
+            parity/.env/py
+            target/scientific/r-sources
+            parity/.data/real-cache
+          key: scientific-${{ runner.os }}-${{ hashFiles('parity/r-packages.lock.json', 'parity/requirements.lock', 'mise.lock') }}
+      - name: Upload scientific evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scientific-evidence
+          path: |
+            target/scientific/results/
+            target/scientific/environment/
+          if-no-files-found: error
+          retention-days: 35
+
+  scientific-validation:
+    if: always()
+    needs: [selection, parity]
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          SELECTION: ${{ needs.selection.result }}
+          REQUIRED: ${{ needs.selection.outputs.required }}
+          PARITY: ${{ needs.parity.result }}
+        run: |
+          [[ "$SELECTION" == success ]]
+          if [[ "$REQUIRED" == true ]]; then
+            [[ "$PARITY" == success ]]
+          else
+            [[ "$REQUIRED" == false && "$PARITY" == skipped ]]
+            echo 'Full parity is not applicable to these paths.'
+          fi

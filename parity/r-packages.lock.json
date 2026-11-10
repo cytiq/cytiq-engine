@@ -1,0 +1,2241 @@
+{
+  "schema_version": 1,
+  "r_version": "4.5.3",
+  "bioconductor": "3.22",
+  "base_packages": [
+    "base",
+    "compiler",
+    "datasets",
+    "grDevices",
+    "graphics",
+    "grid",
+    "methods",
+    "parallel",
+    "splines",
+    "stats",
+    "stats4",
+    "tcltk",
+    "tools",
+    "utils"
+  ],
+  "packages": [
+    {
+      "name": "abind",
+      "version": "1.4-8",
+      "url": "https://cloud.r-project.org/src/contrib/abind_1.4-8.tar.gz",
+      "sha256": "264a051b523ceae1795a0879e7768949ea55c586ac8db0adf1f5ebeddd2623e1",
+      "dependencies": [
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "ALL",
+      "version": "1.52.0",
+      "url": "https://bioconductor.org/packages/3.22/data/experiment/src/contrib/ALL_1.52.0.tar.gz",
+      "sha256": "cc615f8e418e1f5e2f81c7518314b8e2da85ccfefda7e5694155dca8312f5cd6",
+      "dependencies": [
+        "Biobase"
+      ]
+    },
+    {
+      "name": "AutoSpectral",
+      "version": "1.8.7",
+      "url": "https://codeload.github.com/DrCytometer/AutoSpectral/tar.gz/292dfeaae6b382d1a7c9c263c5bb4de35ff67207",
+      "sha256": "2ed85ca03338f70b230b9c1076734812b39e7b995f954a0b2903f50d949faf0d",
+      "dependencies": [
+        "FNN",
+        "MASS",
+        "RhpcBLASctl",
+        "cowplot",
+        "ggplot2",
+        "hexbin",
+        "isoband",
+        "lifecycle",
+        "parallelly",
+        "ragg",
+        "scattermore",
+        "tripack",
+        "viridisLite",
+        "xml2"
+      ]
+    },
+    {
+      "name": "autospill",
+      "version": "0.2.0",
+      "url": "https://codeload.github.com/carlosproca/autospill/tar.gz/1e60e86337b297f1dd9ffec6701d8010dd06175b",
+      "sha256": "d25417e04683a709cc7bde63e8f2319c3695dde6e745621cfc1d39f33ea1a503",
+      "dependencies": [
+        "MASS",
+        "RColorBrewer",
+        "deldir",
+        "fields",
+        "flowCore",
+        "flowWorkspace",
+        "ggplot2",
+        "moments",
+        "parallel",
+        "rlang",
+        "sp",
+        "tripack"
+      ]
+    },
+    {
+      "name": "backports",
+      "version": "1.5.1",
+      "url": "https://cloud.r-project.org/src/contrib/backports_1.5.1.tar.gz",
+      "sha256": "b8eeeabe3c27e1486f43e0b18dae57f0e870dd7c6979d3668df76bf0d4735bad",
+      "dependencies": []
+    },
+    {
+      "name": "base64enc",
+      "version": "0.1-6",
+      "url": "https://cloud.r-project.org/src/contrib/base64enc_0.1-6.tar.gz",
+      "sha256": "3c7e9d22f7409fa2989008fa6e980c3dd8e2693eb20676acf2470ae7addb0816",
+      "dependencies": []
+    },
+    {
+      "name": "BH",
+      "version": "1.90.0-1",
+      "url": "https://cloud.r-project.org/src/contrib/BH_1.90.0-1.tar.gz",
+      "sha256": "2e1fafb05938e81073561ae4892dc543ef15807e375e0ea8fa75e3ab79f0281b",
+      "dependencies": []
+    },
+    {
+      "name": "Biobase",
+      "version": "2.70.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/Biobase_2.70.0.tar.gz",
+      "sha256": "530a7435640e86c34db16bcc4c8a38b5046ac79512a86e7b97f66a9d57813cbc",
+      "dependencies": [
+        "BiocGenerics",
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "BiocGenerics",
+      "version": "0.56.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/BiocGenerics_0.56.0.tar.gz",
+      "sha256": "17795ff63ca767a48df95d2f4c774400c6098102dce9ffcb5db2596a6d9b68e0",
+      "dependencies": [
+        "generics",
+        "graphics",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "broom",
+      "version": "1.0.13",
+      "url": "https://cloud.r-project.org/src/contrib/broom_1.0.13.tar.gz",
+      "sha256": "f946601f57b4d90e7d2ea88c55c1516dacb8220cb12a980ba1e0fa1832320f61",
+      "dependencies": [
+        "backports",
+        "cli",
+        "dplyr",
+        "generics",
+        "glue",
+        "lifecycle",
+        "purrr",
+        "rlang",
+        "stringr",
+        "tibble",
+        "tidyr"
+      ]
+    },
+    {
+      "name": "car",
+      "version": "3.1-5",
+      "url": "https://cloud.r-project.org/src/contrib/car_3.1-5.tar.gz",
+      "sha256": "27ab23cff7c5c123ffe8a2475b5a3b4d778414a28dde0a59d5cfbbefa08c99fb",
+      "dependencies": [
+        "Formula",
+        "MASS",
+        "abind",
+        "carData",
+        "grDevices",
+        "graphics",
+        "lme4",
+        "mgcv",
+        "nlme",
+        "nnet",
+        "pbkrtest",
+        "quantreg",
+        "scales",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "carData",
+      "version": "3.0-6",
+      "url": "https://cloud.r-project.org/src/contrib/carData_3.0-6.tar.gz",
+      "sha256": "b14d5b40b35e5a59c1ec1cdf3cce2cea239b60ff6977a821cca0d6d5b4112551",
+      "dependencies": []
+    },
+    {
+      "name": "caTools",
+      "version": "1.18.4",
+      "url": "https://cloud.r-project.org/src/contrib/caTools_1.18.4.tar.gz",
+      "sha256": "d4c511b7182d385635f9ac3f4f551e57eaa77a5d04e5156759744dfb875a88e6",
+      "dependencies": [
+        "bitops"
+      ]
+    },
+    {
+      "name": "checkmate",
+      "version": "2.3.4",
+      "url": "https://cloud.r-project.org/src/contrib/checkmate_2.3.4.tar.gz",
+      "sha256": "95e1068dee07d95c5e616dfd66e622cf245821acd358a77e790118c34ebd85ca",
+      "dependencies": [
+        "backports",
+        "utils"
+      ]
+    },
+    {
+      "name": "circlize",
+      "version": "0.4.18",
+      "url": "https://cloud.r-project.org/src/contrib/circlize_0.4.18.tar.gz",
+      "sha256": "3e875b9138763eefaa85599e287c6c1f1399f988522bc2c6270075d2cde5481b",
+      "dependencies": [
+        "GlobalOptions",
+        "colorspace",
+        "grDevices",
+        "graphics",
+        "grid",
+        "methods",
+        "shape",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "cli",
+      "version": "3.6.6",
+      "url": "https://cloud.r-project.org/src/contrib/cli_3.6.6.tar.gz",
+      "sha256": "b2b58d6dd82f5798b335e39c00591686a01fd3e94399ef898e146173e36f18f9",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "clue",
+      "version": "0.3-68",
+      "url": "https://cloud.r-project.org/src/contrib/clue_0.3-68.tar.gz",
+      "sha256": "66841e71db41197000ef443d88cbb6da6c0b9c825903cb7b0db44537838a3216",
+      "dependencies": [
+        "cluster",
+        "graphics",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "colorRamps",
+      "version": "2.3.4",
+      "url": "https://cloud.r-project.org/src/contrib/colorRamps_2.3.4.tar.gz",
+      "sha256": "3cdf311123ea1924ee1446b9b5bd7aa3282ca00addb6e7181f98578eb6b18ff8",
+      "dependencies": []
+    },
+    {
+      "name": "colorspace",
+      "version": "2.1-4",
+      "url": "https://cloud.r-project.org/src/contrib/colorspace_2.1-4.tar.gz",
+      "sha256": "3bb168c19772bc3f11d15933da008d96505376eab31cb5b3106392a322e9c62c",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "CompensAID",
+      "version": "0.99.7",
+      "url": "https://codeload.github.com/Olsman/CompensAID/tar.gz/db748036e977571e09ddb4267ca598a1d700f2fc",
+      "sha256": "a0152dcb1cda532c4ab644e42f5bc39d402d8dfc8bc89b5273dc5663e2e49826",
+      "dependencies": [
+        "ParallelLogger",
+        "checkmate",
+        "dplyr",
+        "flowCore",
+        "flowDensity",
+        "ggcyto",
+        "ggplot2",
+        "methods",
+        "reshape2",
+        "rlang",
+        "stats",
+        "tibble",
+        "tidyr",
+        "utils"
+      ]
+    },
+    {
+      "name": "ComplexHeatmap",
+      "version": "2.26.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/ComplexHeatmap_2.26.1.tar.gz",
+      "sha256": "9ce75e86c9bbbcdc3ad253d92c1d3bd36541aacf72efa20d5c116059aa8b17da",
+      "dependencies": [
+        "GetoptLong",
+        "GlobalOptions",
+        "IRanges",
+        "RColorBrewer",
+        "circlize",
+        "clue",
+        "codetools",
+        "colorspace",
+        "digest",
+        "doParallel",
+        "foreach",
+        "grDevices",
+        "graphics",
+        "grid",
+        "matrixStats",
+        "methods",
+        "png",
+        "stats"
+      ]
+    },
+    {
+      "name": "ConsensusClusterPlus",
+      "version": "1.74.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/ConsensusClusterPlus_1.74.0.tar.gz",
+      "sha256": "0e5871b401c610113233fd98515c883b949388d563c9b6825e342537fe3a91e1",
+      "dependencies": [
+        "ALL",
+        "Biobase",
+        "cluster",
+        "graphics",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "corrplot",
+      "version": "0.95",
+      "url": "https://cloud.r-project.org/src/contrib/corrplot_0.95.tar.gz",
+      "sha256": "84a31f675041e589201b4d640753302abc10ccc2c0ca0a409b5153861989d776",
+      "dependencies": []
+    },
+    {
+      "name": "cowplot",
+      "version": "1.2.0",
+      "url": "https://cloud.r-project.org/src/contrib/cowplot_1.2.0.tar.gz",
+      "sha256": "431d582a4fb68f005f45e0d963c19daad826289374b429b05fe168ef6f231aa1",
+      "dependencies": [
+        "ggplot2",
+        "grDevices",
+        "grid",
+        "gtable",
+        "methods",
+        "rlang",
+        "scales"
+      ]
+    },
+    {
+      "name": "cpp11",
+      "version": "0.5.5",
+      "url": "https://cloud.r-project.org/src/contrib/cpp11_0.5.5.tar.gz",
+      "sha256": "72486beb0605c1229bf3d422cd536224af8dc09bd389a3116f62f4c7705c62f4",
+      "dependencies": []
+    },
+    {
+      "name": "crayon",
+      "version": "1.5.3",
+      "url": "https://cloud.r-project.org/src/contrib/crayon_1.5.3.tar.gz",
+      "sha256": "3e74a0685541efb5ea763b92cfd5c859df71c46b0605967a0b5dbb7326e9da69",
+      "dependencies": [
+        "grDevices",
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "cytolib",
+      "version": "2.22.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/cytolib_2.22.0.tar.gz",
+      "sha256": "e0acdd5365ece84ff1aea0cefc611b88c25000c02dd6748db101fcf6b22ed061",
+      "dependencies": [
+        "BH",
+        "RProtoBufLib",
+        "Rhdf5lib"
+      ]
+    },
+    {
+      "name": "CytoNorm",
+      "version": "2.0.12",
+      "url": "https://codeload.github.com/saeyslab/CytoNorm/tar.gz/278f352d8edffd7a5d3e6b0b76c402d991a1e7a9",
+      "sha256": "fa049cf589e32330a1d25e54cb1b7dc5bc5ce23c9a4e8d980040962546a71dd5",
+      "dependencies": [
+        "FlowSOM",
+        "dplyr",
+        "emdist",
+        "flowCore",
+        "ggplot2",
+        "ggpubr",
+        "ggridges",
+        "gridExtra",
+        "methods",
+        "pheatmap",
+        "stringr",
+        "tidyr"
+      ]
+    },
+    {
+      "name": "CytoScan",
+      "version": "0.1.0",
+      "url": "https://codeload.github.com/AUMC-HEMA/CytoScan/tar.gz/c97f403d3ad6c673bed67f1f7dff4062e2f28e19",
+      "sha256": "ff2bbddb885933f5380074858ea8c15e70e7f0ba7f9e31c718d98d0f10fb1bf8",
+      "dependencies": [
+        "Biobase",
+        "ComplexHeatmap",
+        "doParallel",
+        "dplyr",
+        "flowCore",
+        "flowFP",
+        "foreach",
+        "ggplot2",
+        "ggrepel",
+        "ggridges",
+        "grid",
+        "gridExtra",
+        "isotree",
+        "mclust",
+        "parallel",
+        "scales",
+        "stats",
+        "transport"
+      ]
+    },
+    {
+      "name": "data.table",
+      "version": "1.18.6.1",
+      "url": "https://cloud.r-project.org/src/contrib/data.table_1.18.6.1.tar.gz",
+      "sha256": "f2846f45fbbdfe886f05fa7489314a56ae0f3352ae5bc1070b0cdd4f44ffa1f5",
+      "dependencies": [
+        "methods"
+      ]
+    },
+    {
+      "name": "DelayedArray",
+      "version": "0.36.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/DelayedArray_0.36.1.tar.gz",
+      "sha256": "3ac71b2914c233c9fb57f5f1c94f59d8e40dd339ba1777d6740015c01d6519ee",
+      "dependencies": [
+        "BiocGenerics",
+        "IRanges",
+        "Matrix",
+        "MatrixGenerics",
+        "S4Arrays",
+        "S4Vectors",
+        "SparseArray",
+        "methods",
+        "stats",
+        "stats4"
+      ]
+    },
+    {
+      "name": "deldir",
+      "version": "2.0-4",
+      "url": "https://cloud.r-project.org/src/contrib/deldir_2.0-4.tar.gz",
+      "sha256": "d418acb28ec3707b6d64c7466d0cefbb49b098537f37558d8f7a5befd34a4653",
+      "dependencies": [
+        "grDevices",
+        "graphics"
+      ]
+    },
+    {
+      "name": "Deriv",
+      "version": "4.3.6",
+      "url": "https://cloud.r-project.org/src/contrib/Deriv_4.3.6.tar.gz",
+      "sha256": "8950065ee01803e936e4fa48b525bcff702ecc21f6dd41ab3e98e37fd9efeb9c",
+      "dependencies": [
+        "Rcpp",
+        "methods"
+      ]
+    },
+    {
+      "name": "digest",
+      "version": "0.6.39",
+      "url": "https://cloud.r-project.org/src/contrib/digest_0.6.39.tar.gz",
+      "sha256": "8bf048b49b2d17077138fae758bda56bbd53278d9437f2fdeaedf979c90a13c9",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "doBy",
+      "version": "4.7.2",
+      "url": "https://cloud.r-project.org/src/contrib/doBy_4.7.2.tar.gz",
+      "sha256": "9d4b2c4dca86b9e54f5c3778f6af93485334cd4b4f6105ac69e5d55579af7b7f",
+      "dependencies": [
+        "Deriv",
+        "MASS",
+        "Matrix",
+        "boot",
+        "broom",
+        "cowplot",
+        "dplyr",
+        "forecast",
+        "ggplot2",
+        "methods",
+        "modelr",
+        "purrr",
+        "rlang",
+        "tibble",
+        "tidyr"
+      ]
+    },
+    {
+      "name": "doParallel",
+      "version": "1.0.17",
+      "url": "https://cloud.r-project.org/src/contrib/doParallel_1.0.17.tar.gz",
+      "sha256": "b96a25ad105a654d70c7b4ca27290dc9967bc47f4668b2763927a886b178abd7",
+      "dependencies": [
+        "foreach",
+        "iterators",
+        "parallel",
+        "utils"
+      ]
+    },
+    {
+      "name": "dotCall64",
+      "version": "1.2",
+      "url": "https://cloud.r-project.org/src/contrib/dotCall64_1.2.tar.gz",
+      "sha256": "aad6ab571f30d4d191a9454cee278d57b478fb49d3f7b190593f317a0e4408aa",
+      "dependencies": []
+    },
+    {
+      "name": "dplyr",
+      "version": "1.2.1",
+      "url": "https://cloud.r-project.org/src/contrib/dplyr_1.2.1.tar.gz",
+      "sha256": "18d66fe2f24cda8b619c177326d39dd015229ab99695fa67d3fa31e4569390e0",
+      "dependencies": [
+        "R6",
+        "cli",
+        "generics",
+        "glue",
+        "lifecycle",
+        "magrittr",
+        "methods",
+        "pillar",
+        "rlang",
+        "tibble",
+        "tidyselect",
+        "utils",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "emdist",
+      "version": "0.3-3",
+      "url": "https://cloud.r-project.org/src/contrib/emdist_0.3-3.tar.gz",
+      "sha256": "b78e0c5dd49259f4389682b34fa2ebeb03b798a41183f9c31d4dc92b82f9b64a",
+      "dependencies": []
+    },
+    {
+      "name": "farver",
+      "version": "2.1.2",
+      "url": "https://cloud.r-project.org/src/contrib/farver_2.1.2.tar.gz",
+      "sha256": "528823b95daab4566137711f1c842027a952bea1b2ae6ff098e2ca512b17fe25",
+      "dependencies": []
+    },
+    {
+      "name": "fields",
+      "version": "18.0",
+      "url": "https://cloud.r-project.org/src/contrib/fields_18.0.tar.gz",
+      "sha256": "d564cd5309c738cc5dba51ee12eceb7333f107f1739792b07f636202a6714f07",
+      "dependencies": [
+        "RColorBrewer",
+        "maps",
+        "methods",
+        "spam",
+        "viridisLite"
+      ]
+    },
+    {
+      "name": "flowCore",
+      "version": "2.22.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/flowCore_2.22.1.tar.gz",
+      "sha256": "3a4eac9604009507d00e67f1026d11410f8e30fb51f92b9a5781cc065b5d59a5",
+      "dependencies": [
+        "BH",
+        "Biobase",
+        "BiocGenerics",
+        "RProtoBufLib",
+        "Rcpp",
+        "S4Vectors",
+        "cpp11",
+        "cytolib",
+        "grDevices",
+        "graphics",
+        "matrixStats",
+        "methods",
+        "stats",
+        "stats4",
+        "utils"
+      ]
+    },
+    {
+      "name": "flowDensity",
+      "version": "1.44.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/flowDensity_1.44.0.tar.gz",
+      "sha256": "0c717cf999911443752b83081d6e48f42b1c0c24cd7ee4a807ff5a7f53e7b267",
+      "dependencies": [
+        "car",
+        "flowCore",
+        "flowViz",
+        "gplots",
+        "grDevices",
+        "graphics",
+        "methods",
+        "polyclip",
+        "stats"
+      ]
+    },
+    {
+      "name": "flowFP",
+      "version": "1.68.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/flowFP_1.68.0.tar.gz",
+      "sha256": "bfa758106182d105088fbe1a0d6c3d48a2112219a698de0dd5d32131c702f6d9",
+      "dependencies": [
+        "Biobase",
+        "BiocGenerics",
+        "flowCore",
+        "flowViz",
+        "grDevices",
+        "graphics",
+        "methods",
+        "stats",
+        "stats4"
+      ]
+    },
+    {
+      "name": "FlowSOM",
+      "version": "2.18.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/FlowSOM_2.18.0.tar.gz",
+      "sha256": "b11d10208434b2f65e86d7e2f056e563918381a48857e126db6ea68b55d14325",
+      "dependencies": [
+        "BiocGenerics",
+        "ConsensusClusterPlus",
+        "Rtsne",
+        "XML",
+        "colorRamps",
+        "dplyr",
+        "flowCore",
+        "ggforce",
+        "ggnewscale",
+        "ggplot2",
+        "ggpubr",
+        "grDevices",
+        "igraph",
+        "magrittr",
+        "methods",
+        "rlang",
+        "stats",
+        "tidyr",
+        "utils"
+      ]
+    },
+    {
+      "name": "flowViz",
+      "version": "1.74.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/flowViz_1.74.0.tar.gz",
+      "sha256": "f61cb8f8a1835f903793ae34c7c1b1ef9b82c9ed306a69fd572d142f72712598",
+      "dependencies": [
+        "Biobase",
+        "IDPmisc",
+        "KernSmooth",
+        "MASS",
+        "RColorBrewer",
+        "flowCore",
+        "grDevices",
+        "graphics",
+        "grid",
+        "hexbin",
+        "lattice",
+        "latticeExtra",
+        "methods",
+        "stats",
+        "stats4",
+        "utils"
+      ]
+    },
+    {
+      "name": "flowWorkspace",
+      "version": "4.22.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/flowWorkspace_4.22.1.tar.gz",
+      "sha256": "0e6cfb9a196aebef5e3d5d9025b0a0363bff686ea6e2eade273870e4d3efa215",
+      "dependencies": [
+        "BH",
+        "Biobase",
+        "BiocGenerics",
+        "DelayedArray",
+        "RBGL",
+        "RProtoBufLib",
+        "Rgraphviz",
+        "Rhdf5lib",
+        "S4Vectors",
+        "XML",
+        "cpp11",
+        "cytolib",
+        "data.table",
+        "dplyr",
+        "flowCore",
+        "ggplot2",
+        "grDevices",
+        "graph",
+        "graphics",
+        "matrixStats",
+        "methods",
+        "ncdfFlow",
+        "scales",
+        "stats",
+        "stats4",
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "FNN",
+      "version": "1.1.4.1",
+      "url": "https://cloud.r-project.org/src/contrib/FNN_1.1.4.1.tar.gz",
+      "sha256": "73d97487fd3eac8ae90f32fd439f1689b1923b5688d83fd57fd2faeea70cb854",
+      "dependencies": []
+    },
+    {
+      "name": "foreach",
+      "version": "1.5.2",
+      "url": "https://cloud.r-project.org/src/contrib/foreach_1.5.2.tar.gz",
+      "sha256": "56338d8753f9f68f262cf532fd8a6d0fe25a71a2ff0107f3ce378feb926bafe4",
+      "dependencies": [
+        "codetools",
+        "iterators",
+        "utils"
+      ]
+    },
+    {
+      "name": "forecast",
+      "version": "9.0.2",
+      "url": "https://cloud.r-project.org/src/contrib/forecast_9.0.2.tar.gz",
+      "sha256": "86dadffb846903b83fa6471d4e33d29e37435cc492641963a5b1daa925150653",
+      "dependencies": [
+        "Rcpp",
+        "RcppArmadillo",
+        "colorspace",
+        "fracdiff",
+        "generics",
+        "ggplot2",
+        "graphics",
+        "lmtest",
+        "magrittr",
+        "nnet",
+        "parallel",
+        "stats",
+        "timeDate",
+        "urca",
+        "withr",
+        "zoo"
+      ]
+    },
+    {
+      "name": "Formula",
+      "version": "1.2-6",
+      "url": "https://cloud.r-project.org/src/contrib/Formula_1.2-6.tar.gz",
+      "sha256": "7e611ac371c045e100a6205d92fe5104001942673798f970290fea12e33bfd37",
+      "dependencies": [
+        "stats"
+      ]
+    },
+    {
+      "name": "fracdiff",
+      "version": "1.5-4",
+      "url": "https://cloud.r-project.org/src/contrib/fracdiff_1.5-4.tar.gz",
+      "sha256": "c38ea9c377144a01e72c32f7fd30d6548f9795c1be909aab143b0efb26b42d9e",
+      "dependencies": [
+        "stats"
+      ]
+    },
+    {
+      "name": "generics",
+      "version": "0.1.4",
+      "url": "https://cloud.r-project.org/src/contrib/generics_0.1.4.tar.gz",
+      "sha256": "bbe95a097792d38fc3b7e677738af1b95b66ea5e5017e33b8beac6a6088d0801",
+      "dependencies": [
+        "methods"
+      ]
+    },
+    {
+      "name": "GetoptLong",
+      "version": "1.1.1",
+      "url": "https://cloud.r-project.org/src/contrib/GetoptLong_1.1.1.tar.gz",
+      "sha256": "bfc784c53762074ef1ddc9c91c430484462e913170d0b9cdc0e2da496104c596",
+      "dependencies": [
+        "GlobalOptions",
+        "crayon",
+        "methods",
+        "rjson"
+      ]
+    },
+    {
+      "name": "ggcyto",
+      "version": "1.38.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/ggcyto_1.38.1.tar.gz",
+      "sha256": "abf36ef8c79311bf2ef4dc6774e1a6a0850b7a36753e42b2d3cf3863e109cf8f",
+      "dependencies": [
+        "RColorBrewer",
+        "data.table",
+        "flowCore",
+        "flowWorkspace",
+        "ggplot2",
+        "gridExtra",
+        "hexbin",
+        "methods",
+        "ncdfFlow",
+        "plyr",
+        "rlang",
+        "scales"
+      ]
+    },
+    {
+      "name": "ggforce",
+      "version": "0.5.0",
+      "url": "https://cloud.r-project.org/src/contrib/ggforce_0.5.0.tar.gz",
+      "sha256": "41b3ea33dc4da774a0047a446676e7c4d6c41592ad9cdb21db8d4efebcfb5d53",
+      "dependencies": [
+        "MASS",
+        "cli",
+        "cpp11",
+        "ggplot2",
+        "grDevices",
+        "grid",
+        "gtable",
+        "lifecycle",
+        "polyclip",
+        "rlang",
+        "scales",
+        "stats",
+        "systemfonts",
+        "tidyselect",
+        "tweenr",
+        "utils",
+        "vctrs",
+        "withr"
+      ]
+    },
+    {
+      "name": "ggnewscale",
+      "version": "0.5.2",
+      "url": "https://cloud.r-project.org/src/contrib/ggnewscale_0.5.2.tar.gz",
+      "sha256": "d765754060ea00a07c0fe9bb3e82e1f8b6acd18e2cbef084218c720a916358c8",
+      "dependencies": [
+        "ggplot2"
+      ]
+    },
+    {
+      "name": "ggplot2",
+      "version": "4.0.3",
+      "url": "https://cloud.r-project.org/src/contrib/ggplot2_4.0.3.tar.gz",
+      "sha256": "690224bd61642b6222adb109470988e87f786e193cca77a15c0923cf9da73fa5",
+      "dependencies": [
+        "S7",
+        "cli",
+        "grDevices",
+        "grid",
+        "gtable",
+        "isoband",
+        "lifecycle",
+        "rlang",
+        "scales",
+        "stats",
+        "vctrs",
+        "withr"
+      ]
+    },
+    {
+      "name": "ggpubr",
+      "version": "1.0.0",
+      "url": "https://cloud.r-project.org/src/contrib/ggpubr_1.0.0.tar.gz",
+      "sha256": "bb7f9c2d87328f9ce73f485dc7d77b56b567b8431513b531b2c1e9d090b4c589",
+      "dependencies": [
+        "cowplot",
+        "dplyr",
+        "ggplot2",
+        "ggrepel",
+        "ggsci",
+        "ggsignif",
+        "glue",
+        "grid",
+        "gridExtra",
+        "magrittr",
+        "polynom",
+        "purrr",
+        "rlang",
+        "rstatix",
+        "scales",
+        "stats",
+        "tibble",
+        "tidyr",
+        "utils"
+      ]
+    },
+    {
+      "name": "ggrepel",
+      "version": "0.9.8",
+      "url": "https://cloud.r-project.org/src/contrib/ggrepel_0.9.8.tar.gz",
+      "sha256": "0317dff5e11d9dae7225d5c1794fe16ea1bedc7d535ac98e990925670724c027",
+      "dependencies": [
+        "Rcpp",
+        "S7",
+        "ggplot2",
+        "grid",
+        "rlang",
+        "scales",
+        "withr"
+      ]
+    },
+    {
+      "name": "ggridges",
+      "version": "0.5.7",
+      "url": "https://cloud.r-project.org/src/contrib/ggridges_0.5.7.tar.gz",
+      "sha256": "fcba89ffa3a31edfb3eeea249a78997150d9e01888dbe2015fec310709681133",
+      "dependencies": [
+        "ggplot2",
+        "grid",
+        "scales",
+        "withr"
+      ]
+    },
+    {
+      "name": "ggsci",
+      "version": "5.2.0",
+      "url": "https://cloud.r-project.org/src/contrib/ggsci_5.2.0.tar.gz",
+      "sha256": "2c52a8059c057eea204fa479094973450c8fa0f3d6d6fc051ad546ec41559c46",
+      "dependencies": [
+        "ggplot2",
+        "grDevices",
+        "rlang",
+        "scales"
+      ]
+    },
+    {
+      "name": "ggsignif",
+      "version": "0.6.4",
+      "url": "https://cloud.r-project.org/src/contrib/ggsignif_0.6.4.tar.gz",
+      "sha256": "112051af425a0c0f2998ce187dacad066bc16f55af01e3e7b76d62ff6954b20a",
+      "dependencies": [
+        "ggplot2"
+      ]
+    },
+    {
+      "name": "GlobalOptions",
+      "version": "0.1.4",
+      "url": "https://cloud.r-project.org/src/contrib/GlobalOptions_0.1.4.tar.gz",
+      "sha256": "bed5f4afdb9d0565deac866c3793fc5c62d5259eadf8c8a5f57cc67ef0b47753",
+      "dependencies": [
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "glue",
+      "version": "1.8.1",
+      "url": "https://cloud.r-project.org/src/contrib/glue_1.8.1.tar.gz",
+      "sha256": "1c55905d3efc3d5c199ceb0bd12218e97f0d4c64df6038ff41ecef415478a122",
+      "dependencies": [
+        "methods"
+      ]
+    },
+    {
+      "name": "gplots",
+      "version": "3.3.0",
+      "url": "https://cloud.r-project.org/src/contrib/gplots_3.3.0.tar.gz",
+      "sha256": "f84c0b38d8fdbb6aa45fa81b9b21ee96f2c5891a5d37c77643977d06a66be302",
+      "dependencies": [
+        "KernSmooth",
+        "caTools",
+        "gtools",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "graph",
+      "version": "1.88.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/graph_1.88.1.tar.gz",
+      "sha256": "eb1bd8b54276c3fe104e3743b76b877e81c8ee428b2b66b007ac251d56d68f50",
+      "dependencies": [
+        "BiocGenerics",
+        "methods",
+        "stats",
+        "stats4",
+        "utils"
+      ]
+    },
+    {
+      "name": "gridExtra",
+      "version": "2.3.1",
+      "url": "https://cloud.r-project.org/src/contrib/gridExtra_2.3.1.tar.gz",
+      "sha256": "de42e501ac2c6a70bd0ffc18d7703e9b0e6b878c610df09756183c3e52445c82",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "grid",
+        "gtable",
+        "utils"
+      ]
+    },
+    {
+      "name": "gtable",
+      "version": "0.3.6",
+      "url": "https://cloud.r-project.org/src/contrib/gtable_0.3.6.tar.gz",
+      "sha256": "d305a5fa11278b649d2d8edc5288bf28009be888a42be58ff8714018e49de0ef",
+      "dependencies": [
+        "cli",
+        "glue",
+        "grid",
+        "lifecycle",
+        "rlang",
+        "stats"
+      ]
+    },
+    {
+      "name": "gtools",
+      "version": "3.9.5",
+      "url": "https://cloud.r-project.org/src/contrib/gtools_3.9.5.tar.gz",
+      "sha256": "dee9b6c1152db1a5dc427d074b32bbbb738708683f17a95e0e95e4d79fdf174b",
+      "dependencies": [
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "hexbin",
+      "version": "1.28.6",
+      "url": "https://cloud.r-project.org/src/contrib/hexbin_1.28.6.tar.gz",
+      "sha256": "848ee6a8f4c265df2adb86c76795a01386cdb3802be6bcc4fd73949851655337",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "grid",
+        "lattice",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "IDPmisc",
+      "version": "1.1.21",
+      "url": "https://cloud.r-project.org/src/contrib/IDPmisc_1.1.21.tar.gz",
+      "sha256": "478b95ae7e73df78e0728d37281b9af6b4f152a8d54bf9811121d32722f9088c",
+      "dependencies": [
+        "grid",
+        "lattice",
+        "methods"
+      ]
+    },
+    {
+      "name": "igraph",
+      "version": "2.3.4",
+      "url": "https://cloud.r-project.org/src/contrib/igraph_2.3.4.tar.gz",
+      "sha256": "38b114f4ebc9b61af6c29a56d72a2329cd08191e4b3612df4f184c519ee60740",
+      "dependencies": [
+        "Matrix",
+        "cli",
+        "cpp11",
+        "grDevices",
+        "graphics",
+        "lifecycle",
+        "magrittr",
+        "methods",
+        "pkgconfig",
+        "rlang",
+        "stats",
+        "utils",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "interp",
+      "version": "1.1-6",
+      "url": "https://cloud.r-project.org/src/contrib/interp_1.1-6.tar.gz",
+      "sha256": "3674044e5334ecdf124054303929c084fc0797d3123e28576a230492ea6ecd34",
+      "dependencies": [
+        "Rcpp",
+        "RcppEigen",
+        "deldir"
+      ]
+    },
+    {
+      "name": "IRanges",
+      "version": "2.44.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/IRanges_2.44.0.tar.gz",
+      "sha256": "244e55ca485805ae2fcae8621dec7bb35e9fcd0da707271eb5ef984b88605042",
+      "dependencies": [
+        "BiocGenerics",
+        "S4Vectors",
+        "methods",
+        "stats",
+        "stats4",
+        "utils"
+      ]
+    },
+    {
+      "name": "isoband",
+      "version": "0.3.0",
+      "url": "https://cloud.r-project.org/src/contrib/isoband_0.3.0.tar.gz",
+      "sha256": "fe8d3d58ca75bbee32f389152ac0058818f3f76f09c9867949531de7abc424ac",
+      "dependencies": [
+        "cli",
+        "cpp11",
+        "grid",
+        "rlang",
+        "utils"
+      ]
+    },
+    {
+      "name": "isotree",
+      "version": "0.6.1-5",
+      "url": "https://cloud.r-project.org/src/contrib/isotree_0.6.1-5.tar.gz",
+      "sha256": "794cefd0b8d29caf4d1bea6002774a20f6ebd3900cd1354ff64d8a044dec91eb",
+      "dependencies": [
+        "Rcpp",
+        "RhpcBLASctl",
+        "jsonlite",
+        "methods"
+      ]
+    },
+    {
+      "name": "iterators",
+      "version": "1.0.14",
+      "url": "https://cloud.r-project.org/src/contrib/iterators_1.0.14.tar.gz",
+      "sha256": "cef3075a0930e1408c764e4da56bbadd4f7d14315809df8f38dd51f80ccc677b",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "jpeg",
+      "version": "0.1-11",
+      "url": "https://cloud.r-project.org/src/contrib/jpeg_0.1-11.tar.gz",
+      "sha256": "2139efbd48fbcc590a401e40215573f4a214432536bc8967caa163a833b03729",
+      "dependencies": []
+    },
+    {
+      "name": "jsonlite",
+      "version": "2.0.0",
+      "url": "https://cloud.r-project.org/src/contrib/jsonlite_2.0.0.tar.gz",
+      "sha256": "75eb910c82b350ec33f094779da0f87bff154c232e4ae39c9896a9b89f3ac82d",
+      "dependencies": [
+        "methods"
+      ]
+    },
+    {
+      "name": "labeling",
+      "version": "0.4.3",
+      "url": "https://cloud.r-project.org/src/contrib/labeling_0.4.3.tar.gz",
+      "sha256": "c62f4fc2cc74377d7055903c5f1913b7295f7587456fe468592738a483e264f2",
+      "dependencies": [
+        "graphics",
+        "stats"
+      ]
+    },
+    {
+      "name": "latticeExtra",
+      "version": "0.6-31",
+      "url": "https://cloud.r-project.org/src/contrib/latticeExtra_0.6-31.tar.gz",
+      "sha256": "be69d8014bf722fab00d1afc7a8b515fdba65b25c7700ef44d76f092c5b6e66e",
+      "dependencies": [
+        "MASS",
+        "RColorBrewer",
+        "grDevices",
+        "grid",
+        "interp",
+        "jpeg",
+        "lattice",
+        "png",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "lifecycle",
+      "version": "1.0.5",
+      "url": "https://cloud.r-project.org/src/contrib/lifecycle_1.0.5.tar.gz",
+      "sha256": "61841e3e6edba056a88355a3f1d6698ab8d5d9cb3c05f2af0ec5a44ab516f8ee",
+      "dependencies": [
+        "cli",
+        "rlang"
+      ]
+    },
+    {
+      "name": "lme4",
+      "version": "2.0-6",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/lme4/lme4_2.0-6.tar.gz",
+      "sha256": "3e503bc10626ad62804c80a82237147b1296d93c18d88946554c29075af917f7",
+      "dependencies": [
+        "MASS",
+        "Matrix",
+        "Rcpp",
+        "RcppEigen",
+        "Rdpack",
+        "boot",
+        "graphics",
+        "grid",
+        "lattice",
+        "methods",
+        "minqa",
+        "nlme",
+        "nloptr",
+        "parallel",
+        "reformulas",
+        "splines",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "lmtest",
+      "version": "0.9-40",
+      "url": "https://cloud.r-project.org/src/contrib/lmtest_0.9-40.tar.gz",
+      "sha256": "64400d4d6cc635316531042971f1783539686e9015c76f5741c07304fa14d997",
+      "dependencies": [
+        "graphics",
+        "stats",
+        "zoo"
+      ]
+    },
+    {
+      "name": "magrittr",
+      "version": "2.0.5",
+      "url": "https://cloud.r-project.org/src/contrib/magrittr_2.0.5.tar.gz",
+      "sha256": "3f5b5b1d4e6d12807a95c50b6c88cb1d8af2c5eb5213f08bfe58f278eca2ed23",
+      "dependencies": []
+    },
+    {
+      "name": "maps",
+      "version": "3.4.3",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/maps/maps_3.4.3.tar.gz",
+      "sha256": "3b6d4945330041280ddb3f89fbe0d7dbcf124befef94e8d77e809122d8d588b8",
+      "dependencies": [
+        "graphics",
+        "utils"
+      ]
+    },
+    {
+      "name": "MASS",
+      "version": "7.3-66",
+      "url": "https://cloud.r-project.org/src/contrib/MASS_7.3-66.tar.gz",
+      "sha256": "59c619c70bfca653f1c74aef880e69405daefd0134e716a1862ecc5334b4e155",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "MatrixGenerics",
+      "version": "1.22.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/MatrixGenerics_1.22.0.tar.gz",
+      "sha256": "b53dcb3c9ac7e1e6e0a297f90c1603ab2a39e052718bd70d76aeed6f6110557a",
+      "dependencies": [
+        "matrixStats",
+        "methods"
+      ]
+    },
+    {
+      "name": "MatrixModels",
+      "version": "0.5-4",
+      "url": "https://cloud.r-project.org/src/contrib/MatrixModels_0.5-4.tar.gz",
+      "sha256": "f57af9e0a35a3fea77790e46846482c6c7de0d0ea1996a995a5924f2d41cf33c",
+      "dependencies": [
+        "Matrix",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "matrixStats",
+      "version": "1.5.0",
+      "url": "https://cloud.r-project.org/src/contrib/matrixStats_1.5.0.tar.gz",
+      "sha256": "12996c5f3e6fc202a43e1087f16a71b7fa93d7e908f512542c7ee89cf95dcc15",
+      "dependencies": []
+    },
+    {
+      "name": "mclust",
+      "version": "6.1.3",
+      "url": "https://cloud.r-project.org/src/contrib/mclust_6.1.3.tar.gz",
+      "sha256": "15ecf1440788e2f5e1b33b5c0cf012e49031185e240504288da5f4092437a84e",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "memuse",
+      "version": "4.2-3",
+      "url": "https://cloud.r-project.org/src/contrib/memuse_4.2-3.tar.gz",
+      "sha256": "906fdff665e2aed0e98ee3181233a5c62bd521abfce6ab1cb215c71c95d12620",
+      "dependencies": [
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "minqa",
+      "version": "1.2.8",
+      "url": "https://cloud.r-project.org/src/contrib/minqa_1.2.8.tar.gz",
+      "sha256": "5941e4b9b01978fc6d9fe24e6ca60cca66883fe9fa6ff3cbfa32aa1ac9db5467",
+      "dependencies": [
+        "Rcpp"
+      ]
+    },
+    {
+      "name": "modelr",
+      "version": "0.1.11",
+      "url": "https://cloud.r-project.org/src/contrib/modelr_0.1.11.tar.gz",
+      "sha256": "94ebd506e9ccf3bf25318be6a182f8f89c3669a77b41864a0b9dbcc1d4337bd3",
+      "dependencies": [
+        "broom",
+        "magrittr",
+        "purrr",
+        "rlang",
+        "tibble",
+        "tidyr",
+        "tidyselect",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "moments",
+      "version": "0.14.1",
+      "url": "https://cloud.r-project.org/src/contrib/moments_0.14.1.tar.gz",
+      "sha256": "2ed2b84802da132ae0cf826a65de5bfa85042b82e086be844002fe1ce270d864",
+      "dependencies": []
+    },
+    {
+      "name": "ncdfFlow",
+      "version": "2.56.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/ncdfFlow_2.56.0.tar.gz",
+      "sha256": "5a861b5f5d6c5a727cdceb7e40cb201d431935953495968b3158fdd63d606110",
+      "dependencies": [
+        "BH",
+        "Biobase",
+        "BiocGenerics",
+        "Rhdf5lib",
+        "cpp11",
+        "flowCore",
+        "methods"
+      ]
+    },
+    {
+      "name": "nloptr",
+      "version": "2.2.1",
+      "url": "https://cloud.r-project.org/src/contrib/nloptr_2.2.1.tar.gz",
+      "sha256": "76ba40750b475c8b1ad6a86c9e05f0c1746af16d965235ff9293953920aed7f4",
+      "dependencies": []
+    },
+    {
+      "name": "numDeriv",
+      "version": "2016.8-1.1",
+      "url": "https://cloud.r-project.org/src/contrib/numDeriv_2016.8-1.1.tar.gz",
+      "sha256": "d8c4d19ff9aeb31b0c628bd4a16378e51c1c9a3813b525469a31fe89af00b345",
+      "dependencies": []
+    },
+    {
+      "name": "ParallelLogger",
+      "version": "3.5.1",
+      "url": "https://cloud.r-project.org/src/contrib/ParallelLogger_3.5.1.tar.gz",
+      "sha256": "fa96b9cb568c5cda21fa4dd283f555cd7e98bb1eebd01c58ba1412740062a46c",
+      "dependencies": [
+        "jsonlite",
+        "memuse",
+        "methods",
+        "parallel",
+        "rstudioapi",
+        "snow",
+        "utils",
+        "xml2"
+      ]
+    },
+    {
+      "name": "parallelly",
+      "version": "1.48.0",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/parallelly/parallelly_1.48.0.tar.gz",
+      "sha256": "58fe71ccee8e4dc95591958c5428c5000350937024373b99b258a76da0927636",
+      "dependencies": [
+        "parallel",
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "pbkrtest",
+      "version": "0.5.5",
+      "url": "https://cloud.r-project.org/src/contrib/pbkrtest_0.5.5.tar.gz",
+      "sha256": "d26c8ef0a6fd73bba184bde8e3434439d62539d93aef0a0b5b480a0f309bc51b",
+      "dependencies": [
+        "MASS",
+        "Matrix",
+        "broom",
+        "doBy",
+        "dplyr",
+        "lme4",
+        "methods",
+        "numDeriv"
+      ]
+    },
+    {
+      "name": "PeacoQC",
+      "version": "1.20.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/PeacoQC_1.20.0.tar.gz",
+      "sha256": "6f45bfca70bcb7dd2f7eac3365cf2381d0d3f231f7a33803ae66b54b5948fb16",
+      "dependencies": [
+        "ComplexHeatmap",
+        "circlize",
+        "flowCore",
+        "flowWorkspace",
+        "ggplot2",
+        "grDevices",
+        "grid",
+        "gridExtra",
+        "methods",
+        "plyr",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "pheatmap",
+      "version": "1.0.13",
+      "url": "https://cloud.r-project.org/src/contrib/pheatmap_1.0.13.tar.gz",
+      "sha256": "4ac34d4c5f787624f45cc98a97b8c28295c57eb635d1523554252c5a583142f7",
+      "dependencies": [
+        "RColorBrewer",
+        "grDevices",
+        "graphics",
+        "grid",
+        "gtable",
+        "scales",
+        "stats"
+      ]
+    },
+    {
+      "name": "pillar",
+      "version": "1.11.1",
+      "url": "https://cloud.r-project.org/src/contrib/pillar_1.11.1.tar.gz",
+      "sha256": "056ce154238c9b5b8d5dcbcb52e1bc51d33870ce08c8a9ca9496478bd59f4653",
+      "dependencies": [
+        "cli",
+        "glue",
+        "lifecycle",
+        "rlang",
+        "utf8",
+        "utils",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "pkgconfig",
+      "version": "2.0.3",
+      "url": "https://cloud.r-project.org/src/contrib/pkgconfig_2.0.3.tar.gz",
+      "sha256": "330fef440ffeb842a7dcfffc8303743f1feae83e8d6131078b5a44ff11bc3850",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "plyr",
+      "version": "1.8.9",
+      "url": "https://cloud.r-project.org/src/contrib/plyr_1.8.9.tar.gz",
+      "sha256": "15b5e7f711d53bf41b8687923983b8ef424563aa2f74c5195feb5b1df1aee103",
+      "dependencies": [
+        "Rcpp"
+      ]
+    },
+    {
+      "name": "png",
+      "version": "0.1-9",
+      "url": "https://cloud.r-project.org/src/contrib/png_0.1-9.tar.gz",
+      "sha256": "0b8502363c6f5c73cf284dee4fd1416f5adf4115b6ae9a1e09531c143b978589",
+      "dependencies": []
+    },
+    {
+      "name": "polyclip",
+      "version": "1.10-7",
+      "url": "https://cloud.r-project.org/src/contrib/polyclip_1.10-7.tar.gz",
+      "sha256": "f58eaac3a5b2f6711c0c5f12fff91cf80a245ae45878f7217880ab062b5550d3",
+      "dependencies": []
+    },
+    {
+      "name": "polynom",
+      "version": "1.4-1",
+      "url": "https://cloud.r-project.org/src/contrib/polynom_1.4-1.tar.gz",
+      "sha256": "bc1edb7bb16c8b299103f80a52ab8c5fc200cd07a9056578c1f672e9f5019278",
+      "dependencies": [
+        "graphics",
+        "stats"
+      ]
+    },
+    {
+      "name": "purrr",
+      "version": "1.2.2",
+      "url": "https://cloud.r-project.org/src/contrib/purrr_1.2.2.tar.gz",
+      "sha256": "ac3bc0fc0e789510042522e6c4294336c71447be8f6921b5ef78b9a9fb86617d",
+      "dependencies": [
+        "cli",
+        "lifecycle",
+        "magrittr",
+        "rlang",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "quantreg",
+      "version": "6.1",
+      "url": "https://cloud.r-project.org/src/contrib/quantreg_6.1.tar.gz",
+      "sha256": "f42292c5ab25a15f39295b93391deafef192fe09eefde563399a64eba7e0169a",
+      "dependencies": [
+        "MASS",
+        "Matrix",
+        "MatrixModels",
+        "SparseM",
+        "graphics",
+        "methods",
+        "stats",
+        "survival"
+      ]
+    },
+    {
+      "name": "R6",
+      "version": "2.6.1",
+      "url": "https://cloud.r-project.org/src/contrib/R6_2.6.1.tar.gz",
+      "sha256": "59c6eba8b1b912eb7e104f65053235604be853425ee67c152ac4e86a1f2073b4",
+      "dependencies": []
+    },
+    {
+      "name": "ragg",
+      "version": "1.5.2",
+      "url": "https://cloud.r-project.org/src/contrib/ragg_1.5.2.tar.gz",
+      "sha256": "1dad21034a403e84a835c90260a1d9d8dc43c8d100f7fe63dd01d5e928b28f16",
+      "dependencies": [
+        "systemfonts",
+        "textshaping"
+      ]
+    },
+    {
+      "name": "RBGL",
+      "version": "1.86.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/RBGL_1.86.0.tar.gz",
+      "sha256": "2ec4cb71b4146634b90aa7c02939bc7882a2e56c8b8fbca204bf601ed7a96f20",
+      "dependencies": [
+        "BH",
+        "graph",
+        "methods"
+      ]
+    },
+    {
+      "name": "rbibutils",
+      "version": "2.4.1",
+      "url": "https://cloud.r-project.org/src/contrib/rbibutils_2.4.1.tar.gz",
+      "sha256": "da313d920a0f35ffdf30a54929ba8904b2b5a0d7f11a519db8674148129c8f32",
+      "dependencies": [
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "RColorBrewer",
+      "version": "1.1-3",
+      "url": "https://cloud.r-project.org/src/contrib/RColorBrewer_1.1-3.tar.gz",
+      "sha256": "4f42f5423c45688b39f492c7892d93f37b4541831c8ffb140364d2bd89031ac0",
+      "dependencies": []
+    },
+    {
+      "name": "Rcpp",
+      "version": "1.1.2",
+      "url": "https://cloud.r-project.org/src/contrib/Rcpp_1.1.2.tar.gz",
+      "sha256": "2746cf2fb188e5f0a84dbf5c8f68915b54564ed33e5754572f174e7b32e7f4f3",
+      "dependencies": [
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "RcppArmadillo",
+      "version": "15.6.2-1",
+      "url": "https://cloud.r-project.org/src/contrib/RcppArmadillo_15.6.2-1.tar.gz",
+      "sha256": "66fb2b707e237e1086b4f39111a172794f43a8bb815c1b589363d2219d61368d",
+      "dependencies": [
+        "Rcpp",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "RcppEigen",
+      "version": "0.3.4.0.2",
+      "url": "https://cloud.r-project.org/src/contrib/RcppEigen_0.3.4.0.2.tar.gz",
+      "sha256": "ecad7ba2129fd48b7ebb825558d38492ed1f3a8934959e27fcd6688175e542bb",
+      "dependencies": [
+        "Rcpp",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "Rdpack",
+      "version": "2.6.6",
+      "url": "https://cloud.r-project.org/src/contrib/Rdpack_2.6.6.tar.gz",
+      "sha256": "b4e19d22bd5a2ec79cdb08ba209e79c66ea16dbc2fd2e7db8bca46412651cbdb",
+      "dependencies": [
+        "methods",
+        "rbibutils",
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "reformulas",
+      "version": "0.4.4",
+      "url": "https://cloud.r-project.org/src/contrib/reformulas_0.4.4.tar.gz",
+      "sha256": "6a76d85eb4e19325aef87510180175f8cd7b5904a7075c89aff073765529e2f7",
+      "dependencies": [
+        "Matrix",
+        "Rdpack",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "reshape2",
+      "version": "1.4.5",
+      "url": "https://cloud.r-project.org/src/contrib/reshape2_1.4.5.tar.gz",
+      "sha256": "0ead5acd0153e5073b3c24e8e782982a4eab3aaa768ba17700d796fb13b68cef",
+      "dependencies": [
+        "Rcpp",
+        "plyr",
+        "stringr"
+      ]
+    },
+    {
+      "name": "Rgraphviz",
+      "version": "2.54.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/Rgraphviz_2.54.0.tar.gz",
+      "sha256": "f9a2d0c0f3cf45d5473413c2ad57b69ece9e6c3957da0626375369c76d495b56",
+      "dependencies": [
+        "grDevices",
+        "graph",
+        "graphics",
+        "grid",
+        "methods",
+        "stats4",
+        "utils"
+      ]
+    },
+    {
+      "name": "Rhdf5lib",
+      "version": "1.32.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/Rhdf5lib_1.32.0.tar.gz",
+      "sha256": "be6e080b0f8c91eea2761cb10b910036c00bcad6866dc4d285411a7ca4400fc4",
+      "dependencies": []
+    },
+    {
+      "name": "RhpcBLASctl",
+      "version": "0.23-42",
+      "url": "https://cloud.r-project.org/src/contrib/RhpcBLASctl_0.23-42.tar.gz",
+      "sha256": "5c889d5b69e264060b9f1f0383c447f594855b8afc15b7d76d39e4d62b946615",
+      "dependencies": []
+    },
+    {
+      "name": "rjson",
+      "version": "0.2.23",
+      "url": "https://cloud.r-project.org/src/contrib/rjson_0.2.23.tar.gz",
+      "sha256": "55034575c854ed657e6701da278c0fdea251479624d06a963b2e58461a5f0f48",
+      "dependencies": []
+    },
+    {
+      "name": "rlang",
+      "version": "1.3.0",
+      "url": "https://cloud.r-project.org/src/contrib/rlang_1.3.0.tar.gz",
+      "sha256": "80aa537d49e72265f443a15e8936128af583caa5e572086518b503cbf064279c",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "RProtoBufLib",
+      "version": "2.22.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/RProtoBufLib_2.22.0.tar.gz",
+      "sha256": "6c166a9479c619504f2f6e2cbd49d3588c9e72f74da09aafcc6ad5258f80d524",
+      "dependencies": []
+    },
+    {
+      "name": "rstatix",
+      "version": "1.1.0",
+      "url": "https://cloud.r-project.org/src/contrib/rstatix_1.1.0.tar.gz",
+      "sha256": "b71a99d3cebdcf9acb96b2ce97bee12df618c7e1875aabb7851f3fc8e0b5dd19",
+      "dependencies": [
+        "broom",
+        "car",
+        "corrplot",
+        "dplyr",
+        "generics",
+        "magrittr",
+        "purrr",
+        "rlang",
+        "stats",
+        "tibble",
+        "tidyr",
+        "tidyselect",
+        "utils"
+      ]
+    },
+    {
+      "name": "rstudioapi",
+      "version": "0.19.0",
+      "url": "https://cloud.r-project.org/src/contrib/rstudioapi_0.19.0.tar.gz",
+      "sha256": "f1e3bb445a90aadc07b043493022d120493eba7ff30c0b3055442d8b77d8069a",
+      "dependencies": []
+    },
+    {
+      "name": "Rtsne",
+      "version": "0.17",
+      "url": "https://cloud.r-project.org/src/contrib/Rtsne_0.17.tar.gz",
+      "sha256": "3aae6814d6c6d406785145f07374135652f2b26a58690dfd4bfbc8365dc5590b",
+      "dependencies": [
+        "Rcpp",
+        "stats"
+      ]
+    },
+    {
+      "name": "S4Arrays",
+      "version": "1.10.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/S4Arrays_1.10.1.tar.gz",
+      "sha256": "a3ceed75583236f2cb207f30f614d25b512e43ba008107dbda8425cfb4e47167",
+      "dependencies": [
+        "BiocGenerics",
+        "IRanges",
+        "Matrix",
+        "S4Vectors",
+        "abind",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "S4Vectors",
+      "version": "0.48.1",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/S4Vectors_0.48.1.tar.gz",
+      "sha256": "cfe78db85b5dc98034031807d6699fb96eed7a228b0ccfa474e1ede642acddc9",
+      "dependencies": [
+        "BiocGenerics",
+        "methods",
+        "stats",
+        "stats4",
+        "utils"
+      ]
+    },
+    {
+      "name": "S7",
+      "version": "0.2.2",
+      "url": "https://cloud.r-project.org/src/contrib/S7_0.2.2.tar.gz",
+      "sha256": "6f33245dde05b74265b1c4d379e034bc3a8923d41e7b52e6e75a75ce97d42af7",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "scales",
+      "version": "1.4.0",
+      "url": "https://cloud.r-project.org/src/contrib/scales_1.4.0.tar.gz",
+      "sha256": "d55ef5f08c92652d7a95cfa27584024723ab17873f1b2577dd488cb7c883ceee",
+      "dependencies": [
+        "R6",
+        "RColorBrewer",
+        "cli",
+        "farver",
+        "glue",
+        "labeling",
+        "lifecycle",
+        "rlang",
+        "viridisLite"
+      ]
+    },
+    {
+      "name": "scattermore",
+      "version": "1.2",
+      "url": "https://cloud.r-project.org/src/contrib/scattermore_1.2.tar.gz",
+      "sha256": "5534a87b0bdd1375f0fbffc1a5c980ad64e33a108435a67469b8324b580602d1",
+      "dependencies": [
+        "ggplot2",
+        "grDevices",
+        "graphics",
+        "grid",
+        "scales"
+      ]
+    },
+    {
+      "name": "shape",
+      "version": "1.4.6.1",
+      "url": "https://cloud.r-project.org/src/contrib/shape_1.4.6.1.tar.gz",
+      "sha256": "43f9bd0f997fd6cf1838efd8b2509c9a6396513f4e54a20360481634affd22a4",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "stats"
+      ]
+    },
+    {
+      "name": "snow",
+      "version": "0.4-4",
+      "url": "https://cloud.r-project.org/src/contrib/snow_0.4-4.tar.gz",
+      "sha256": "84587f46f222a96f3e2fde10ad6ec6ddbd878f4e917cd926d632f61a87db13c9",
+      "dependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "sp",
+      "version": "2.2-4",
+      "url": "https://cloud.r-project.org/src/contrib/sp_2.2-4.tar.gz",
+      "sha256": "73f03473e61e89f3c0c1a96ac6e17e81a075637963d1d6b156dc9c969b2dbc93",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "grid",
+        "lattice",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "spam",
+      "version": "2.11-4",
+      "url": "https://cloud.r-project.org/src/contrib/spam_2.11-4.tar.gz",
+      "sha256": "e206414c4220f0716fdc49654a3b450483920a5046f840f97452e1d93a689886",
+      "dependencies": [
+        "Rcpp",
+        "dotCall64",
+        "grid",
+        "methods"
+      ]
+    },
+    {
+      "name": "SparseArray",
+      "version": "1.10.10",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/SparseArray_1.10.10.tar.gz",
+      "sha256": "7c516c3e2f9dab11c10c6e75caf2254463c5792b711035ca3cf8475e946b81a5",
+      "dependencies": [
+        "BiocGenerics",
+        "IRanges",
+        "Matrix",
+        "MatrixGenerics",
+        "S4Arrays",
+        "S4Vectors",
+        "XVector",
+        "matrixStats",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "SparseM",
+      "version": "1.84-2",
+      "url": "https://cloud.r-project.org/src/contrib/SparseM_1.84-2.tar.gz",
+      "sha256": "2580fdbb8679e76c92b9f0c5bd9bb503c4cb6a750ef6ae96595441690ce98665",
+      "dependencies": [
+        "graphics",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "stringi",
+      "version": "1.8.9",
+      "url": "https://cloud.r-project.org/src/contrib/stringi_1.8.9.tar.gz",
+      "sha256": "427fcebd281d7ea850becce75e0807576dd394a723a814b2d487419b93275a33",
+      "dependencies": [
+        "stats",
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "stringr",
+      "version": "1.6.0",
+      "url": "https://cloud.r-project.org/src/contrib/stringr_1.6.0.tar.gz",
+      "sha256": "24f2fc5df980a7eb888659e22b9744d2316c558624015c7a7cd8c3ce3e370064",
+      "dependencies": [
+        "cli",
+        "glue",
+        "lifecycle",
+        "magrittr",
+        "rlang",
+        "stringi",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "systemfonts",
+      "version": "1.3.2",
+      "url": "https://cloud.r-project.org/src/contrib/systemfonts_1.3.2.tar.gz",
+      "sha256": "828a1780e540bd05107cd0a1ddfac6727de8aef1d6d82b43591dabaf753dd135",
+      "dependencies": [
+        "base64enc",
+        "cpp11",
+        "grid",
+        "jsonlite",
+        "lifecycle",
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "textshaping",
+      "version": "1.0.5",
+      "url": "https://cloud.r-project.org/src/contrib/textshaping_1.0.5.tar.gz",
+      "sha256": "12209d5535884b8b49bb56de10996cd797f806f44c691eefae2e8eb9786443dd",
+      "dependencies": [
+        "cpp11",
+        "lifecycle",
+        "stats",
+        "stringi",
+        "systemfonts",
+        "utils"
+      ]
+    },
+    {
+      "name": "tibble",
+      "version": "3.3.1",
+      "url": "https://cloud.r-project.org/src/contrib/tibble_3.3.1.tar.gz",
+      "sha256": "fb309f8a1939021b237c7e85ff7ad6e8ff5acd57a6230d220a452094b492b28f",
+      "dependencies": [
+        "cli",
+        "lifecycle",
+        "magrittr",
+        "methods",
+        "pillar",
+        "pkgconfig",
+        "rlang",
+        "utils",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "tidyr",
+      "version": "1.3.2",
+      "url": "https://cloud.r-project.org/src/contrib/tidyr_1.3.2.tar.gz",
+      "sha256": "04c0e6daf0af682af73763a42c027d7171761cdbdbf9ff7a77a0e421343d665a",
+      "dependencies": [
+        "cli",
+        "cpp11",
+        "dplyr",
+        "glue",
+        "lifecycle",
+        "magrittr",
+        "purrr",
+        "rlang",
+        "stringr",
+        "tibble",
+        "tidyselect",
+        "utils",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "tidyselect",
+      "version": "1.2.1",
+      "url": "https://cloud.r-project.org/src/contrib/tidyselect_1.2.1.tar.gz",
+      "sha256": "169e97ba0bbfbcdf4a80534322751f87a04370310c40e27f04aac6525d45903c",
+      "dependencies": [
+        "cli",
+        "glue",
+        "lifecycle",
+        "rlang",
+        "vctrs",
+        "withr"
+      ]
+    },
+    {
+      "name": "timeDate",
+      "version": "4052.112",
+      "url": "https://cloud.r-project.org/src/contrib/timeDate_4052.112.tar.gz",
+      "sha256": "7f5b8e294f9fdf977cb721e711a6fcd664e379ee1b0ddb4c733374940e0e4646",
+      "dependencies": [
+        "graphics",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "transport",
+      "version": "0.15-4",
+      "url": "https://cloud.r-project.org/src/contrib/transport_0.15-4.tar.gz",
+      "sha256": "4e9342f6fd65dc39c9dfed20cb0312d34899b9cb0648aa5a67516ce7711c20cf",
+      "dependencies": [
+        "Rcpp",
+        "RcppEigen",
+        "data.table",
+        "grDevices",
+        "graphics",
+        "methods",
+        "stats"
+      ]
+    },
+    {
+      "name": "tripack",
+      "version": "1.3-9.4",
+      "url": "https://cloud.r-project.org/src/contrib/tripack_1.3-9.4.tar.gz",
+      "sha256": "09517d9c6238559d1d23fa2937e5b34aa818ffcd7f711c356e8197d71e8774de",
+      "dependencies": []
+    },
+    {
+      "name": "tweenr",
+      "version": "2.0.3",
+      "url": "https://cloud.r-project.org/src/contrib/tweenr_2.0.3.tar.gz",
+      "sha256": "efabe512a45d653787ba40f87f3e23add4037f88573a102fa9ac7a5ff43c8cbe",
+      "dependencies": [
+        "cpp11",
+        "farver",
+        "magrittr",
+        "rlang",
+        "vctrs"
+      ]
+    },
+    {
+      "name": "urca",
+      "version": "1.3-4",
+      "url": "https://cloud.r-project.org/src/contrib/urca_1.3-4.tar.gz",
+      "sha256": "fe3d6ce5041f1e7caaf3137dfb6187640bcd2d208e19c59ee1202355ac0acb16",
+      "dependencies": [
+        "graphics",
+        "methods",
+        "nlme",
+        "stats"
+      ]
+    },
+    {
+      "name": "utf8",
+      "version": "1.2.6",
+      "url": "https://cloud.r-project.org/src/contrib/utf8_1.2.6.tar.gz",
+      "sha256": "4589f8b72291329e70b7f3a8c20f2feb4e7764eebad2e6976bc9a3eee7686ce9",
+      "dependencies": []
+    },
+    {
+      "name": "vctrs",
+      "version": "0.7.3",
+      "url": "https://cloud.r-project.org/src/contrib/vctrs_0.7.3.tar.gz",
+      "sha256": "b45078413e06ac624dddb7221a3a43908b405c8abec09822cb86638d30b0435b",
+      "dependencies": [
+        "cli",
+        "glue",
+        "lifecycle",
+        "rlang"
+      ]
+    },
+    {
+      "name": "viridisLite",
+      "version": "0.4.3",
+      "url": "https://cloud.r-project.org/src/contrib/viridisLite_0.4.3.tar.gz",
+      "sha256": "433be9bde66234dc76301fb4ffbbc9fc74bab5c14f4548d8ef2fc0065e121ef5",
+      "dependencies": []
+    },
+    {
+      "name": "withr",
+      "version": "3.0.3",
+      "url": "https://cloud.r-project.org/src/contrib/withr_3.0.3.tar.gz",
+      "sha256": "d86c6454164fc85678bfc85e2a6cce42f7461d45fa9a87de71f376e7956c991e",
+      "dependencies": [
+        "grDevices",
+        "graphics"
+      ]
+    },
+    {
+      "name": "xml2",
+      "version": "1.6.0",
+      "url": "https://cloud.r-project.org/src/contrib/xml2_1.6.0.tar.gz",
+      "sha256": "b0660edab0a839866a0cccd44721c54d497000fd6577a25106a33280318bf579",
+      "dependencies": [
+        "cli",
+        "methods",
+        "rlang"
+      ]
+    },
+    {
+      "name": "XVector",
+      "version": "0.50.0",
+      "url": "https://bioconductor.org/packages/3.22/bioc/src/contrib/XVector_0.50.0.tar.gz",
+      "sha256": "c963d04bd4c5c0387c401158408e02a08f1e9051124cae4154045c903c8be390",
+      "dependencies": [
+        "BiocGenerics",
+        "IRanges",
+        "S4Vectors",
+        "methods",
+        "stats",
+        "tools",
+        "utils"
+      ]
+    },
+    {
+      "name": "zoo",
+      "version": "1.9-1",
+      "url": "https://cloud.r-project.org/src/contrib/zoo_1.9-1.tar.gz",
+      "sha256": "a2d998726a9b528efd20af449099e4b2df53887a0d10f48ac9ba63992b3a053a",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "lattice",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "mgcv",
+      "version": "1.9-4",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/mgcv/mgcv_1.9-4.tar.gz",
+      "sha256": "a98159698afb269e06a46cac1f945bf2b3427a2dd587c6f2efd67ede90089372",
+      "dependencies": [
+        "Matrix",
+        "graphics",
+        "methods",
+        "nlme",
+        "splines",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "nlme",
+      "version": "3.1-168",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/nlme/nlme_3.1-168.tar.gz",
+      "sha256": "23b78468344cb6775dee5e0d9c8133032d64f08ebaba20776508a0443a897362",
+      "dependencies": [
+        "graphics",
+        "lattice",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "nnet",
+      "version": "7.3-20",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/nnet/nnet_7.3-20.tar.gz",
+      "sha256": "8f33e17e0eb161cfbc1bfee4875baa23c66fcdba8215a64a63402b099db2b555",
+      "dependencies": [
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "bitops",
+      "version": "1.0-9",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/bitops/bitops_1.0-9.tar.gz",
+      "sha256": "cff3a5b77b72bb3b8fde92b690d0f803466d218a3ead6b731ae7c77ac1740d08",
+      "dependencies": []
+    },
+    {
+      "name": "cluster",
+      "version": "2.1.8.2",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/cluster/cluster_2.1.8.2.tar.gz",
+      "sha256": "4cc898a58baade883bb33aa0ee9be1723f321bd85ad91562cbd1e43dfdb41585",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "codetools",
+      "version": "0.2-20",
+      "url": "https://cloud.r-project.org/src/contrib/codetools_0.2-20.tar.gz",
+      "sha256": "3be6f375ec178723ddfd559d1e8e85bfeee04a5fbaf9f53f2f844e1669fea863",
+      "dependencies": []
+    },
+    {
+      "name": "Matrix",
+      "version": "1.7-4",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/Matrix/Matrix_1.7-4.tar.gz",
+      "sha256": "7b131ecb6a21ff09a33691dac7bf8a7bc2eab9fd1dd09ef14856d74346eb4779",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "grid",
+        "lattice",
+        "methods",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "boot",
+      "version": "1.3-32",
+      "url": "https://cloud.r-project.org/src/contrib/boot_1.3-32.tar.gz",
+      "sha256": "3a05aced6fea42a5c310c5c6ab7a2019f69f757f5e77c4961183977747136c97",
+      "dependencies": [
+        "graphics",
+        "stats"
+      ]
+    },
+    {
+      "name": "XML",
+      "version": "3.99-0.23",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/XML/XML_3.99-0.23.tar.gz",
+      "sha256": "ecd13e11563ccc03196daec2b3dfc68368daab1877d540e1415e88cd31d61998",
+      "dependencies": [
+        "methods",
+        "utils"
+      ]
+    },
+    {
+      "name": "KernSmooth",
+      "version": "2.23-26",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/KernSmooth/KernSmooth_2.23-26.tar.gz",
+      "sha256": "b465bdac197f7faa787e625412ae03d1b7c2c134b1c924cfeb775faf9c4da73e",
+      "dependencies": [
+        "stats"
+      ]
+    },
+    {
+      "name": "lattice",
+      "version": "0.22-9",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/lattice/lattice_0.22-9.tar.gz",
+      "sha256": "b72ad4ed2e5269fa7cf668e46f83a9b5d9d5f8fdcbc5b9886531ca19dffca4ba",
+      "dependencies": [
+        "grDevices",
+        "graphics",
+        "grid",
+        "stats",
+        "utils"
+      ]
+    },
+    {
+      "name": "survival",
+      "version": "3.8-6",
+      "url": "https://cloud.r-project.org/src/contrib/Archive/survival/survival_3.8-6.tar.gz",
+      "sha256": "9a4c0a35d86c64ec5a6e6cf179ab22dcffb5ce1d313d2880a09f1e53422699d7",
+      "dependencies": [
+        "Matrix",
+        "graphics",
+        "methods",
+        "splines",
+        "stats",
+        "utils"
+      ]
+    }
+  ]
+}

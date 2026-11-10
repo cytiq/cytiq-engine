@@ -112,6 +112,12 @@ do not affect that ID. Load verifies these hashes and complete mapping coverage.
 Models and outputs require `--overwrite` for replacement. Keep debug reports in
 a separate directory from the model bundle.
 
+Manifest/model JSON or YAML documents are limited to 16 MiB before parsing.
+Spline Parquet uses the shared bounded flat-scalar reader from `cytiq-mask`.
+Balanced training selects source row IDs before converting panel values, so
+unsampled rows do not create an intermediate full row matrix. Event selection,
+order, random streams, quantiles and spline arithmetic remain unchanged.
+
 Spline Parquet v1 has non-null `batch: utf8`, `metacluster: u64`, `marker: utf8`,
 `knot: u64` (zero-based), `x/y/slope: f64`, `events: u64`, and nullable
 `identity_reason: utf8`. One row represents each knot. Identity mappings have

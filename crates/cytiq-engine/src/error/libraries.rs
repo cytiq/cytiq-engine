@@ -422,7 +422,8 @@ fn cytoscan(error: &cytiq_cytoscan::CytoScanError) -> OutcomeReason {
         | E::EmptyAggregate { .. }
         | E::FeatureShapeMismatch
         | E::FingerprintBinTooSmall { .. }
-        | E::NoveltyFit { .. } => INVALID,
+        | E::NoveltyFit { .. }
+        | E::IncompatiblePreprocessing { .. } => INVALID,
     }
 }
 

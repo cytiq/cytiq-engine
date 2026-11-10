@@ -34,6 +34,15 @@ quantile bins of each control. Neither `autospill` nor `AutoSpectral` computes
 a spread matrix, so this part is a Nguyen-2013-style heuristic without an
 upstream reference.
 
+Rows are dyes and columns are raw secondary detectors; the primary diagonal is
+structurally zero. Its two `sqrt_like` regressions are not exactly homogeneous
+under changes of ADC units. Only at high signal do coefficients approach
+secondary-signal units / sqrt(primary-signal units). This raw-control surrogate
+is not the empirical spreading of the final compensated data. Independent
+controls, coefficient bootstrap/perturbation and explicit rescaling experiments
+are provided in [`parity/scientific`](../../parity/scientific). SSI alone does
+not establish matrix correctness, and these diagnostics never alter compensation.
+
 On the synthetic parity datasets the spillover matrix matches R `autospill`
 0.2.0 to `4.8e-13`, and on real single-stain controls from a FACSCelesta (11
 colours) and a FACSymphony (24 colours) to `5e-13`; the gates match event for

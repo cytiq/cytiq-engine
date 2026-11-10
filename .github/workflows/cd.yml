@@ -20,7 +20,22 @@ permissions:
   pull-requests: write
 
 jobs:
+  scientific:
+    needs: resolve-version
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'chore/update-changelog-'))
+    uses: ./.github/workflows/scientific.yml
+    with:
+      full: true
+      ref: ${{ needs.resolve-version.outputs.commit }}
+    permissions:
+      contents: read
+
   changelog:
+    needs: scientific
     if: github.event_name == 'push'
     uses: cytiq/cytiq-ci/.github/workflows/release.yml@0.4.0
     with:
@@ -33,21 +48,59 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
   release:
+    needs: [scientific, resolve-version]
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'chore/update-changelog-')
-    uses: cytiq/cytiq-ci/.github/workflows/release.yml@0.4.0
-    with:
-      tag: ${{ github.event.pull_request.head.ref }}
-      tag_prefix: chore/update-changelog-
-      update_changelog: false
-      cleanup_rc_tags: true
-    secrets:
-      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      # The shared release workflow checks out a moving main. A long scientific
+      # run must never publish a later, unvalidated main head instead.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve-version.outputs.commit }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
+          persist-credentials: false
+      - name: Import release signing key
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          fingerprint: ${{ secrets.GPG_FINGERPRINT }}
+          git_user_signingkey: true
+          git_tag_gpgsign: true
+          git_committer_name: Nikita Syzrantsev
+          git_committer_email: 47356892+nsyzrantsev@users.noreply.github.com
+      - name: Tag the validated commit without replacing existing tags
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+          COMMIT: ${{ needs.resolve-version.outputs.commit }}
+        run: |
+          gh auth setup-git
+          python3 .github/scripts/tag_validated_release.py
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ needs.resolve-version.outputs.version }}
+          name: ${{ needs.resolve-version.outputs.version }}
+          target_commitish: ${{ needs.resolve-version.outputs.commit }}
+          body_path: RELEASE_NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+      - name: Clean up this version's RC tags
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          while IFS= read -r tag; do
+            git push origin --delete "$tag"
+          done < <(git tag --list "$VERSION-rc*")
 
   # The version to tag the image with and the exact commit to build: the RC
   # tag's commit, or the merge commit of the changelog PR (never the
@@ -87,7 +140,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   build-and-push:
-    needs: resolve-version
+    needs: [resolve-version, scientific]
     uses: cytiq/cytiq-ci/.github/workflows/docker-publish.yml@0.4.0
     with:
       image: cytiq-engine
@@ -122,8 +175,8 @@ jobs:
           VERSION: ${{ needs.resolve-version.outputs.version }}
           COMMIT: ${{ needs.resolve-version.outputs.commit }}
         run: |
-          # The release job tags main's head, which is the merge commit unless
-          # another pull request merged meanwhile; crates and images must agree.
+          # The release pins the validated commit; still verify the remote tag
+          # so an unexpected external retag cannot publish different crates.
           tag=$(gh api "repos/$REPOSITORY/git/ref/tags/$VERSION" --jq '.object | "\(.type) \(.sha)"')
           read -r type sha <<< "$tag"
           if [ "$type" = tag ]; then

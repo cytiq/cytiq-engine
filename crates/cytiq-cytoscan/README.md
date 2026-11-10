@@ -11,6 +11,23 @@ Each file is reduced to one feature vector over the selected channels, then
 files are flagged either as outliers within the test cohort or as novelties
 against a separate high-quality reference cohort.
 
+Diagnostics expose reference size, numerical feature rank, constant features,
+mixture effective component counts and `novelty_calibration_status`.
+`insufficient_reference` means reference size does not exceed feature dimension
+or has fewer than one observation in the nominal 5% tail, or a mixture component
+has no more effective observations than feature dimensions. `in_sample_only` still
+does not imply held-out calibration. Existing scores and flags are preserved;
+small-cohort flags should not be interpreted as a calibrated false-positive rate.
+The independent normal-donor experiment is documented in
+[`parity/scientific`](../../parity/scientific).
+
+Every selected channel must have the same physical name, marker and effective
+preprocessing in every reference/test file. Mixing raw channels with channels
+compensated and transformed by CytoScan is rejected even without `--strict`.
+Distinct acquisition-specific spillover values remain allowed when the effective
+channel mapping and scale agree. This cannot detect undocumented processing
+already applied by an external application.
+
 ## Pipeline
 
 1. Resolve inputs: `.fcs` files, directories with immediate `.fcs` children,

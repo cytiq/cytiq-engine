@@ -97,6 +97,7 @@ pub struct AutoSpectralSummary {
     pub spectral_channels: Vec<String>,
     pub components: Vec<String>,
     pub condition_number: f64,
+    pub reference_diagnostics: ReferenceDiagnostics,
     pub controls: Vec<ControlQc>,
     pub samples: Vec<SampleQc>,
 }
@@ -122,7 +123,24 @@ pub struct SampleQc {
     pub residual_median: f64,
     pub residual_p95: f64,
     pub negative_fraction: f64,
+    /// RMS in each raw detector's units, in `spectral_channels` order.
+    pub detector_residual_rms: Vec<f64>,
+    /// sqrt(sum(residual²) / sum(raw detector signal²)); absent for zero signal.
+    pub relative_residual_rms: Option<f64>,
+    pub component_negative_fraction: Vec<f64>,
     pub output_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ReferenceDiagnostics {
+    pub af_peak_detector: String,
+    pub af_detector_means: Vec<f64>,
+    pub singular_values: Vec<f64>,
+    pub fluorophore_condition_number: f64,
+    pub spectral_cosine: Vec<Vec<f64>>,
+    /// P Pᵀ for independent unit-variance detector noise. This is a model
+    /// sensitivity, not empirical spreading or a fitted photon-noise model.
+    pub unit_noise_covariance: Vec<Vec<f64>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -190,6 +208,7 @@ struct BuiltReferences {
     matrix: DMatrix<f64>,
     unmixing: DMatrix<f64>,
     controls: Vec<ControlQc>,
+    diagnostics: ReferenceDiagnostics,
 }
 
 #[derive(Clone, Debug)]
@@ -203,6 +222,9 @@ struct UnmixedChunk {
     component_columns: Vec<Vec<f32>>,
     residuals: Vec<f64>,
     negative_count: usize,
+    residual_squares: Vec<f64>,
+    signal_squares: Vec<f64>,
+    component_negatives: Vec<usize>,
 }
 
 impl AutoSpectralRunner {
@@ -257,13 +279,17 @@ impl AutoSpectralRunner {
             input_dir.display()
         );
         let loaded_controls = load_controls(controls, input_dir)?;
-        let loaded_samples = load_samples(samples, input_dir)?;
-        let detectors = resolve_detectors(&loaded_controls, &loaded_samples, config)?;
+        let sample_headers = load_samples(samples, input_dir, true)?;
+        let detectors = resolve_detectors(&loaded_controls, &sample_headers, config)?;
         info!(
             "autospectral pipeline: using {} spectral detectors",
             detectors.len()
         );
         let references = build_references(&loaded_controls, &detectors, config)?;
+        // Spectra own their values; release full control acquisitions before
+        // allocating sample detector matrices and unmixed columns.
+        drop(loaded_controls);
+        let loaded_samples = load_samples(samples, input_dir, false)?;
         let output_paths = sample_output_paths(samples, &config.output_dir);
         let unmixed_samples = unmix_samples(
             &loaded_samples,
@@ -295,6 +321,7 @@ impl AutoSpectralRunner {
                 .map(|component| component.name.clone())
                 .collect(),
             condition_number: references.set.condition_number,
+            reference_diagnostics: references.diagnostics,
             controls: references.controls,
             samples: sample_qc,
         };
@@ -355,16 +382,66 @@ fn load_controls(
 fn load_samples(
     rows: &[SampleManifestRow],
     input_dir: &Path,
+    metadata_only: bool,
 ) -> Result<Vec<LoadedSample>, AutoSpectralError> {
     parallel_try_map(rows, "sample loading", |_, row| {
         let path = input_dir.join(&row.filename);
-        let dataset = load_dataset(&path)?;
+        let dataset = if metadata_only {
+            load_sample_metadata(&path)?
+        } else {
+            load_dataset(&path)?
+        };
         Ok(LoadedSample {
             row: row.clone(),
             path,
             dataset,
         })
     })
+}
+
+fn load_sample_metadata(path: &Path) -> Result<FcsDataset, AutoSpectralError> {
+    if !path.is_file() {
+        return Err(AutoSpectralError::MissingFcsFile { path: path.into() });
+    }
+    let stream = FcsReader::open(path)
+        .and_then(|reader| {
+            reader.stream(
+                std::num::NonZeroUsize::MIN,
+                cytiq_fcs::FcsReadLimits::default(),
+            )
+        })
+        .map_err(|source| AutoSpectralError::FcsRead {
+            path: path.into(),
+            source,
+        })?;
+    if stream.metadata.event_count == 0 {
+        return Err(AutoSpectralError::EmptyFcs { path: path.into() });
+    }
+    let data = stream.batches.empty_batch();
+    let metadata = stream.metadata;
+    let dataset = FcsDataset {
+        version: metadata.version,
+        header: metadata.header,
+        text: metadata.text,
+        parameters: metadata.parameters,
+        data,
+        analysis: None,
+    };
+    cytiq_fcs::ensure_linear_scale(&dataset).map_err(|source| AutoSpectralError::FcsRead {
+        path: path.into(),
+        source,
+    })?;
+    let state = SignalState::of(&dataset.text).map_err(|source| AutoSpectralError::FcsRead {
+        path: path.into(),
+        source,
+    })?;
+    if !state.is_raw() {
+        return Err(AutoSpectralError::ProcessedInput {
+            path: path.into(),
+            state: state.to_string(),
+        });
+    }
+    Ok(dataset)
 }
 
 fn load_dataset(path: &Path) -> Result<FcsDataset, AutoSpectralError> {
@@ -516,7 +593,8 @@ fn build_references(
     )?;
     // The AF component is a spectrum like the others, on the detector with
     // the highest mean (`define.flow.control`).
-    let af_peak = mean_spectrum(&af_columns, &af_gate)
+    let af_means = mean_spectrum(&af_columns, &af_gate);
+    let af_peak = af_means
         .iter()
         .enumerate()
         .max_by(|(_, left), (_, right)| left.total_cmp(right))
@@ -568,10 +646,37 @@ fn build_references(
 
     // calculate.condition.number: fluorophores only, warn when kappa > n.
     let fluorophore_count = components.len() - AF_COMPONENT_COUNT;
-    let fluorophore_matrix = reference_matrix(detectors.len(), &components[..fluorophore_count]);
-    let fluorophore_condition = condition_number(&fluorophore_matrix)?;
     let matrix = reference_matrix(detectors.len(), &components);
-    let condition_number = condition_number(&matrix)?;
+    let (fluorophore_condition, condition_number) =
+        spectral_conditioning(&matrix, fluorophore_count)?;
+    let unmixing = unmixing_matrix(&matrix)?;
+
+    Ok(BuiltReferences {
+        diagnostics: reference_diagnostics(
+            &matrix,
+            &unmixing,
+            detectors[af_peak].clone(),
+            af_means,
+            fluorophore_condition,
+        ),
+        set: SpectralReferenceSet {
+            detectors: detectors.to_vec(),
+            components,
+            condition_number,
+        },
+        matrix,
+        unmixing,
+        controls: controls_qc,
+    })
+}
+
+fn spectral_conditioning(
+    matrix: &DMatrix<f64>,
+    fluorophore_count: usize,
+) -> Result<(f64, f64), AutoSpectralError> {
+    let fluorophore_condition =
+        condition_number(&matrix.columns(0, fluorophore_count).into_owned())?;
+    let condition_number = condition_number(matrix)?;
     if fluorophore_condition > fluorophore_count as f64 {
         warn!(
             "fluorophore mixing matrix condition number {fluorophore_condition:.2} exceeds the number of fluorophores ({fluorophore_count})"
@@ -583,18 +688,7 @@ fn build_references(
             limit: CONDITION_NUMBER_LIMIT,
         });
     }
-    let unmixing = unmixing_matrix(&matrix)?;
-
-    Ok(BuiltReferences {
-        set: SpectralReferenceSet {
-            detectors: detectors.to_vec(),
-            components,
-            condition_number,
-        },
-        matrix,
-        unmixing,
-        controls: controls_qc,
-    })
+    Ok((fluorophore_condition, condition_number))
 }
 
 /// The autofluorescence control's gated events, which every single stain
@@ -812,6 +906,39 @@ fn unmix_samples(
     })
 }
 
+fn sample_detector_columns<'a>(
+    sample: &'a LoadedSample,
+    detectors: &[String],
+) -> Result<Vec<&'a ColumnData>, AutoSpectralError> {
+    let detector_columns = detectors
+        .iter()
+        .map(|detector| {
+            let index = sample.dataset.find_parameter(detector).ok_or_else(|| {
+                AutoSpectralError::MissingChannel {
+                    path: sample.path.clone(),
+                    channel: detector.clone(),
+                }
+            })?;
+            Ok(sample
+                .dataset
+                .data
+                .column(index)
+                .expect("resolved parameter has a data column"))
+        })
+        .collect::<Result<Vec<_>, AutoSpectralError>>()?;
+    if detector_columns.iter().any(|column| match column {
+        ColumnData::UInt(_) => false,
+        ColumnData::F32(values) => values.iter().any(|v| !v.is_finite()),
+        ColumnData::F64(values) => values.iter().any(|v| !v.is_finite()),
+    }) {
+        return Err(AutoSpectralError::NonFiniteSampleValues {
+            path: sample.path.clone(),
+        });
+    }
+
+    Ok(detector_columns)
+}
+
 fn unmix_sample(
     sample: &LoadedSample,
     detectors: &[String],
@@ -820,16 +947,7 @@ fn unmix_sample(
     unmixing: &DMatrix<f64>,
     output_path: &Path,
 ) -> Result<WorkingUnmixedSample, AutoSpectralError> {
-    let detector_columns = detector_columns(&sample.path, &sample.dataset, detectors)?;
-    if detector_columns
-        .iter()
-        .flat_map(|column| column.iter())
-        .any(|value| !value.is_finite())
-    {
-        return Err(AutoSpectralError::NonFiniteSampleValues {
-            path: sample.path.clone(),
-        });
-    }
+    let detector_columns = sample_detector_columns(sample, detectors)?;
 
     let event_total = event_count(&sample.dataset);
     let ranges = event_ranges(event_total);
@@ -847,8 +965,14 @@ fn unmix_sample(
             )
         })
         .collect::<Vec<_>>();
-    let (component_columns, residuals, negative_count) =
-        merge_unmixed_chunks(chunks, components.len(), event_total);
+    let UnmixedChunk {
+        component_columns,
+        residuals,
+        negative_count,
+        residual_squares,
+        signal_squares,
+        component_negatives,
+    } = merge_unmixed_chunks(chunks, components.len(), event_total);
 
     let read_error = |source| AutoSpectralError::FcsRead {
         path: sample.path.clone(),
@@ -897,13 +1021,24 @@ fn unmix_sample(
             residual_median: quantile(residuals.clone(), 0.5),
             residual_p95: quantile(residuals, 0.95),
             negative_fraction,
+            detector_residual_rms: residual_squares
+                .iter()
+                .map(|v| (v / event_total.max(1) as f64).sqrt())
+                .collect(),
+            relative_residual_rms: (signal_squares.iter().sum::<f64>() > 0.0).then(|| {
+                (residual_squares.iter().sum::<f64>() / signal_squares.iter().sum::<f64>()).sqrt()
+            }),
+            component_negative_fraction: component_negatives
+                .iter()
+                .map(|&v| v as f64 / event_total.max(1) as f64)
+                .collect(),
             output_path: output_path.to_path_buf(),
         },
     })
 }
 
 fn unmix_event_range(
-    detector_columns: &[Vec<f64>],
+    detector_columns: &[&ColumnData],
     component_count: usize,
     detector_count: usize,
     reference_matrix: &DMatrix<f64>,
@@ -915,18 +1050,30 @@ fn unmix_event_range(
     let mut component_columns = vec![Vec::with_capacity(chunk_len); component_count];
     let mut residuals = Vec::with_capacity(chunk_len);
     let mut negative_count = 0_usize;
+    let mut residual_squares = vec![0.0; detector_count];
+    let mut signal_squares = vec![0.0; detector_count];
+    let mut component_negatives = vec![0; component_count];
+    let mut y = DVector::zeros(detector_count);
+    let mut x = DVector::zeros(component_count);
+    let mut reconstructed = DVector::zeros(detector_count);
 
     for row_index in start..end {
-        let y = DVector::from_iterator(
-            detector_count,
-            detector_columns.iter().map(|column| column[row_index]),
-        );
-        let x = unmixing * &y;
-        let residual = (reference_matrix * &x - y).norm();
+        for (i, column) in detector_columns.iter().enumerate() {
+            y[i] = column.get_f64(row_index).expect("validated event row");
+        }
+        unmixing.mul_to(&y, &mut x);
+        reference_matrix.mul_to(&x, &mut reconstructed);
+        reconstructed -= &y;
+        let residual = reconstructed.norm();
+        for i in 0..detector_count {
+            residual_squares[i] += reconstructed[i] * reconstructed[i];
+            signal_squares[i] += y[i] * y[i];
+        }
         residuals.push(residual);
         for (component_index, value) in x.iter().enumerate() {
             if *value < 0.0 {
                 negative_count += 1;
+                component_negatives[component_index] += 1;
             }
             component_columns[component_index].push(*value as f32);
         }
@@ -936,6 +1083,9 @@ fn unmix_event_range(
         component_columns,
         residuals,
         negative_count,
+        residual_squares,
+        signal_squares,
+        component_negatives,
     }
 }
 
@@ -943,10 +1093,16 @@ fn merge_unmixed_chunks(
     chunks: Vec<UnmixedChunk>,
     component_count: usize,
     event_total: usize,
-) -> (Vec<Vec<f32>>, Vec<f64>, usize) {
+) -> UnmixedChunk {
     let mut component_columns = vec![Vec::with_capacity(event_total); component_count];
     let mut residuals = Vec::with_capacity(event_total);
     let mut negative_count = 0_usize;
+    let detectors = chunks
+        .first()
+        .map_or(0, |chunk| chunk.residual_squares.len());
+    let mut residual_squares = vec![0.0; detectors];
+    let mut signal_squares = vec![0.0; detectors];
+    let mut component_negatives = vec![0; component_count];
 
     for chunk in chunks {
         for (target, source) in component_columns.iter_mut().zip(chunk.component_columns) {
@@ -954,9 +1110,68 @@ fn merge_unmixed_chunks(
         }
         residuals.extend(chunk.residuals);
         negative_count += chunk.negative_count;
+        for (a, b) in residual_squares.iter_mut().zip(chunk.residual_squares) {
+            *a += b;
+        }
+        for (a, b) in signal_squares.iter_mut().zip(chunk.signal_squares) {
+            *a += b;
+        }
+        for (a, b) in component_negatives
+            .iter_mut()
+            .zip(chunk.component_negatives)
+        {
+            *a += b;
+        }
     }
 
-    (component_columns, residuals, negative_count)
+    UnmixedChunk {
+        component_columns,
+        residuals,
+        negative_count,
+        residual_squares,
+        signal_squares,
+        component_negatives,
+    }
+}
+
+fn reference_diagnostics(
+    matrix: &DMatrix<f64>,
+    unmixing: &DMatrix<f64>,
+    af_peak_detector: String,
+    af_detector_means: Vec<f64>,
+    fluorophore_condition_number: f64,
+) -> ReferenceDiagnostics {
+    let covariance = unmixing * unmixing.transpose();
+    ReferenceDiagnostics {
+        af_peak_detector,
+        af_detector_means,
+        fluorophore_condition_number,
+        singular_values: matrix
+            .clone()
+            .svd(false, false)
+            .singular_values
+            .iter()
+            .copied()
+            .collect(),
+        spectral_cosine: (0..matrix.ncols())
+            .map(|i| {
+                (0..matrix.ncols())
+                    .map(|j| {
+                        let a = matrix.column(i);
+                        let b = matrix.column(j);
+                        a.dot(&b) / (a.norm() * b.norm())
+                    })
+                    .collect()
+            })
+            .collect(),
+        unit_noise_covariance: (0..covariance.nrows())
+            .map(|i| {
+                (0..covariance.ncols())
+                    .map(|j| covariance[(i, j)])
+                    .collect()
+            })
+            .collect(),
+    }
 }
 
 fn event_ranges(event_total: usize) -> Vec<(usize, usize)> {

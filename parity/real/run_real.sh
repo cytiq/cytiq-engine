@@ -14,7 +14,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PARITY="$ROOT/parity"
-OUT="$PARITY/.out/real"
+OUT="${CYTIQ_REAL_OUT:-$ROOT/target/scientific/real}"
+RESULTS="${CYTIQ_PARITY_RESULTS:-$ROOT/target/scientific/results}"
+mkdir -p "$RESULTS"
 PY="$PARITY/.env/py/bin/python"
 export R_LIBS_USER="$PARITY/.env/Rlib"
 BIN="${CYTIQ_BIN:-$ROOT/target/release/cytiq}"
@@ -96,12 +98,12 @@ run_autospectral_chain() {
 # --- Classify chain: cytiq classify against the native model it was exported from
 # CYTIQ_CLASSIFY_BUNDLE is a cytiq-ml bundle; CYTIQ_CLASSIFY_GOLDEN holds its
 # native probabilities for the dataset's files (cytiq-ml
-# scripts/export_classify_golden.py). Skipped when either is unset.
+# scripts/export_classify_golden.py). Selected classify datasets require both.
 run_classify_chain() {
   local D="$1"
   if [[ -z "${CYTIQ_CLASSIFY_BUNDLE:-}" || -z "${CYTIQ_CLASSIFY_GOLDEN:-}" ]]; then
-    echo "skipping classify chain for $(basename "$D"): set CYTIQ_CLASSIFY_BUNDLE and CYTIQ_CLASSIFY_GOLDEN" >&2
-    return
+    echo "required classify inputs missing for $(basename "$D"): set CYTIQ_CLASSIFY_BUNDLE and CYTIQ_CLASSIFY_GOLDEN" >&2
+    return 1
   fi
   cp -R "$CYTIQ_CLASSIFY_BUNDLE" "$D/bundle"
   cp -R "$CYTIQ_CLASSIFY_GOLDEN" "$D/golden"
@@ -134,4 +136,4 @@ if [[ -n "${CYTIQ_REAL_DATA:-}" ]]; then
 fi
 
 Rscript "$PARITY/real/real.R" "$OUT"
-"$PY" "$PARITY/real/compare_real.py" "$OUT" "$PARITY/results/metrics_real.json"
+"$PY" "$PARITY/real/compare_real.py" "$OUT" "$RESULTS/metrics_real.json"

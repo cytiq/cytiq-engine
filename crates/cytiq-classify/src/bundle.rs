@@ -1,6 +1,5 @@
 //! Versioned portable bundles; v1 retains its original binary contract.
 use std::collections::{BTreeMap, HashSet};
-use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -168,7 +167,7 @@ impl Bundle {
         if self.schema_version != 4 {
             let path = directory.join(format!("{stem}.json"));
             verify_hash(&path, expected)?;
-            return Ok(serde_json::from_reader(File::open(path)?)?);
+            return Ok(serde_json::from_value(serialization::read(&path)?)?);
         }
         let payload = serialization::read(&serialization::resolve(directory, stem)?)?;
         if Some(serialization::digest(&payload).as_str()) != expected {

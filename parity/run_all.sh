@@ -10,8 +10,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PARITY="$ROOT/parity"
-DATA="$PARITY/.data"
-OUT="$PARITY/.out"
+DATA="${CYTIQ_PARITY_DATA:-$ROOT/target/scientific/parity-data}"
+OUT="${CYTIQ_PARITY_OUT:-$ROOT/target/scientific/parity-out}"
+RESULTS="${CYTIQ_PARITY_RESULTS:-$ROOT/target/scientific/results}"
+mkdir -p "$RESULTS"
 PY="$PARITY/.env/py/bin/python"
 export R_LIBS_USER="$PARITY/.env/Rlib"
 BASELINE_REF="${1:-}"
@@ -23,7 +25,7 @@ rm -rf "$DATA" "$OUT"
 
 "$PARITY/run_rust.sh" "$DATA" "$OUT/rust"
 Rscript "$PARITY/run_upstream.R" "$DATA" "$OUT/upstream"
-"$PY" "$PARITY/compare.py" "$DATA" "$OUT/rust" "$OUT/upstream" "$PARITY/results/metrics.json" >/dev/null
+"$PY" "$PARITY/compare.py" "$DATA" "$OUT/rust" "$OUT/upstream" "$RESULTS/metrics.json" >/dev/null
 
 if [[ -n "$BASELINE_REF" ]]; then
   BASE="$PARITY/.env/baseline"
@@ -36,7 +38,7 @@ if [[ -n "$BASELINE_REF" ]]; then
   PARITY_RUST_OUT="$OUT/rust_baseline" Rscript "$PARITY/run_upstream.R" "$DATA" "$OUT/upstream_baseline" autospectral
   # The baseline is measured, not judged: it may predate checked metrics.
   PARITY_SKIP_TOLERANCES=1 "$PY" "$PARITY/compare.py" "$DATA" "$OUT/rust_baseline" "$OUT/upstream_baseline" \
-    "$PARITY/results/metrics_baseline.json" >/dev/null
+    "$RESULTS/metrics_baseline.json" >/dev/null
 fi
 
-echo "metrics written to $PARITY/results/"
+echo "metrics written to $RESULTS/"

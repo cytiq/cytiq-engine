@@ -30,7 +30,16 @@ pub fn document_yaml(bytes: &[u8]) {
 /// Any bytes as an observation table: reading never panics, and every row it
 /// accepts is a valid observation with an intact identity.
 pub fn observations_parquet(bytes: &[u8]) {
-    let Ok(rows) = table::read_from(bytes::Bytes::copy_from_slice(bytes)) else {
+    let limits = table::ParquetReadLimits {
+        file_bytes: 4 << 20,
+        metadata_bytes: 1 << 20,
+        page_bytes: 8 << 20,
+        decoded_bytes: 64 << 20,
+        rows: 100_000,
+        pages: 10_000,
+    };
+    let Ok(rows) = table::read_from_with_limits(bytes::Bytes::copy_from_slice(bytes), limits)
+    else {
         return;
     };
     for row in &rows {

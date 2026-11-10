@@ -54,12 +54,17 @@ nightly in `CYTIQ_FUZZ_TOOLCHAIN`, which `just fuzz` installs on first use.
 
 Before opening a pull request, run `just verify`. CI enforces the equivalent checks on every pull request with `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` and the packaging check (job `quality`) and `cargo test --workspace --locked` under coverage instrumentation (job `test`). The release build and the Docker image (`.github/workflows/package.yml`, job `docker`) take about six minutes, so they run only on pull requests that change manifests, the lockfile, `build.rs`, `cytiq-classify`, its fixtures or `docker/`, plus weekly and on demand; run `just docker-build` locally when a change can affect packaging in other ways.
 
-Releases go through `.github/workflows/cd.yml`, which calls the reusable workflows of [`cytiq-ci`](https://github.com/cytiq/cytiq-ci).
+Releases go through `.github/workflows/cd.yml`, which calls the reusable changelog and Docker workflows of [`cytiq-ci`](https://github.com/cytiq/cytiq-ci).
 1. Pushing an `X.Y.Z-rcN` tag opens a `chore/update-changelog-X.Y.Z` PR with `CHANGELOG.md`, `RELEASE_NOTES.md` (git-cliff, `cliff.toml`) and the workspace version bump in `Cargo.toml`/`Cargo.lock`. It also publishes `ghcr.io/cytiq/cytiq-engine:X.Y.Z-rcN` for `linux/amd64` and `linux/arm64`, each built on a native runner.
 2. Merging that PR pushes the signed `X.Y.Z` tag and the GitHub Release, and publishes `:X.Y.Z` and `:latest` built from the merge commit.
 3. The same merge dispatches `.github/workflows/crates-publish.yml` on the `X.Y.Z` tag, which publishes all 24 crates to crates.io (see [crates.io publication](#cratesio-publication)); release candidates are never published there.
 
 Images record that commit in `CYTIQ_BUILD_COMMIT` and carry SBOM and provenance attestations. The release jobs need the `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`, `GPG_FINGERPRINT` and `GH_TOKEN` secrets.
+
+Full scientific validation checks out the resolved release commit before any
+publication. The local release job signs that exact commit and refuses to move
+an existing version tag. A later change to `main` cannot enter a release that
+has already passed validation.
 
 Docker publication opts into the platform-specific registry layer cache in `cytiq-ci` 0.4.0. Cache export failures
 do not hide build failures or block a successful publication. `docker/Dockerfile` compiles the dependencies with
@@ -67,7 +72,7 @@ cargo-chef in a layer of their own, keyed by a recipe of the manifests and lockf
 Source changes and release version bumps reuse that layer; any dependency change in `Cargo.lock` rebuilds it. The
 workspace crates and the fat-LTO link of `cytiq` always rebuild. The `package.yml` job reads the amd64 release cache
 and never writes it. Keep the reusable workflow pinned to a released tag after rollout validation.
-The release/changelog and Docker calls use `cytiq-ci@0.4.0`, which includes the workspace-version fix from
+The changelog and Docker calls use `cytiq-ci@0.4.0`, which includes the workspace-version fix from
 `cytiq-ci#24`.
 If GitHub cannot resolve an annotated release tag, pin its peeled commit SHA
 and retain the version in a comment; this keeps the same reviewed workflow
@@ -88,7 +93,9 @@ more than 10%. It never controls Docker or Rust runners.
 
 The upstream contracts are pinned and checked offline by `cargo test`: `crates/cytiq-population/contracts/cytiq-tree.lock.json` holds the sha256 of each vendored cytiq-tree schema, and `data/fixtures/classify/cytiq-ml.lock.json` the sha256 of each cytiq-ml bundle fixture. When bumping either, run `just contracts-upstream`, which compares the cytiq-tree pin with `git show` in a sibling checkout (`$CYTIQ_TREE_DIR`, default `../cytiq-tree`) and checks that a recorded cytiq-ml revision exists (`$CYTIQ_ML_DIR`). Hosted CI has no sibling checkouts, so this check is local.
 
-The parity suites against the upstream R/Python tools run locally, not in CI: installing the R environment takes too long for hosted runners. Run `just parity-setup` once, then `just parity` and `just parity-real` before merging a change that can move results; a violated tolerance exits non-zero. CI still runs a scientific smoke test (`crates/cytiq-engine/tests/parity_smoke.rs`) against R outputs committed in `data/fixtures/parity`; regenerate them with `just parity-smoke-fixture` when the generator, a dataset size or an upstream pin changes, never to make a cytiq change pass. Keep `parity/tolerances.json` and `parity/real/tolerances.json` honest: every rule states why its bound holds.
+Scientific validation has four layers: unit tests, numerical parity, real acquisitions and population retention. The required PR `test` job verifies SHA-256-pinned fixtures and runs the fast scientific regressions with the workspace tests; `just scientific` runs that subset locally. `.github/workflows/scientific.yml` selects full pinned R/Python parity for numerical changes, with weekly and manual runs. Release delivery depends on full scientific validation, including every FCS in the pinned CyMAE version. Missing required inputs fail; a skipped optional domain is explicitly reported. Reference environments and small real-data inputs are cached, with saves restricted to main; the 16 GB CyMAE corpus is not cached or uploaded.
+
+Run `just parity-setup`, `just parity`, `just parity-real`, `just parity-cytonorm` and `just parity-cytonorm-real` locally. Python wheels and R source archives are pinned by versions and SHA-256. Outputs default to ignored `target/scientific/`. Existing golden fixtures are never generated by tests or CI: an upstream or dataset update requires separate scientific review. Do not regenerate fixtures or widen tolerances to make an implementation pass. See [scientific experiments](parity/scientific/README.md) for independent oracles, dataset provenance, limitations and paired performance measurements.
 
 ## crates.io publication
 

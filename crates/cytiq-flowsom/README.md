@@ -27,6 +27,12 @@ settings and any upstream normalization ID. Training masks currently require a
 single input acquisition; CytoNorm manifests support per-file masks for cohorts.
 Existing outputs require `--overwrite` in the new model commands.
 
+Model JSON documents are limited to 16 MiB before deserialization. Selected
+event values are limited to 8 GiB before row-matrix allocation. Channel values
+are read from the original typed FCS columns, avoiding full converted-column
+copies; training uses a borrowed full matrix when no training subset is needed.
+The selected rows, RNG schedule, numeric casts and scaling are unchanged.
+
 `Metaclustering::Consensus` uses 100 deterministic 90% node subsamples, all
 features, Euclidean distance and average linkage inside and after resampling.
 Its RNG stream is independent of SOM training. This mode does not reproduce R's

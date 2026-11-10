@@ -79,5 +79,7 @@ biology_retained<-mean(normalized$vb[,"B"]-normalized$b[,"B"])
 stopifnot(biology_retained>=2.7)
 metrics<-list(CytoNorm=as.character(packageVersion("CytoNorm")),conditional_max_absolute_error=conditional_error,
              full_pipeline_min_ARI=min(ari),biological_shift_retained=biology_retained)
-write_json(metrics,"parity/results/metrics_cytonorm.json",auto_unbox=TRUE,pretty=TRUE,digits=17)
+results <- Sys.getenv("CYTIQ_PARITY_RESULTS", unset="target/scientific/results")
+dir.create(results, recursive=TRUE, showWarnings=FALSE)
+write_json(metrics,file.path(results,"metrics_cytonorm.json"),auto_unbox=TRUE,pretty=TRUE,digits=17)
 print(metrics)

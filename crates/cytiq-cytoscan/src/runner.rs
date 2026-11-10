@@ -215,7 +215,22 @@ pub struct CytoScanSummaryRow {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ChannelPreprocessing {
+    pub channel: String,
+    pub marker: String,
+    pub compensated: bool,
+    pub arcsinh_cofactor: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct CytoScanDiagnostics {
+    pub reference_count: usize,
+    pub reference_effective_rank: Option<usize>,
+    pub constant_reference_features: Vec<String>,
+    /// Threshold is trained in-sample; no held-out calibration is implied.
+    pub novelty_calibration_status: String,
+    pub novelty_component_effective_counts: Option<Vec<f64>>,
+    pub preprocessing: Vec<ChannelPreprocessing>,
     pub aggregate_source: String,
     pub aggregate_files: Vec<PathBuf>,
     pub aggregate_events: usize,
@@ -236,6 +251,7 @@ pub(crate) struct LoadedFile {
     pub(crate) channel_names: Vec<String>,
     pub(crate) matrix: Vec<Vec<f64>>,
     warnings: Vec<String>,
+    preprocessing: Vec<ChannelPreprocessing>,
 }
 
 #[derive(Clone, Debug)]
@@ -327,6 +343,7 @@ impl CytoScanRunner {
         );
         let test_files = load_files(&test_paths, &config.channels, config.strict)?;
         let reference_files = load_files(&reference_paths, &config.channels, config.strict)?;
+        ensure_compatible_preprocessing(&test_files, &reference_files)?;
         let aggregate_files = if config.flag_method.includes_novelty() {
             &reference_files
         } else {
@@ -390,6 +407,48 @@ impl CytoScanRunner {
             novelty.as_ref().map(|(model, _)| model.threshold),
         );
         let diagnostics = CytoScanDiagnostics {
+            reference_count,
+            reference_effective_rank: reference_features
+                .as_ref()
+                .map(|features| reference_rank(&features.values())),
+            constant_reference_features: reference_features.as_ref().map_or_else(
+                Vec::new,
+                |features| {
+                    (0..features.feature_names.len())
+                        .filter(|&i| {
+                            // Constancy is exact, with +0 and -0 equivalent.
+                            #[allow(clippy::float_cmp)]
+                            features
+                                .rows
+                                .iter()
+                                .all(|row| row.values[i] == features.rows[0].values[i])
+                        })
+                        .map(|i| features.feature_names[i].clone())
+                        .collect()
+                },
+            ),
+            novelty_calibration_status: if novelty.is_none() {
+                "not_assessed"
+            } else if reference_count <= test_features.feature_names.len()
+                || (reference_count as f64 * DEFAULT_NOVELTY_QUANTILE) < 1.0
+                || novelty.as_ref().is_some_and(|(model, _)| {
+                    model
+                        .effective_counts(reference_count)
+                        .iter()
+                        .any(|&n| n <= test_features.feature_names.len() as f64)
+                })
+            {
+                "insufficient_reference"
+            } else {
+                "in_sample_only"
+            }
+            .into(),
+            novelty_component_effective_counts: novelty
+                .as_ref()
+                .map(|(model, _)| model.effective_counts(reference_count)),
+            preprocessing: test_files
+                .first()
+                .map_or_else(Vec::new, |file| file.preprocessing.clone()),
             aggregate_source: aggregate_source.to_owned(),
             aggregate_files: aggregate_files
                 .iter()
@@ -559,6 +618,24 @@ fn load_processed_file(
     }
     let channels = resolve_channels(path, &dataset, requested_channels)?;
     let spillover = parse_spillover(path, &dataset)?;
+    let preprocessing = channels
+        .iter()
+        .map(|channel| {
+            let compensated = spillover
+                .as_ref()
+                .is_some_and(|matrix| matrix.channels.contains(&channel.parameter_name));
+            let marker = dataset.parameters[channel.parameter_index]
+                .label
+                .as_deref()
+                .unwrap_or("");
+            ChannelPreprocessing {
+                channel: channel.parameter_name.clone(),
+                marker: marker.to_owned(),
+                compensated,
+                arcsinh_cofactor: compensated.then_some(DEFAULT_ARCSINH_COFACTOR),
+            }
+        })
+        .collect();
     let (matrix, warnings) =
         preprocess_matrix(path, &dataset, &channels, spillover.as_ref(), strict)?;
     Ok(LoadedFile {
@@ -570,6 +647,7 @@ fn load_processed_file(
             .collect(),
         matrix,
         warnings,
+        preprocessing,
     })
 }
 
@@ -848,6 +926,41 @@ fn collect_warnings(test_files: &[LoadedFile], reference_files: &[LoadedFile]) -
                 .map(|warning| format!("{}: {warning}", file.path.display()))
         })
         .collect()
+}
+
+fn ensure_compatible_preprocessing(
+    test: &[LoadedFile],
+    reference: &[LoadedFile],
+) -> Result<(), CytoScanError> {
+    if let Some(first) = reference.first().or_else(|| test.first()) {
+        for file in test.iter().chain(reference) {
+            if file.preprocessing != first.preprocessing {
+                return Err(CytoScanError::IncompatiblePreprocessing {
+                    path: file.path.clone(),
+                    reference: first.path.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reference_rank(values: &[Vec<f64>]) -> usize {
+    let n = values.len();
+    let d = values.first().map_or(0, Vec::len);
+    if n == 0 || d == 0 {
+        return 0;
+    }
+    let means = (0..d)
+        .map(|j| values.iter().map(|row| row[j]).sum::<f64>() / n as f64)
+        .collect::<Vec<_>>();
+    let matrix = DMatrix::from_fn(n, d, |i, j| values[i][j] - means[j]);
+    let singular = matrix.svd(false, false).singular_values;
+    let max = singular.iter().copied().fold(0.0, f64::max);
+    singular
+        .iter()
+        .filter(|&&v| v > f64::EPSILON * n.max(d) as f64 * max)
+        .count()
 }
 
 fn parallel_try_map<T, U, E, F>(items: &[T], stage: &str, worker: F) -> Result<Vec<U>, E>
@@ -1612,6 +1725,7 @@ mod tests {
             channel_names: vec!["X".to_owned()],
             matrix: matrix.clone(),
             warnings: Vec::new(),
+            preprocessing: Vec::new(),
         };
         let relative = sampled_matrix(&file("data/a.fcs"), DEFAULT_EVENTS_PER_FILE);
         let absolute = sampled_matrix(&file("/tmp/x/data/a.fcs"), DEFAULT_EVENTS_PER_FILE);
@@ -1628,6 +1742,7 @@ mod tests {
             channel_names: vec!["X".to_owned()],
             matrix: (0..events).map(|index| vec![index as f64]).collect(),
             warnings: Vec::new(),
+            preprocessing: Vec::new(),
         };
         // ceiling(10000 / 3) = 3334 per file -> 10002 events, as CytoScan
         let files = vec![file(5_000), file(5_000), file(5_000)];
