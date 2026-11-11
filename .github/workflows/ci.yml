@@ -31,7 +31,7 @@ jobs:
 
       # Rust and Python as mise.toml pins them; the toolchain includes rustfmt and Clippy.
       - name: Install Rust and Python
-        uses: cytiq/cytiq-ci/.github/actions/mise@9cdadc1e6a8f76bcd50360569fd309760b645922 # feat/mise (cytiq-ci#26)
+        uses: cytiq/cytiq-ci/.github/actions/mise@0.5.0
         with:
           tools: rust,python
 
@@ -97,7 +97,7 @@ jobs:
 
       # The toolchain includes llvm-tools; mise.toml pins the coverage and CRAP tools.
       - name: Install Rust, Python, coverage and CRAP tools
-        uses: cytiq/cytiq-ci/.github/actions/mise@9cdadc1e6a8f76bcd50360569fd309760b645922 # feat/mise (cytiq-ci#26)
+        uses: cytiq/cytiq-ci/.github/actions/mise@0.5.0
         with:
           tools: rust,python,github:taiki-e/cargo-llvm-cov,github:minikin/cargo-crap
 
