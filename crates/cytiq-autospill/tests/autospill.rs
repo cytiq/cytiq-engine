@@ -377,10 +377,41 @@ fn autospread_writes_single_report() {
         ..AutospreadConfig::default()
     };
 
-    let _ = AutospreadRunner::run(&manifest, &directory, &config)
+    let result = AutospreadRunner::run(&manifest, &directory, &config)
         .expect("autospread with debug report should succeed");
 
     assert!(debug_dir.join("summary.json").is_file());
+    let summary: serde_json::Value =
+        serde_json::from_slice(&fs::read(debug_dir.join("summary.json")).unwrap()).unwrap();
+    let stats = summary["extra"]["spread_stats"].as_array().unwrap();
+    assert_eq!(stats.len(), result.dyes.len());
+    for (row, dye) in stats.iter().enumerate() {
+        let fits = dye["fits"].as_array().unwrap();
+        assert_eq!(fits.len(), result.detectors.len());
+        for (column, fit) in fits.iter().enumerate() {
+            assert_eq!(fit["detector"], result.detectors[column].as_str());
+            // serde_json's default float parser may differ by one ulp.
+            assert_close(
+                fit["coefficient"].as_f64().unwrap(),
+                result.spread_matrix[row][column],
+                1e-12,
+            );
+            let bins = fit["primary_median"].as_array().unwrap().len();
+            assert_eq!(fit["secondary_robust_sd"].as_array().unwrap().len(), bins);
+            match fit["status"].as_str().unwrap() {
+                "fitted" => {
+                    assert_eq!(fit["residuals"].as_array().unwrap().len(), bins);
+                    assert_close(
+                        fit["coefficient"].as_f64().unwrap(),
+                        fit["unclamped_coefficient"].as_f64().unwrap().max(0.0),
+                        1e-12,
+                    );
+                }
+                "primary" => assert_eq!(result.primary_channels[row], result.detectors[column]),
+                other => panic!("unexpected status {other} for a well-populated fixture"),
+            }
+        }
+    }
     let report_path = debug_dir.join("report.html");
     assert!(report_path.is_file(), "missing report.html");
     let report = fs::read_to_string(report_path).expect("report should exist");
@@ -388,6 +419,50 @@ fn autospread_writes_single_report() {
     assert!(report.contains("Spread Matrix"));
     assert!(report.contains("Spread Regression"));
     assert!(report.contains("Gate Statistics"));
+}
+
+#[test]
+fn autospread_rows_are_dyes_and_columns_are_detectors() {
+    // FITC spreads into FL2-A only; PE spreads nowhere. A transposed matrix
+    // would put FITC's spread in PE's row.
+    let directory = support::create_temp_dir("autospread-orientation");
+    let manifest_path = support::write_control_fixture_set(
+        &directory,
+        &["FITC", "PE"],
+        &["FL1-A", "FL2-A"],
+        &["FL1-A", "FL2-A", "FL3-A"],
+        &[vec![1.0, 0.0, 0.0], vec![0.0, 1.0, 0.0]],
+        Some(&[vec![0.0, 0.08, 0.0], vec![0.0, 0.0, 0.0]]),
+    );
+    let detectors_path = support::write_detector_manifest(&directory, &["FL1-A", "FL2-A", "FL3-A"]);
+    let manifest = read_controls_manifest(&manifest_path).expect("manifest should load");
+    let detectors = read_detectors_manifest(&detectors_path).expect("detectors should load");
+    let config = AutospreadConfig {
+        detectors,
+        ..AutospreadConfig::default()
+    };
+
+    let result =
+        AutospreadRunner::run(&manifest, &directory, &config).expect("autospread should succeed");
+
+    assert_eq!(result.dyes, ["FITC", "PE"]);
+    assert_eq!(result.detectors, ["FL1-A", "FL2-A", "FL3-A"]);
+    assert!(
+        result.spread_matrix[0][1] > 0.0,
+        "{:?}",
+        result.spread_matrix
+    );
+    assert_eq!(result.spread_matrix[0][2], 0.0);
+    assert_eq!(result.spread_matrix[1], [0.0, 0.0, 0.0]);
+    let output = directory.join("spread.csv");
+    cytiq_autospill::export_spread_matrix(&result, &output, cytiq_publish::Existing::Refuse)
+        .expect("spread matrix should export");
+    let csv = fs::read_to_string(output).unwrap();
+    let rows = csv
+        .lines()
+        .map(|line| line.split(',').next().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(&rows[1..], ["FITC", "PE"], "{csv}");
 }
 
 fn assert_close(actual: f64, expected: f64, tolerance: f64) {

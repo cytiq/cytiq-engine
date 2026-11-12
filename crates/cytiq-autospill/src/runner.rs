@@ -140,6 +140,51 @@ pub struct SpreadStats {
     pub primary_channel: String,
     pub quantile_bins: usize,
     pub non_zero_coefficients: usize,
+    /// One fit per detector, in detector order (row `dye` of the matrix).
+    pub fits: Vec<SpreadFit>,
+}
+
+/// Why a spread coefficient has its value. Every status but `Fitted` leaves 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpreadFitStatus {
+    /// The dye's primary detector: a structural zero.
+    Primary,
+    /// Fewer than two bins with at least three events.
+    TooFewBins,
+    /// `sigma ~ sqrt_like(primary)` had no solution.
+    FirstFitFailed,
+    /// The through-origin fit of the noise-corrected spread had no solution.
+    SecondFitFailed,
+    Fitted,
+}
+
+/// One dye x detector `AutoSpread` fit, as the debug summary reports it: the
+/// binned points both regressions used and their results, in raw detector
+/// units, so the coefficient can be recomputed and its units checked
+/// outside cytiq. The arithmetic is the matrix estimate's own.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SpreadFit {
+    pub detector: String,
+    pub status: SpreadFitStatus,
+    /// Median primary signal of each bin with at least three events.
+    pub primary_median: Vec<f64>,
+    /// Robust SD (84th percentile − median) of this detector in those bins.
+    pub secondary_robust_sd: Vec<f64>,
+    /// Bins left out for having fewer than three events.
+    pub skipped_bins: usize,
+    /// First fit `secondary_robust_sd ~ intercept + slope · sqrt_like(primary_median)`.
+    pub first_intercept: Option<f64>,
+    pub first_slope: Option<f64>,
+    /// `max(first_intercept, 0)`: the spread without primary signal.
+    pub sigma0: Option<f64>,
+    /// Through-origin slope of `sqrt_like(max(sd² − sigma0², 0))` on
+    /// `sqrt_like(primary_median)`, before it is clamped at zero.
+    pub unclamped_coefficient: Option<f64>,
+    /// The spread matrix cell.
+    pub coefficient: f64,
+    /// Second-fit residuals per bin, against the unclamped slope.
+    pub residuals: Vec<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -424,16 +469,17 @@ impl AutospreadRunner {
             .collect::<Vec<_>>();
 
         info!("autospread pipeline: estimating spread matrix");
+        let detector_names = loaded
+            .detectors
+            .iter()
+            .map(|detector| detector.channel.clone())
+            .collect::<Vec<_>>();
         let (spread_matrix, spread_stats) =
-            estimate_spread_matrix(&loaded.controls, &gates, loaded.detectors.len())?;
+            estimate_spread_matrix(&loaded.controls, &gates, &detector_names)?;
 
         let result = AutospreadResult {
             dyes: loaded.dyes.clone(),
-            detectors: loaded
-                .detectors
-                .iter()
-                .map(|detector| detector.channel.clone())
-                .collect(),
+            detectors: detector_names,
             channels: loaded.primary_channels.clone(),
             primary_channels: loaded.primary_channels.clone(),
             spread_matrix: matrix_to_rows(&spread_matrix),
@@ -1179,11 +1225,100 @@ fn compensation_error(
     })
 }
 
+impl SpreadFit {
+    fn unfitted(detector: String, status: SpreadFitStatus) -> Self {
+        Self {
+            detector,
+            status,
+            primary_median: Vec::new(),
+            secondary_robust_sd: Vec::new(),
+            skipped_bins: 0,
+            first_intercept: None,
+            first_slope: None,
+            sigma0: None,
+            unclamped_coefficient: None,
+            coefficient: 0.0,
+            residuals: Vec::new(),
+        }
+    }
+}
+
+/// The spread of `secondary_values` with the primary signal, over the
+/// primary quantile `bins`: robust SD per bin, the noise floor `sigma0` from
+/// a first fit on `sqrt_like(primary)`, then the through-origin slope of the
+/// noise-corrected spread, clamped at zero.
+fn fit_spread(
+    detector: String,
+    primary_values: &[f64],
+    secondary_values: &[f64],
+    bins: &[Vec<usize>],
+) -> SpreadFit {
+    let mut fit = SpreadFit::unfitted(detector, SpreadFitStatus::TooFewBins);
+    for bin in bins {
+        let primary_bin = bin
+            .iter()
+            .map(|&bin_index| primary_values[bin_index])
+            .collect::<Vec<_>>();
+        let secondary_bin = bin
+            .iter()
+            .map(|&bin_index| secondary_values[bin_index])
+            .collect::<Vec<_>>();
+        if primary_bin.len() < 3 || secondary_bin.len() < 3 {
+            fit.skipped_bins += 1;
+            continue;
+        }
+        fit.primary_median
+            .push(crate::regression::median(&primary_bin));
+        fit.secondary_robust_sd
+            .push(robust_standard_deviation(&secondary_bin));
+    }
+    if fit.primary_median.len() < 2 {
+        return fit;
+    }
+
+    let x_first = fit
+        .primary_median
+        .iter()
+        .map(|value| sqrt_like_transform(*value))
+        .collect::<Vec<_>>();
+    let Some(first_regression) = ordinary_linear_regression(&x_first, &fit.secondary_robust_sd)
+    else {
+        fit.status = SpreadFitStatus::FirstFitFailed;
+        return fit;
+    };
+    let sigma0 = first_regression.intercept.max(0.0);
+    fit.first_intercept = Some(first_regression.intercept);
+    fit.first_slope = Some(first_regression.slope);
+    fit.sigma0 = Some(sigma0);
+
+    let adjusted_sigma = fit
+        .secondary_robust_sd
+        .iter()
+        .map(|value| sqrt_like_transform((value * value - sigma0 * sigma0).max(0.0)))
+        .collect::<Vec<_>>();
+    let Some(second_regression) =
+        ordinary_linear_regression_without_intercept(&x_first, &adjusted_sigma)
+    else {
+        fit.status = SpreadFitStatus::SecondFitFailed;
+        return fit;
+    };
+    fit.status = SpreadFitStatus::Fitted;
+    fit.unclamped_coefficient = Some(second_regression.slope);
+    fit.coefficient = second_regression.slope.max(0.0);
+    fit.residuals = adjusted_sigma
+        .iter()
+        .zip(&x_first)
+        .map(|(y, x)| y - second_regression.slope * x)
+        .collect();
+    fit
+}
+
 fn estimate_spread_matrix(
     controls: &[ControlData],
     gates: &[GateComputation],
-    detector_count: usize,
+    detectors: &[String],
 ) -> Result<(DMatrix<f64>, Vec<SpreadStats>), AutospillError> {
+    let detector_count = detectors.len();
     debug!(
         "estimating spread matrix from {} controls into {} detectors",
         controls.len(),
@@ -1203,71 +1338,29 @@ fn estimate_spread_matrix(
             return Err(AutospillError::AutospreadFailed);
         }
 
-        let mut coefficients = vec![0.0; detector_count];
-        let mut non_zero_coefficients = 0_usize;
-        for (detector_index, coefficient_slot) in coefficients.iter_mut().enumerate() {
-            if detector_index == control.primary_detector_index {
-                continue;
-            }
-
-            let secondary_values = gated_column(
-                &control.detector_events,
-                &gate.gated_indices,
-                detector_index,
-            );
-            let mut fluorescence = Vec::new();
-            let mut sigma = Vec::new();
-            for bin in &bins {
-                let primary_bin = bin
-                    .iter()
-                    .map(|&bin_index| primary_values[bin_index])
-                    .collect::<Vec<_>>();
-                let secondary_bin = bin
-                    .iter()
-                    .map(|&bin_index| secondary_values[bin_index])
-                    .collect::<Vec<_>>();
-                if primary_bin.len() < 3 || secondary_bin.len() < 3 {
-                    continue;
+        let fits = (0..detector_count)
+            .map(|detector_index| {
+                let detector = detectors[detector_index].clone();
+                if detector_index == control.primary_detector_index {
+                    return SpreadFit::unfitted(detector, SpreadFitStatus::Primary);
                 }
-                fluorescence.push(crate::regression::median(&primary_bin));
-                sigma.push(robust_standard_deviation(&secondary_bin));
-            }
-
-            if fluorescence.len() < 2 {
-                continue;
-            }
-
-            let x_first = fluorescence
-                .iter()
-                .map(|value| sqrt_like_transform(*value))
-                .collect::<Vec<_>>();
-            let Some(first_regression) = ordinary_linear_regression(&x_first, &sigma) else {
-                continue;
-            };
-            let sigma0 = first_regression.intercept.max(0.0);
-
-            let adjusted_sigma = sigma
-                .iter()
-                .map(|value| sqrt_like_transform((value * value - sigma0 * sigma0).max(0.0)))
-                .collect::<Vec<_>>();
-            let Some(second_regression) =
-                ordinary_linear_regression_without_intercept(&x_first, &adjusted_sigma)
-            else {
-                continue;
-            };
-
-            let coefficient = second_regression.slope.max(0.0);
-            if coefficient > 0.0 {
-                non_zero_coefficients += 1;
-            }
-            *coefficient_slot = coefficient;
-        }
+                let secondary_values = gated_column(
+                    &control.detector_events,
+                    &gate.gated_indices,
+                    detector_index,
+                );
+                fit_spread(detector, &primary_values, &secondary_values, &bins)
+            })
+            .collect::<Vec<_>>();
+        let coefficients = fits.iter().map(|fit| fit.coefficient).collect::<Vec<_>>();
+        let non_zero_coefficients = coefficients.iter().filter(|value| **value > 0.0).count();
 
         let stats = SpreadStats {
             dye: control.row.dye.clone(),
             primary_channel: control.primary_channel.clone(),
             quantile_bins: bins.len(),
             non_zero_coefficients,
+            fits,
         };
         debug!(
             "spread stats for `{}`: {} bins, {} non-zero coefficients",

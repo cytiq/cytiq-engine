@@ -29,7 +29,8 @@ pub use crate::manifest::{
 };
 pub use crate::runner::{
     AutospillConfig, AutospillResult, AutospillRunner, AutospreadConfig, AutospreadResult,
-    AutospreadRunner, ConvergenceStep, ConvergenceSummary, GateStats, MatrixKind, SpreadStats,
+    AutospreadRunner, ConvergenceStep, ConvergenceSummary, GateStats, MatrixKind, SpreadFit,
+    SpreadFitStatus, SpreadStats,
 };
 
 /// Upstream implementations this crate is validated against
