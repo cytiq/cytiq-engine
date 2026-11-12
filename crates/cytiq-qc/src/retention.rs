@@ -5,7 +5,7 @@ use cytiq_mask::EventMask;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PopulationRetention {
     pub population: String,
     pub original: usize,
@@ -23,7 +23,7 @@ pub struct PopulationRetention {
     pub technical_removed: Option<usize>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RetentionStage {
     pub stage: String,
     pub input_events: usize,
@@ -59,18 +59,73 @@ pub fn population_retention(
             populations.entry(label).or_default().push(row);
         }
     }
-    let original_labelled = populations.values().map(Vec::len).sum();
-    let mut keep = vec![true; labels.len()];
+    let labelled = populations.values().flatten().copied().collect::<Vec<_>>();
+    retention(
+        acquisition,
+        labels.len(),
+        &populations.into_iter().collect::<Vec<_>>(),
+        Some(&labelled),
+        technical_good,
+        stages,
+    )
+}
+
+/// Retention of possibly overlapping populations, such as the gates of a
+/// `cytiq gate --membership` file: `populations` pairs a name with one flag
+/// per raw event. Frequencies are relative to all raw events, not to a
+/// parent gate, so nested gates are reported independently. Stages are
+/// applied in order, as in [`population_retention`].
+///
+/// # Errors
+/// Rejects a membership whose length differs from `events`, and the stage
+/// errors of [`population_retention`].
+pub fn membership_retention(
+    acquisition: &str,
+    events: usize,
+    populations: &[(&str, &[bool])],
+    stages: &[(&str, &EventMask)],
+) -> Result<Vec<RetentionStage>, String> {
+    let rows = populations
+        .iter()
+        .map(|&(name, members)| {
+            if members.len() == events {
+                Ok((
+                    name,
+                    (0..events).filter(|&row| members[row]).collect::<Vec<_>>(),
+                ))
+            } else {
+                Err(format!(
+                    "population `{name}` has {} events, not {events}",
+                    members.len()
+                ))
+            }
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    retention(acquisition, events, &rows, None, None, stages)
+}
+
+/// The stage loop shared by both reports. `base` lists the raw rows whose
+/// count is the frequency denominator; `None` means every raw event.
+fn retention(
+    acquisition: &str,
+    events: usize,
+    populations: &[(&str, Vec<usize>)],
+    base: Option<&[usize]>,
+    technical_good: Option<&[bool]>,
+    stages: &[(&str, &EventMask)],
+) -> Result<Vec<RetentionStage>, String> {
+    let base_original = base.map_or(events, <[usize]>::len);
+    let mut keep = vec![true; events];
     let mut result = Vec::new();
     for &(name, mask) in stages {
         if mask.acquisition != acquisition || mask.source_event_ids.len() != mask.keep.len() {
             return Err(format!("{name}: incompatible acquisition or mask lengths"));
         }
         let mut seen = HashSet::new();
-        let mut stage_keep = vec![false; labels.len()];
+        let mut stage_keep = vec![false; events];
         for (&source, &value) in mask.source_event_ids.iter().zip(&mask.keep) {
             let row = usize::try_from(source).map_err(|_| "source ID overflow")?;
-            if row >= labels.len() || !seen.insert(source) {
+            if row >= events || !seen.insert(source) {
                 return Err(format!("{name}: invalid or repeated source ID {source}"));
             }
             stage_keep[row] = value;
@@ -81,15 +136,17 @@ pub fn population_retention(
             *keep &= stage;
         }
         let kept_events = keep.iter().filter(|v| **v).count();
-        let labelled = populations.values().flatten().filter(|&&i| keep[i]).count();
+        let base_retained = base.map_or(kept_events, |rows| {
+            rows.iter().filter(|&&row| keep[row]).count()
+        });
         let rows = populations
             .iter()
-            .map(|(&population, ids)| {
+            .map(|(population, ids)| {
                 let original = ids.len();
                 let eligible = ids.iter().filter(|&&i| prior[i]).count();
                 let retained = ids.iter().filter(|&&i| keep[i]).count();
-                let original_frequency = ratio(original, original_labelled);
-                let retained_frequency = ratio(retained, labelled);
+                let original_frequency = ratio(original, base_original);
+                let retained_frequency = ratio(retained, base_retained);
                 let frequency_error = retained_frequency
                     .zip(original_frequency)
                     .map(|(a, b)| a - b);
@@ -98,7 +155,7 @@ pub fn population_retention(
                 let good_retained =
                     technical_good.map(|good| ids.iter().filter(|&&i| good[i] && keep[i]).count());
                 PopulationRetention {
-                    population: population.into(),
+                    population: (*population).into(),
                     original,
                     eligible,
                     retained,
@@ -153,6 +210,59 @@ mod tests {
         assert_eq!(rare.good_retention, Some(0.0));
         assert_eq!(rare.relative_frequency_error, Some(-1.0));
     }
+    #[test]
+    fn overlapping_gates_keep_independent_retention() {
+        let acquisition = "c".repeat(64);
+        // Events 0-3 are T cells, 2-5 are CD4 (overlapping); the filter
+        // removes events 0 and 5.
+        let t = [true, true, true, true, false, false];
+        let cd4 = [false, false, true, true, true, true];
+        let mask = EventMask::new(
+            &acquisition,
+            vec![false, true, true, true, true, false],
+            None,
+        );
+        let report = membership_retention(
+            &acquisition,
+            6,
+            &[("T", &t), ("CD4", &cd4)],
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        let [t, cd4] = &report[0].populations[..] else {
+            panic!("two populations in input order")
+        };
+        assert_eq!(
+            (t.population.as_str(), cd4.population.as_str()),
+            ("T", "CD4")
+        );
+        assert_eq!((t.original, t.retained), (4, 3));
+        assert_eq!((cd4.original, cd4.retained), (4, 3));
+        assert_eq!(t.cumulative_retention, Some(0.75));
+        assert_eq!(t.good_retention, None);
+    }
+
+    #[test]
+    fn nested_gate_frequencies_are_relative_to_all_events() {
+        let acquisition = "d".repeat(64);
+        let cells = [true; 4];
+        let t = [true, true, false, false];
+        let mask = EventMask::new(&acquisition, vec![true, false, true, true], None);
+        let report = membership_retention(
+            &acquisition,
+            4,
+            &[("cells", &cells), ("T", &t)],
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        let t = &report[0].populations[1];
+        assert_eq!(t.original_frequency, Some(0.5));
+        assert_eq!(t.retained_frequency, Some(1.0 / 3.0));
+        assert_eq!(report[0].populations[0].retained_frequency, Some(1.0));
+        let short = [true; 4];
+        assert!(membership_retention(&acquisition, 5, &[("T", &short)], &[]).is_err());
+    }
+
     #[test]
     fn matches_source_ids_and_separates_technical_removal() {
         let acquisition = "b".repeat(64);
