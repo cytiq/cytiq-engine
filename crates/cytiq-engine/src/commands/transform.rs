@@ -1,4 +1,3 @@
-use std::io::{self};
 use std::path::PathBuf;
 
 use clap::Args;
@@ -110,10 +109,8 @@ pub(crate) fn run(
         output.display(),
         method
     );
-    let channels = parse_optional_transform_channels(channels.as_deref())
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
-    let exclude_channels = parse_optional_transform_channels(exclude_channels.as_deref())
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let channels = parse_optional_transform_channels(channels.as_deref())?;
+    let exclude_channels = parse_optional_transform_channels(exclude_channels.as_deref())?;
     let config = TransformConfig {
         inputs: input,
         output,

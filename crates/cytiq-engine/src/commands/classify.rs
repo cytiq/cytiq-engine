@@ -5,7 +5,7 @@ use cytiq_provenance::record_path_for_dir;
 use log::info;
 use serde::Serialize;
 
-use crate::parsers::{parse_non_negative_f64, parse_threads};
+use crate::parsers::{parse_non_negative_f64, parse_positive_usize, parse_threads};
 use crate::provenance::record_provenance;
 
 #[derive(Debug, Serialize, Args)]
@@ -20,7 +20,7 @@ pub(crate) struct ClassifyArgs {
     masks: Vec<PathBuf>,
     #[arg(long, value_parser = parse_threads)]
     threads: Option<usize>,
-    #[arg(long, default_value_t = cytiq_classify::DEFAULT_BATCH_SIZE, value_parser = parse_threads)]
+    #[arg(long, default_value_t = cytiq_classify::DEFAULT_BATCH_SIZE, value_parser = parse_positive_usize)]
     batch_size: usize,
     #[arg(long, default_value_t = 0.0, value_parser = parse_non_negative_f64)]
     abstain_margin: f64,

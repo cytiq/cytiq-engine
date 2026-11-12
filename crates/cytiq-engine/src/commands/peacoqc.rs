@@ -1,4 +1,3 @@
-use std::io::{self};
 use std::path::PathBuf;
 
 use clap::Args;
@@ -66,8 +65,7 @@ pub(crate) fn run(
         output.display(),
         method
     );
-    let channels = parse_channels(channels.as_deref(), &channel)
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let channels = parse_channels(channels.as_deref(), &channel)?;
     let config = PeacoQcConfig {
         channels,
         method: method.into(),

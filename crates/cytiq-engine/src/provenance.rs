@@ -94,6 +94,7 @@ impl Invocation {
                         record.reason.expect("assessed reason"),
                         String::new(),
                     );
+                    outcome.artifacts.clone_from(&record.outputs);
                     outcome.execution = Some(Execution {
                         fingerprint: record.execution_fingerprint.expect("assessed fingerprint"),
                         reused: true,
@@ -154,6 +155,7 @@ pub(crate) fn record_with_reason(
 ) -> CommandResult {
     let record = run.recorder.finish(outputs, record_path, reason)?;
     let mut outcome = CommandOutcome::new(&record.tool, true, reason, String::new());
+    outcome.artifacts = record.outputs;
     outcome.execution = Some(Execution {
         fingerprint: record.execution_fingerprint.expect("v3 fingerprint"),
         reused: false,

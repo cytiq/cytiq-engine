@@ -1,4 +1,3 @@
-use std::io::{self};
 use std::path::PathBuf;
 
 use clap::Args;
@@ -72,8 +71,7 @@ pub(crate) fn run(
         method,
         flag_method
     );
-    let channels = parse_channels(channels.as_deref(), &channel)
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let channels = parse_channels(channels.as_deref(), &channel)?;
     let config = CytoScanConfig {
         inputs: input,
         reference_inputs: reference,

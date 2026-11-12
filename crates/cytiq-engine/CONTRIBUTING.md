@@ -23,8 +23,8 @@ this crate.
   `parse_channels` for every `--channels` + `--channel` pair, built on
   `cytiq_fcs::parse_channel_list`).
 - `src/provenance.rs` — build info, Invocation, the begin macro, and recording under an output lock.
-- `src/logging.rs` — the stderr logger; the binary's own modules all log as
-  `cytiq`.
+- `src/logging.rs` — the stderr logger (`CYTIQ_LOG` level, `CYTIQ_LOG_FORMAT`
+  text or JSON lines); the binary's own modules all log as `cytiq`.
 - `tests/<command>_cli.rs` — integration tests per subcommand, running the
   `cytiq` binary.
 
@@ -139,7 +139,8 @@ determinism), `preflight_cli.rs`,
 `qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`. `tests/common/mod.rs` holds `assert_provenance`,
 `assert_provenance_chain` and `adjusted_rand_index`.
 `channels_cli.rs` pins the channel flag errors of every command.
-`overwrite_cli.rs` pins the output-conflict contract of every result-writing
+`orchestration_cli.rs` pins what workflow engines read: outcome artifacts,
+JSON log lines and the conflict reason. `overwrite_cli.rs` pins the output-conflict contract of every result-writing
 command (exit 4, `--overwrite`, `--reuse skip`/`reject`). `threads_cli.rs`
 checks that `--threads` never changes outputs. `src/cli_surface.rs` compares
 every flag, default and recorded config key with

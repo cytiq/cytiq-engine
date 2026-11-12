@@ -1,4 +1,3 @@
-use std::io::{self};
 use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
@@ -14,6 +13,37 @@ use crate::cli::CliMetaclustering;
 use crate::parsers::{parse_channels, parse_positive_usize, parse_threads};
 use crate::provenance::record_provenance;
 
+/// SOM geometry and training flags shared by `flowsom` and `flowsom train`;
+/// flattened, so the flags and recorded config keys are those of each command.
+#[derive(Debug, Serialize, Args)]
+pub(crate) struct SomArgs {
+    /// SOM grid width.
+    #[arg(long, default_value_t = FLOWSOM_XDIM, value_parser = parse_positive_usize)]
+    xdim: usize,
+    /// SOM grid height.
+    #[arg(long, default_value_t = FLOWSOM_YDIM, value_parser = parse_positive_usize)]
+    ydim: usize,
+    /// Number of metaclusters (at most xdim × ydim).
+    #[arg(long, default_value_t = FLOWSOM_METACLUSTERS, value_parser = parse_positive_usize)]
+    metaclusters: usize,
+    /// Training seed.
+    #[arg(long, default_value_t = FLOWSOM_RANDOM_SEED)]
+    seed: u64,
+    /// Cluster channel values as given instead of z-scoring them.
+    #[arg(long)]
+    no_scale: bool,
+}
+
+impl SomArgs {
+    fn configure(self, config: &mut FlowSomConfig) {
+        config.xdim = self.xdim;
+        config.ydim = self.ydim;
+        config.metaclusters = self.metaclusters;
+        config.seed = self.seed;
+        config.scale = !self.no_scale;
+    }
+}
+
 #[derive(Debug, Serialize, Subcommand)]
 pub(crate) enum FlowSomCommand {
     /// Save reusable SOM geometry, scaling and metacluster labels.
@@ -24,16 +54,9 @@ pub(crate) enum FlowSomCommand {
         output: PathBuf,
         #[arg(long)]
         channels: String,
-        #[arg(long, default_value_t = FLOWSOM_XDIM, value_parser = parse_positive_usize)]
-        xdim: usize,
-        #[arg(long, default_value_t = FLOWSOM_YDIM, value_parser = parse_positive_usize)]
-        ydim: usize,
-        #[arg(long, default_value_t = FLOWSOM_METACLUSTERS, value_parser = parse_positive_usize)]
-        metaclusters: usize,
-        #[arg(long, default_value_t = FLOWSOM_RANDOM_SEED)]
-        seed: u64,
-        #[arg(long)]
-        no_scale: bool,
+        #[command(flatten)]
+        #[serde(flatten)]
+        som: SomArgs,
         #[arg(long, value_enum, default_value_t = CliMetaclustering::Average)]
         metaclustering: CliMetaclustering,
         #[arg(long, value_parser = parse_positive_usize)]
@@ -81,21 +104,9 @@ pub(crate) struct FlowsomArgs {
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
     pub(crate) threads: Option<usize>,
-    /// SOM grid width.
-    #[arg(long, default_value_t = FLOWSOM_XDIM, value_parser = parse_positive_usize)]
-    xdim: usize,
-    /// SOM grid height.
-    #[arg(long, default_value_t = FLOWSOM_YDIM, value_parser = parse_positive_usize)]
-    ydim: usize,
-    /// Number of metaclusters (at most xdim × ydim).
-    #[arg(long, default_value_t = FLOWSOM_METACLUSTERS, value_parser = parse_positive_usize)]
-    metaclusters: usize,
-    /// Training seed.
-    #[arg(long, default_value_t = FLOWSOM_RANDOM_SEED)]
-    seed: u64,
-    /// Cluster channel values as given instead of z-scoring them.
-    #[arg(long)]
-    no_scale: bool,
+    #[command(flatten)]
+    #[serde(flatten)]
+    som: SomArgs,
     /// Train the SOM on this many events (a deterministic sample), then
     /// assign every event; default trains on all events.
     #[arg(long, value_parser = parse_positive_usize)]
@@ -121,11 +132,7 @@ pub(crate) fn run(
         channel,
         debug_dir,
         threads: _,
-        xdim,
-        ydim,
-        metaclusters,
-        seed,
-        no_scale,
+        som,
         training_events,
         masks,
         overwrite,
@@ -140,19 +147,11 @@ pub(crate) fn run(
         input.display(),
         output.display()
     );
-    let channels = parse_channels(channels.as_deref(), &channel)
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
-    let config = FlowSomConfig {
-        channels,
-        debug_dir,
-        xdim,
-        ydim,
-        metaclusters,
-        seed,
-        scale: !no_scale,
-        training_events,
-        masks,
-    };
+    let mut config = FlowSomConfig::new(parse_channels(channels.as_deref(), &channel)?);
+    som.configure(&mut config);
+    config.debug_dir = debug_dir;
+    config.training_events = training_events;
+    config.masks = masks;
     recorder.snapshot_inputs("input", std::slice::from_ref(&input))?;
     recorder.snapshot_inputs("mask", &config.masks)?;
     recorder.set_constants(&FlowSomConstants::default());
@@ -190,11 +189,7 @@ fn run_flowsom_model(
             input,
             output,
             channels,
-            xdim,
-            ydim,
-            metaclusters,
-            seed,
-            no_scale,
+            som,
             metaclustering,
             training_events,
             masks,
@@ -203,15 +198,8 @@ fn run_flowsom_model(
         } => {
             recorder.snapshot_inputs("input", &input)?;
             recorder.snapshot_inputs("mask", &masks)?;
-            let mut config = FlowSomConfig::new(
-                cytiq_fcs::parse_channel_list(&channels)
-                    .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?,
-            );
-            config.xdim = xdim;
-            config.ydim = ydim;
-            config.metaclusters = metaclusters;
-            config.seed = seed;
-            config.scale = !no_scale;
+            let mut config = FlowSomConfig::new(crate::parsers::parse_channel_list(&channels)?);
+            som.configure(&mut config);
             config.training_events = training_events;
             config.masks = masks;
             let recorder = crate::provenance::begin!(

@@ -24,6 +24,19 @@ pub enum OutcomeReason {
 }
 
 impl OutcomeReason {
+    /// The token written to `reason` in the outcome JSON.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::RuntimeError => "runtime_error",
+            Self::InvalidConfiguration => "invalid_configuration",
+            Self::ChecksFailed => "checks_failed",
+            Self::OutputConflict => "output_conflict",
+            Self::Incomplete => "incomplete",
+        }
+    }
+
     #[must_use]
     pub const fn exit_code(self) -> u8 {
         match self {
@@ -82,7 +95,9 @@ pub struct CommandOutcome {
     pub reason: OutcomeReason,
     pub exit_code: u8,
     pub message: String,
-    /// Paths are relative to the package; never includes outcome.json itself.
+    /// The outputs the command published or reused, as its provenance record
+    /// lists them: relative to the package for `population`/`specimen`,
+    /// otherwise as given on the command line. Never includes outcome.json.
     pub artifacts: Vec<FileRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<Execution>,
@@ -286,6 +301,7 @@ mod tests {
             (OutcomeReason::Incomplete, "incomplete", 4),
         ] {
             assert_eq!(serde_json::to_value(reason).unwrap(), token);
+            assert_eq!(reason.as_str(), token);
             assert_eq!(reason.exit_code(), code);
         }
         let without_execution = CommandOutcome::new(

@@ -72,7 +72,7 @@ pub(crate) struct SpillqcArgs {
 }
 
 impl SpillqcArgs {
-    fn config(&self) -> Result<SpillQcConfig, String> {
+    fn config(&self) -> io::Result<SpillQcConfig> {
         let channels = if self.channels.is_none() && self.channel.is_empty() {
             None
         } else {
@@ -113,9 +113,7 @@ pub(crate) fn run(
         args.input.len(),
         args.output.display()
     );
-    let config = args
-        .config()
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let config = args.config()?;
     recorder.snapshot_inputs("input", &SpillQcRunner::input_files(&config)?)?;
     if let Some((matrix, _)) = &config.matrix {
         recorder.snapshot_inputs("matrix", std::slice::from_ref(matrix))?;

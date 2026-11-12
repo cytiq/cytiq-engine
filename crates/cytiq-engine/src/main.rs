@@ -35,7 +35,7 @@ fn main() -> ExitCode {
     let result = match run(command, &name, reuse.into()) {
         Ok(Some(result)) => {
             if result.exit_code != 0 {
-                eprintln!("{:?}: {}", result.reason, result.message);
+                eprintln!("{}: {}", result.reason.as_str(), result.message);
             }
             result
         }
