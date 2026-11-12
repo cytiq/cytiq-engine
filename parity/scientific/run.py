@@ -172,7 +172,45 @@ def novelty(binary, root, events, sizes):
                 test_features = pd.read_csv(output / "cytoscan_features.csv").select_dtypes(include="number").to_numpy()
                 results.append({"seed": seed, "n_reference": n, "feature_dimension":reference_features.shape[1], "method": method, "status": "assessed", "false_positives": hits, "normal_files": len(flags), "fpr": hits/len(flags), "fpr_ci95": wilson_interval(hits, len(flags)), "outlier_false_positives":outlier_hits,"outlier_fpr":outlier_hits/len(flags),"outlier_ci95":wilson_interval(outlier_hits,len(flags)),"outlier_fit_domain":"within the normal test cohort; not a held-out forest", "research_only_covariance": gaussian_reduction_study(reference_features,test_features)})
     return {"null_cohort": "independent synthetic normal acquisitions", "results": results,
-            "seed_scope": "reference membership; production algorithm RNG remains its pinned seed"}
+            "seed_scope": "reference membership at the default algorithm seed 42",
+            "production_seed_stability": production_seed_stability(binary, root, test, reference[:32])}
+
+
+ALGORITHM_SEEDS = (1, 7, 42, 101, 2026)
+
+
+def production_seed_stability(binary, root, test, reference):
+    """Vary only `cytoscan --seed` (event subsample and isolation trees) with
+    fixed files and reference membership. Reports per-file outlier-score ranges
+    and whether each flag agrees across seeds; nothing is gated."""
+    methods = {}
+    for method in ("summary", "quantiles"):
+        runs = {}
+        for seed in ALGORITHM_SEEDS:
+            output = root / f"algorithm-seed-{seed}-{method}"
+            args = ["cytoscan", "--output", output, "--channels", ",".join(CHANNELS), "--method", method, "--flag-method", "both", "--seed", str(seed)]
+            for path in test: args += ["--input", path]
+            for path in reference: args += ["--reference", path]
+            invoke(binary, args, root / f"algorithm-seed-{seed}-{method}.log")
+            runs[seed] = pd.read_csv(output / "cytoscan_summary.csv").set_index("filename")
+        files = sorted(runs[ALGORITHM_SEEDS[0]].index)
+        flag = lambda frame, column: frame[column].astype(str).str.lower().isin(["true", "1"])
+        per_file = []
+        for name in files:
+            scores = [float(runs[seed].loc[name, "outlier_score"]) for seed in ALGORITHM_SEEDS]
+            outlier = [bool(flag(runs[seed], "is_outlier")[name]) for seed in ALGORITHM_SEEDS]
+            novelty = [bool(flag(runs[seed], "is_novelty")[name]) for seed in ALGORITHM_SEEDS]
+            per_file.append({"filename": name, "outlier_score_min": min(scores), "outlier_score_max": max(scores),
+                             "outlier_score_range": max(scores) - min(scores),
+                             "outlier_flags": outlier, "novelty_flags": novelty,
+                             "outlier_stable": len(set(outlier)) == 1, "novelty_stable": len(set(novelty)) == 1})
+        methods[method] = {"files": per_file,
+                           "max_outlier_score_range": max(f["outlier_score_range"] for f in per_file),
+                           "outlier_flag_stable_fraction": float(np.mean([f["outlier_stable"] for f in per_file])),
+                           "novelty_flag_stable_fraction": float(np.mean([f["novelty_stable"] for f in per_file]))}
+    return {"seeds": list(ALGORITHM_SEEDS), "reference_files": len(reference), "test_files": len(test),
+            "scope": "algorithm seed only: event subsample and isolation trees; files and reference membership fixed",
+            "methods": methods}
 
 
 def real_retention(binary, root, registry, cache):

@@ -109,8 +109,11 @@ AF peak switches, spectral cosine and downstream unmixing RMS differences. This
 measures sensitivity to event selection, not independent AF donor variability.
 
 Novelty experiments vary reference count, feature method/dimension and five
-reference-membership seeds. Production sampling and model seed remain 42;
-these experiments must not be presented as arbitrary algorithm-seed validation.
+reference-membership seeds at the default algorithm seed 42.
+`production_seed_stability` then fixes 32 reference files and the test cohort
+and varies only `cytoscan --seed` (event subsample and isolation trees) over
+1/7/42/101/2026, reporting per-file outlier-score ranges and how often each
+outlier and novelty flag agrees across seeds. It is reported, not gated.
 `subsampling.py` additionally tests 250/1,000/2,000 available events and five
 seeded event permutations at fixed reference membership, exercising the actual
 1,000-event production cap with summary/quantile features.
