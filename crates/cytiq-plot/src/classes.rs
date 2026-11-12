@@ -14,7 +14,7 @@ use std::path::Path;
 
 use arrow_array::{Array, StringArray, UInt64Array};
 use cytiq_fcs::FcsDataset;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use cytiq_mask::parquet::{ParquetReadLimits, ScalarParquetReader};
 
 use crate::config::{ClassSource, DEFAULT_CLASS_COLUMN};
 use crate::error::PlotError;
@@ -134,8 +134,10 @@ fn read_predictions(
 ) -> Result<(String, Vec<String>, Records), PlotError> {
     let fail = |message: String| error(source, &message);
     let file = File::open(&source.path).map_err(|e| fail(e.to_string()))?;
-    let builder =
-        ParquetRecordBatchReaderBuilder::try_new(file).map_err(|e| fail(e.to_string()))?;
+    // Predictions are external input: the bounded reader rejects malformed or
+    // over-budget pages before decoding, and only two columns are decoded.
+    let builder = ScalarParquetReader::new(file, ParquetReadLimits::default())
+        .map_err(|e| fail(e.to_string()))?;
     let mut metadata: HashMap<String, String> = builder
         .schema()
         .metadata()
@@ -173,7 +175,17 @@ fn read_predictions(
             .filter_map(|field| field.name().strip_prefix("p_").map(str::to_owned))
             .collect(),
     };
-    let reader = builder.build().map_err(|e| fail(e.to_string()))?;
+    if builder.schema().index_of(SOURCE_EVENT_ID).is_err() {
+        return Err(fail(format!(
+            "`{SOURCE_EVENT_ID}` must be a non-null UInt64 column"
+        )));
+    }
+    if builder.schema().index_of(LABEL).is_err() {
+        return Err(fail(format!("`{LABEL}` must be a Utf8 column")));
+    }
+    let reader = builder
+        .project(&[SOURCE_EVENT_ID, LABEL])
+        .map_err(|e| fail(e.to_string()))?;
     let mut records = Vec::new();
     for batch in reader {
         let batch = batch.map_err(|e| fail(e.to_string()))?;
