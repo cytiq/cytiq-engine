@@ -18,10 +18,15 @@ maintenance operations, excluded from CI.
 `.github/workflows/scientific.yml` conservatively selects full parity for shared
 numerics, relevant crates, fixtures, dependency locks and reference scripts.
 Weekly/manual runs and release delivery perform full validation. Release/manual
-full runs additionally fetch every required CyMAE file. No missing dataset can
-turn a required suite into a passing skip. Uploads contain results/environment,
-not full acquisitions or source archives. Heavy environments use main-only cache
-saves; the complete CyMAE corpus is deliberately outside the cache.
+full runs additionally fetch every required CyMAE file; the normal-donor and
+weak-phenotype checks use in-repository fixtures and run with every selected
+parity run. Each layer runs and reports even after an earlier one failed, and
+any failure fails the job. No missing dataset can turn a required suite into a
+passing skip. Uploads contain results/environment, not full acquisitions or
+source archives. The reference environment (keyed by the R/Python/mise locks)
+and the content-addressed real-data cache (keyed by the dataset pins, restored
+from older keys and SHA-256-verified on use) are cached separately, with
+main-only saves; the complete CyMAE corpus is deliberately outside the cache.
 
 Release validation and publication use the same resolved commit SHA. The final
 signed tag cannot be moved on retry; a conflicting tag fails publication.
