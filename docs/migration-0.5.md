@@ -21,7 +21,9 @@ Removed:
   `FlowSomModel::apply_model_file`.
 - The `ThreadPoolBuild` error variants of those crates, and the
   `InvalidThreads` variants of `CleanError`, `CytoScanError` and
-  `GatingError`. A zero thread count is rejected by `ThreadPoolBuilder`.
+  `GatingError`. The CLI rejects `--threads 0`; library callers should use
+  a positive count for a fixed limit (`ThreadPoolBuilder` treats zero as
+  automatic sizing).
 
 `cytiq-classify` keeps `ClassifyConfig::threads`: it sets ONNX Runtime's
 intra-op threads, not a rayon pool.
