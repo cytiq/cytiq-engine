@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - crates/cytiq-fcs/**
+      - crates/cytiq-gating/**
       - crates/cytiq-population/**
       - crates/cytiq-specimen/**
       - crates/cytiq-mask/**
@@ -56,6 +57,7 @@ jobs:
           - { crate: cytiq-population, target: observations_parquet }
           - { crate: cytiq-population, target: projected_parquet }
           - { crate: cytiq-specimen, target: specimen_documents }
+          - { crate: cytiq-gating, target: gatingml }
     env:
       FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && '60' || inputs.seconds || '600' }}
     steps:

@@ -68,6 +68,14 @@ cargo test -p cytiq-gating --test flowkit_parity
 cargo test -p cytiq-engine --test gate_cli
 ```
 
+`fuzz/` holds the cargo-fuzz target `gatingml` outside the workspace (`just
+fuzz cytiq-gating gatingml [seconds]`, on the nightly `mise.toml` pins). It
+checks `fuzz/checks.rs`: parsing never panics, and an accepted strategy keeps
+parents first, writes back, reads back equal and writes the same bytes again.
+`tests/fuzz_regressions.rs` replays `tests/fuzz_regressions/gatingml/` with the
+same check (`valid*` must parse, other names must not) and runs it on every
+Gating-ML fixture. A fuzzer crash goes to that directory as `crash-<sha1>`.
+
 Unit tests sit next to the code in `geometry.rs`, `parse.rs`, `transforms.rs`
 and `write.rs`. `tests/parse_transforms.rs` checks transformation parameters,
 their boundaries and duplicate or reserved ids through `parse_gatingml`. When

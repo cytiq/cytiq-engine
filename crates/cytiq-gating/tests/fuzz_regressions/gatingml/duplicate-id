@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gating:Gating-ML
+    xmlns:gating="http://www.isac-net.org/std/Gating-ML/v2.0/gating"
+    xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v2.0/transformations"
+    xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v2.0/datatypes">
+  <gating:RectangleGate gating:id="A">
+    <gating:dimension gating:min="0" gating:max="10">
+      <data-type:fcs-dimension data-type:name="FL1-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:RectangleGate gating:id="A">
+    <gating:dimension gating:min="0" gating:max="20">
+      <data-type:fcs-dimension data-type:name="FL1-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+</gating:Gating-ML>
