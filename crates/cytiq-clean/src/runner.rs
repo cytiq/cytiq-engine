@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use cytiq_density::sample_indices;
 use cytiq_fcs::{FcsDataset, FcsReader};
 use cytiq_gating::{
     BooleanOp, Gate, GateKind, GateRef, GatingResults, GatingStrategy, Transform, parse_gatingml,
-    to_gatingml,
+    read_gatingml, to_gatingml,
 };
 use cytiq_publish::Existing;
 use log::info;
@@ -528,7 +527,7 @@ fn restrict(
 /// Re-apply a `GatingML` file, typically `gates.gatingml.xml` from an earlier
 /// run after manual edits.
 fn supplied_plan(path: &Path) -> Result<Plan, CleanError> {
-    let gatingml = fs::read_to_string(path).map_err(|source| CleanError::GatingMlRead {
+    let gatingml = read_gatingml(path).map_err(|source| CleanError::GatingMlRead {
         path: path.to_path_buf(),
         source,
     })?;

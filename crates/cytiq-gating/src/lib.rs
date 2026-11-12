@@ -27,7 +27,7 @@ pub use crate::model::{
     BooleanOp, CompensationRef, Dimension, Gate, GateKind, GateRef, GatingStrategy, Quadrant,
     QuadrantDivider, QuadrantGate, SpectrumMatrix,
 };
-pub use crate::parse::parse_gatingml;
+pub use crate::parse::{GATINGML_BYTES_MAX, parse_gatingml, read_gatingml};
 pub use crate::runner::{GatingConfig, GatingRunResult, GatingRunner, OutputFormat};
 pub use crate::transforms::Transform;
 pub use crate::write::to_gatingml;

@@ -82,6 +82,7 @@ let xml = to_gatingml(&strategy)?;
 | --- | --- |
 | `UPSTREAM` | Upstream implementations and versions the crate is validated against (`parity/versions.txt`), recorded in provenance `algorithms` |
 | `parse_gatingml` | Parse a Gating-ML 2.0 document into a `GatingStrategy` |
+| `read_gatingml` / `GATINGML_BYTES_MAX` | Read a Gating-ML file as UTF-8, refusing more than 16 MiB before parsing (`cytiq gate`, `cytiq clean --gates`, `cytiq plot`) |
 | `to_gatingml` | Serialize a strategy back to Gating-ML (deterministic, lossless: every parsed element, `logicle`/`hyperlog` parameters and `QuadrantGate`s included) |
 | `GatingStrategy` | Gates in evaluation order; `new`, `gate_sample`, `gate_sample_masked`, `dimension_values`, `gate_path` |
 | `GatingResults` / `GateCount` | Per-gate membership masks, counts and percentages; `event_mask` |
