@@ -28,6 +28,13 @@ pub(crate) struct QcArgs {
     /// released.
     #[arg(long)]
     require_policy: bool,
+    /// Gate membership of every raw event (`cytiq gate --membership`
+    /// without `--mask`). Adds each gate's retention after QC filtering to
+    /// the report; descriptive only, it never changes a check or the exit
+    /// code.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    populations: Option<PathBuf>,
 }
 
 pub(crate) fn run(
@@ -41,6 +48,7 @@ pub(crate) fn run(
         output,
         overwrite,
         require_policy,
+        populations,
     } = args;
     info!(
         "starting qc: manifest={}, sample={sample}, mask={}",
@@ -54,6 +62,7 @@ pub(crate) fn run(
         output,
         overwrite,
         require_policy,
+        populations,
     };
     recorder.snapshot_roles(&QcRunner::input_files(&config)?)?;
     let recorder = crate::provenance::begin!(
@@ -72,6 +81,20 @@ pub(crate) fn run(
             QcStatus::Pass => {
                 debug!("{}: {}: {}", check.scope, check.check, check.message);
             }
+        }
+    }
+    if let Some(retention) = &report.population_retention {
+        match (&retention.reason, &retention.combined) {
+            (Some(reason), _) => warn!("qc: population retention not assessed: {reason}"),
+            (None, Some(combined)) => {
+                for population in &combined.populations {
+                    info!(
+                        "qc: population `{}` retained {}/{} event(s)",
+                        population.population, population.retained, population.original
+                    );
+                }
+            }
+            (None, None) => {}
         }
     }
     info!(

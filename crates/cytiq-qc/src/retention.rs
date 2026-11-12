@@ -104,6 +104,137 @@ pub fn membership_retention(
     retention(acquisition, events, &rows, None, None, stages)
 }
 
+/// The `basis` every [`PopulationRetentionReport`] states.
+pub const RETENTION_BASIS: &str = "descriptive: retention of the supplied populations after QC filtering, relative to every raw event; never a QC check, and it cannot show that a filter removed only artifacts";
+
+/// Whether population retention could be measured.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RetentionStatus {
+    Assessed,
+    NotAssessed,
+}
+
+/// Population retention reported by `cytiq qc --populations`. It describes
+/// what filtering did to each supplied population and never changes a check,
+/// the report status or the exit code.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct PopulationRetentionReport {
+    pub status: RetentionStatus,
+    /// Why retention was not assessed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub basis: String,
+    /// Retention under the mask's final `keep`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub combined: Option<RetentionStage>,
+    /// Each filter column of the mask on its own, against every raw event:
+    /// `false` removes an event, null (not assessed) keeps it.
+    pub filters: Vec<RetentionStage>,
+}
+
+impl PopulationRetentionReport {
+    #[must_use]
+    pub fn not_assessed(reason: impl Into<String>) -> Self {
+        Self {
+            status: RetentionStatus::NotAssessed,
+            reason: Some(reason.into()),
+            basis: RETENTION_BASIS.to_owned(),
+            combined: None,
+            filters: Vec::new(),
+        }
+    }
+}
+
+/// Retention of the gates in `membership` (a `cytiq gate --membership` file
+/// over every raw event of `acquisition`) under the QC mask `qc`, which
+/// must cover the same `events`. Anything that prevents an assessment is
+/// reported as not assessed with its reason; this never fails.
+#[must_use]
+pub fn qc_population_retention(
+    acquisition: &str,
+    events: usize,
+    qc: &EventMask,
+    membership: &EventMask,
+) -> PopulationRetentionReport {
+    if membership.acquisition != acquisition {
+        return PopulationRetentionReport::not_assessed(format!(
+            "the population membership belongs to acquisition {}, not this sample's {acquisition}",
+            membership.acquisition
+        ));
+    }
+    // Raw rows of the membership, when they are each raw event exactly once.
+    let mut seen = vec![false; events];
+    let rows = membership
+        .source_event_ids
+        .iter()
+        .map(|&source| {
+            usize::try_from(source)
+                .ok()
+                .filter(|&row| row < events && !std::mem::replace(&mut seen[row], true))
+        })
+        .collect::<Option<Vec<_>>>()
+        .filter(|rows| rows.len() == events);
+    let Some(rows) = rows else {
+        return PopulationRetentionReport::not_assessed(
+            "the population membership must have one row per raw event: run `cytiq gate --membership` on the raw acquisition",
+        );
+    };
+    if !membership.keep.iter().all(|keep| *keep)
+        || membership
+            .filters
+            .iter()
+            .any(|(_, values)| values.iter().any(Option::is_none))
+    {
+        return PopulationRetentionReport::not_assessed(
+            "the population membership was computed under an event mask, so removed events have no population: run `cytiq gate --membership` without `--mask`",
+        );
+    }
+    if membership.filters.is_empty() {
+        return PopulationRetentionReport::not_assessed("the population membership has no gate");
+    }
+    let populations = membership
+        .filters
+        .iter()
+        .map(|(name, values)| {
+            let mut members = vec![false; events];
+            for (&row, value) in rows.iter().zip(values) {
+                members[row] = *value == Some(true);
+            }
+            (name.as_str(), members)
+        })
+        .collect::<Vec<_>>();
+    let populations = populations
+        .iter()
+        .map(|(name, members)| (*name, members.as_slice()))
+        .collect::<Vec<_>>();
+    let measured = membership_retention(acquisition, events, &populations, &[("combined", qc)])
+        .and_then(|mut combined| {
+            let filters = qc
+                .filters
+                .iter()
+                .map(|(name, values)| {
+                    let keep = values.iter().map(|value| *value != Some(false)).collect();
+                    let stage =
+                        EventMask::new(acquisition, keep, Some(qc.source_event_ids.clone()));
+                    membership_retention(acquisition, events, &populations, &[(name, &stage)])
+                        .map(|mut stages| stages.remove(0))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok((combined.remove(0), filters))
+        });
+    match measured {
+        Ok((combined, filters)) => PopulationRetentionReport {
+            status: RetentionStatus::Assessed,
+            reason: None,
+            basis: RETENTION_BASIS.to_owned(),
+            combined: Some(combined),
+            filters,
+        },
+        Err(reason) => PopulationRetentionReport::not_assessed(reason),
+    }
+}
+
 /// The stage loop shared by both reports. `base` lists the raw rows whose
 /// count is the frequency denominator; `None` means every raw event.
 fn retention(

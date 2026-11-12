@@ -62,6 +62,28 @@ fn write_mask(directory: &Path, acquisition: String, peacoqc_removed: usize) -> 
     path
 }
 
+/// Gate membership of every raw event: `T` is the first 2,000 events and
+/// `rare` the last 10. With `masked`, the membership was computed under a
+/// mask that removed event 0, so its gates are null there.
+fn write_membership(directory: &Path, acquisition: String, masked: bool) -> PathBuf {
+    let path = directory.join("membership.parquet");
+    let mut t = (0..EVENTS).map(|row| Some(row < 2_000)).collect::<Vec<_>>();
+    let mut keep = vec![true; EVENTS];
+    if masked {
+        t[0] = None;
+        keep[0] = false;
+    }
+    EventMask::new(acquisition, keep, None)
+        .with_filter("T", t)
+        .with_filter(
+            "rare",
+            (0..EVENTS).map(|row| Some(row >= EVENTS - 10)).collect(),
+        )
+        .write_parquet(&path)
+        .expect("membership should write");
+    path
+}
+
 fn qc(directory: &Path, manifest: &Path, mask: &Path) -> (Output, Option<Value>) {
     qc_with(directory, manifest, mask, &[])
 }
@@ -135,6 +157,131 @@ fn reused_failed_qc_preserves_the_exit_code_and_report() {
     assert_eq!(result["execution"]["reused"], true);
     assert_eq!(result["reason"], "checks_failed");
     assert_eq!(fs::metadata(report).unwrap().modified().unwrap(), stamp);
+}
+
+#[test]
+fn population_retention_never_changes_status_or_exit_code() {
+    let directory = create_temp_dir("cytiq-engine-qc-populations");
+    // The policy fails: retention must not turn it into a pass, or the
+    // reverse.
+    let manifest = write_manifest(&directory, "  qc:\n    min_events: 20000\n");
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    let mask = write_mask(&directory, acquisition.clone(), 1_000);
+    let membership = write_membership(&directory, acquisition, false);
+
+    let (plain_output, plain) = qc(&directory, &manifest, &mask);
+    let (output, report) = qc_with(
+        &directory,
+        &manifest,
+        &mask,
+        &["--populations", utf8(&membership)],
+    );
+
+    let (plain, report) = (plain.expect("report"), report.expect("report"));
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(output.status.code(), plain_output.status.code());
+    for key in [
+        "status", "passed", "warnings", "failures", "metrics", "checks",
+    ] {
+        assert_eq!(report[key], plain[key], "{key}");
+    }
+    assert!(plain.get("population_retention").is_none());
+    let retention = &report["population_retention"];
+    assert_eq!(retention["status"], "assessed", "{retention}");
+    assert!(
+        retention["basis"]
+            .as_str()
+            .unwrap()
+            .contains("never a QC check")
+    );
+    let combined = &retention["combined"]["populations"];
+    assert_eq!(combined[0]["population"], "T");
+    assert_eq!(combined[0]["original"], 2_000);
+    assert_eq!(combined[0]["retained"], 1_000);
+    assert_eq!(combined[0]["cumulative_retention"], 0.5);
+    assert_eq!(combined[1]["population"], "rare");
+    assert_eq!(combined[1]["retained"], 10);
+    let filters = retention["filters"].as_array().unwrap();
+    assert_eq!(filters[0]["stage"], "peacoqc_pass");
+    assert_eq!(filters[0]["populations"][0]["retained"], 1_000);
+    // `live` assessed nothing, so it removed nothing.
+    assert_eq!(filters[1]["stage"], "live");
+    assert_eq!(filters[1]["populations"][0]["retained"], 2_000);
+    common::assert_provenance(
+        &directory.join("qc.json.provenance.json"),
+        "cytiq qc",
+        &[&manifest, &fixture("sample.fcs"), &mask, &membership],
+        &[&directory.join("qc.json")],
+    );
+}
+
+#[test]
+fn masked_membership_is_not_assessed() {
+    let directory = create_temp_dir("cytiq-engine-qc-populations-masked");
+    let manifest = write_manifest(&directory, "  qc:\n    min_events: 5000\n");
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    let mask = write_mask(&directory, acquisition.clone(), 1_000);
+    let membership = write_membership(&directory, acquisition, true);
+
+    let (output, report) = qc_with(
+        &directory,
+        &manifest,
+        &mask,
+        &["--populations", utf8(&membership)],
+    );
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let retention = &report.expect("report")["population_retention"];
+    assert_eq!(retention["status"], "not_assessed");
+    assert!(
+        retention["reason"].as_str().unwrap().contains("--mask"),
+        "{retention}"
+    );
+    assert!(retention.get("combined").is_none());
+}
+
+#[test]
+fn changed_membership_invalidates_reuse() {
+    let directory = create_temp_dir("cytiq-engine-qc-populations-reuse");
+    let manifest = write_manifest(&directory, "  qc:\n    min_events: 5000\n");
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    let mask = write_mask(&directory, acquisition.clone(), 1_000);
+    let membership = write_membership(&directory, acquisition.clone(), false);
+    let outcome = directory.join("outcome.json");
+    let flags = [
+        "--populations",
+        utf8(&membership),
+        "--reuse",
+        "skip",
+        "--outcome",
+        utf8(&outcome),
+    ];
+    let reused = || -> bool {
+        let result: Value = serde_json::from_slice(&fs::read(&outcome).unwrap()).unwrap();
+        result["execution"]["reused"] == true
+    };
+
+    let (first, _) = qc_with(&directory, &manifest, &mask, &flags);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(!reused());
+    qc_with(&directory, &manifest, &mask, &flags);
+    assert!(reused());
+    write_membership(&directory, acquisition, true);
+    let (changed, report) = qc_with(&directory, &manifest, &mask, &flags);
+    assert!(changed.status.success());
+    assert!(!reused());
+    assert_eq!(
+        report.expect("report")["population_retention"]["status"],
+        "not_assessed"
+    );
 }
 
 #[test]

@@ -11,6 +11,7 @@ use serde::Serialize;
 
 use crate::error::QcError;
 use crate::policy::{CheckStatus, QcCheck, QcMetrics, evaluate};
+use crate::retention::{PopulationRetentionReport, qc_population_retention};
 
 /// Configuration of `cytiq qc`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,6 +28,10 @@ pub struct QcConfig {
     /// A panel without a `qc` policy fails instead of warning: release
     /// decisions need thresholds that were checked.
     pub require_policy: bool,
+    /// Gate membership of every raw event (`cytiq gate --membership`
+    /// without `--mask`): adds descriptive population retention to the
+    /// report. It never adds a check.
+    pub populations: Option<PathBuf>,
 }
 
 /// The `qc.json` report.
@@ -48,6 +53,9 @@ pub struct QcReport {
     /// `None` when the mask belongs to another acquisition.
     pub metrics: Option<QcMetrics>,
     pub checks: Vec<QcCheck>,
+    /// With `populations`: retention of each population, descriptive only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub population_retention: Option<PopulationRetentionReport>,
 }
 
 pub struct QcRunner;
@@ -62,11 +70,18 @@ impl QcRunner {
     pub fn input_files(config: &QcConfig) -> Result<Vec<(&'static str, PathBuf)>, QcError> {
         let manifest = RunManifest::load(&config.manifest)?;
         let sample = find_sample(&manifest, config)?;
-        Ok(vec![
+        let mut files = vec![
             ("manifest", config.manifest.clone()),
             ("input", sample.file.clone()),
             ("mask", config.mask.clone()),
-        ])
+        ];
+        files.extend(
+            config
+                .populations
+                .iter()
+                .map(|populations| ("populations", populations.clone())),
+        );
+        Ok(files)
     }
 
     /// Check the mask against the sample's panel policy and write the report,
@@ -125,6 +140,19 @@ impl QcRunner {
                 None => checks.push(missing_policy(&scope, panel.label(), config.require_policy)),
             }
         }
+        let population_retention = match &config.populations {
+            None => None,
+            Some(path) => {
+                let membership = EventMask::read_parquet(path)?;
+                Some(if metrics.is_some() {
+                    qc_population_retention(&acquisition, dataset.event_count(), &mask, &membership)
+                } else {
+                    PopulationRetentionReport::not_assessed(
+                        "the QC mask does not cover this sample's raw events",
+                    )
+                })
+            }
+        };
         let count = |status| checks.iter().filter(|check| check.status == status).count();
         let report = QcReport {
             tool: "cytiq qc".to_owned(),
@@ -144,6 +172,7 @@ impl QcRunner {
             failures: count(CheckStatus::Fail),
             metrics,
             checks,
+            population_retention,
         };
         write_report(
             &config.output,
