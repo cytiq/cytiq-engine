@@ -17,12 +17,13 @@ import time
 from run import measure, summarize, sha256, host_metadata
 
 ADDITIONS = {"reference_diagnostics", "detector_residual_rms", "relative_residual_rms", "component_negative_fraction"}
+REFERENCE_ADDITIONS = {"af_peak_sensitivity"}
 
 
 def equal_json(a, b, path=(), diagnostics=False):
     if isinstance(a,dict) and isinstance(b,dict):
         extra = set(b)-set(a)
-        allowed = ({"reference_diagnostics"} if path == () else ADDITIONS-{"reference_diagnostics"} if len(path)==2 and path[0]=="samples" else set()) if diagnostics else set()
+        allowed = ({"reference_diagnostics"} if path == () else REFERENCE_ADDITIONS if path == ("reference_diagnostics",) else ADDITIONS-{"reference_diagnostics"} if len(path)==2 and path[0]=="samples" else set()) if diagnostics else set()
         if not extra <= allowed or set(a)-set(b):
             raise ValueError(f"unexpected JSON schema change at {path}: {extra}")
         for key in a:

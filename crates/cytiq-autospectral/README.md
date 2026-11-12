@@ -159,6 +159,18 @@ per-detector residual RMS, relative residual RMS (null for a zero signal norm),
 and component negative fractions. High cosine, poor conditioning or a small
 residual alone cannot establish biological accuracy.
 
+The AF reference is regressed on the detector with the highest gated AF mean, a
+hard argmax: on real Aurora PBMC controls V7 and UV7 differ by under 1%, and the
+choice moves the AF spectrum (cosine 0.61 to upstream's). `af_peak_sensitivity`
+re-estimates the spectrum on the runner-up detector from the same events and
+reports `runner_up_detector`, `relative_margin`, `runner_up_spectrum_cosine` and
+`stable` (cosine ≥ `AF_PEAK_COSINE_THRESHOLD` = 0.9999, the spectra parity
+tolerance), with a warning when unstable. One AF source gives the same spectrum
+on either detector; a lower cosine flags a reference that is not reproducible
+and suggests more than one AF source. It never changes the spectra or the
+unmixing. Every reported float must be finite: a non-finite diagnostic is an
+error (`NonFiniteDiagnostic`) rather than a JSON `null`.
+
 OLS Householder QR remains the baseline. Controls are fitted before sample DATA
 are loaded; per-event solve buffers are reused without changing operation order.
 Offline AF/bootstrap and alternative-solver experiments live in

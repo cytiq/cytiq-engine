@@ -478,6 +478,7 @@ fn autospectral(error: &cytiq_autospectral::AutoSpectralError) -> OutcomeReason 
         | E::JsonWrite { source, .. } => io(source),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
+        E::NonFiniteDiagnostic { .. } => RUNTIME,
         E::EmptyControlsManifest
         | E::EmptySamplesManifest
         | E::EmptyDetectorsManifest

@@ -126,6 +126,8 @@ pub enum AutoSpectralError {
     IllConditionedReferenceMatrix { condition: f64, limit: f64 },
     #[error("sample `{path}` contains non-finite detector values")]
     NonFiniteSampleValues { path: PathBuf },
+    #[error("diagnostic `{field}` is not finite")]
+    NonFiniteDiagnostic { field: String },
     #[error("failed to create output directory `{path}`: {source}")]
     OutputDirectoryCreate {
         path: PathBuf,
