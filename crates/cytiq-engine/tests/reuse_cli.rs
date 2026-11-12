@@ -196,6 +196,9 @@ fn debug_artifacts_force_recomputation_and_nonsemantic_threads_do_not() {
     assert_eq!(json(&outcome)["execution"]["reused"], true);
     let mut debugged = args.to_vec();
     debugged.extend(["--debug-dir", text(&debug)]);
+    // A forced recomputation replaces the output, so it needs --overwrite.
+    cytiq(&debugged, 4);
+    debugged.push("--overwrite");
     cytiq(&debugged, 0);
     assert_eq!(json(&outcome)["execution"]["reused"], false);
     let fresh = temp.path().join("fresh.parquet");

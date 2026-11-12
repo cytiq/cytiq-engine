@@ -1454,7 +1454,10 @@ mod tests {
 
     #[test]
     fn keeps_first_error_in_event_order_across_chunks() {
-        let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().unwrap();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(4)
+            .build()
+            .unwrap();
         let operator = TransformOperator::Arcsinh {
             cofactor: f64::MIN_POSITIVE,
         };

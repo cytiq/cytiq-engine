@@ -22,6 +22,7 @@ pub fn export_matrix(
     result: &AutospillResult,
     kind: MatrixKind,
     path: impl AsRef<Path>,
+    existing: Existing,
 ) -> Result<(), AutospillError> {
     let path = path.as_ref();
     let (row_header, row_labels, column_labels) = matrix_labels(result, kind);
@@ -31,6 +32,7 @@ pub fn export_matrix(
         column_labels,
         result.matrix(kind),
         path,
+        existing,
     )
 }
 
@@ -43,6 +45,7 @@ pub fn export_matrix(
 pub fn export_spread_matrix(
     result: &AutospreadResult,
     path: impl AsRef<Path>,
+    existing: Existing,
 ) -> Result<(), AutospillError> {
     export_named_matrix(
         "dye",
@@ -50,6 +53,7 @@ pub fn export_spread_matrix(
         &result.detectors,
         &result.spread_matrix,
         path,
+        existing,
     )
 }
 
@@ -59,6 +63,7 @@ pub(crate) fn export_named_matrix(
     column_labels: &[String],
     matrix: &[Vec<f64>],
     path: impl AsRef<Path>,
+    existing: Existing,
 ) -> Result<(), AutospillError> {
     let path = path.as_ref();
     let extension = path
@@ -85,7 +90,7 @@ pub(crate) fn export_named_matrix(
             });
         }
     };
-    let mut publication = Publication::new(Existing::Replace);
+    let mut publication = Publication::new(existing);
     publication.stage_path(path, |staged| match delimiter {
         Some(delimiter) => write_delimited_matrix(
             row_header,
@@ -253,8 +258,13 @@ mod tests {
     fn writes_square_csv_matrix() {
         let result = sample_square_result();
         let path = temp_path("matrix.csv");
-        super::export_matrix(&result, MatrixKind::Compensation, &path)
-            .expect("csv export should succeed");
+        super::export_matrix(
+            &result,
+            MatrixKind::Compensation,
+            &path,
+            cytiq_publish::Existing::Refuse,
+        )
+        .expect("csv export should succeed");
 
         let output = fs::read_to_string(&path).expect("csv output should exist");
         assert!(output.starts_with("channel,FL1-A,FL2-A"));
@@ -265,8 +275,13 @@ mod tests {
     fn writes_rectangular_spillover_header() {
         let result = sample_rectangular_result();
         let path = temp_path("spillover.csv");
-        super::export_matrix(&result, MatrixKind::Spillover, &path)
-            .expect("rectangular csv export should succeed");
+        super::export_matrix(
+            &result,
+            MatrixKind::Spillover,
+            &path,
+            cytiq_publish::Existing::Refuse,
+        )
+        .expect("rectangular csv export should succeed");
 
         let output = fs::read_to_string(&path).expect("csv output should exist");
         assert!(output.starts_with("dye,FL1-A,FL2-A,FL3-A"));

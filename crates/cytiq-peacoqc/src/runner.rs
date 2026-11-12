@@ -88,6 +88,10 @@ pub struct PeacoQcConfig {
     pub remove_margins: bool,
     pub remove_zeros: bool,
     pub debug_dir: Option<PathBuf>,
+    /// Replace an existing output, mask, summary or debug artifact;
+    /// otherwise the output, mask and summary are refused before the input is
+    /// read, and debug artifacts when they are staged.
+    pub overwrite: bool,
 }
 
 impl PeacoQcConfig {
@@ -99,6 +103,7 @@ impl PeacoQcConfig {
             remove_margins: false,
             remove_zeros: false,
             debug_dir: None,
+            overwrite: false,
         }
     }
 }
@@ -290,6 +295,11 @@ impl PeacoQcRunner {
         config: &PeacoQcConfig,
     ) -> Result<PeacoQcResult, PeacoQcError> {
         validate_output_path(output)?;
+        // The cleaned FCS, its mask and summary appear together or not at all.
+        let mut publication = Publication::new(Existing::overwrite(config.overwrite));
+        for target in [output, &masks_path(output), &summary_path(output)] {
+            publication.check(target)?;
+        }
         let dataset = load_dataset(input)?;
         let events_before = dataset.event_count();
         let channels = resolve_channels(input, &dataset, &config.channels)?;
@@ -340,8 +350,6 @@ impl PeacoQcRunner {
         };
         let source_event_ids = cytiq_fcs::source_event_ids(&dataset).map_err(read_error)?;
         let acquisition = cytiq_fcs::acquisition_id(input, &dataset.text).map_err(read_error)?;
-        // The cleaned FCS and its mask appear together or not at all.
-        let mut publication = Publication::new(Existing::Replace);
         publication.stage_path(output, |path| {
             write_cleaned_fcs(input, output, path, &dataset, &mask, &acquisition)
         })?;
@@ -378,6 +386,8 @@ impl PeacoQcRunner {
                 }
             })
         })?;
+        // Debug artifacts share the publication: a failed debug write
+        // publishes nothing, and they follow the same `overwrite` rule.
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             stage_debug_artifacts(&mut publication, &summary, &mask, debug_dir)?;
         }

@@ -359,6 +359,40 @@ impl Drop for Publication {
     }
 }
 
+/// Check a directory output before any work: a run must not publish into a
+/// directory that holds another run's files unless `existing` is
+/// [`Existing::Replace`] (`--overwrite`). A missing or empty directory is
+/// accepted; a file in its place is refused either way.
+///
+/// # Errors
+/// [`PublishError::Exists`] for a non-empty directory with
+/// [`Existing::Refuse`] or a non-directory at `directory`;
+/// [`PublishError::Io`] when it cannot be inspected.
+pub fn check_output_dir(
+    directory: impl AsRef<Path>,
+    existing: Existing,
+) -> Result<(), PublishError> {
+    let directory = directory.as_ref();
+    let refused = || PublishError::Exists {
+        path: directory.to_path_buf(),
+    };
+    match fs::metadata(directory) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(PublishError::io(directory, error)),
+        Ok(metadata) if !metadata.is_dir() => Err(refused()),
+        Ok(_) if existing == Existing::Replace => Ok(()),
+        Ok(_) => {
+            let mut entries =
+                fs::read_dir(directory).map_err(|error| PublishError::io(directory, error))?;
+            if entries.next().is_some() {
+                Err(refused())
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
 /// Write one file all-or-nothing: [`Publication::stage_file`] then
 /// [`Publication::commit`].
 ///

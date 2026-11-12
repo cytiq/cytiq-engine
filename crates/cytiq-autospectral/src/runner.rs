@@ -13,6 +13,7 @@ use cytiq_fcs::{
     UNMIXING_KEYWORD, UnmixingState,
 };
 use cytiq_mask::EventMask;
+use cytiq_publish::Existing;
 use log::{debug, info, warn};
 use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
@@ -65,6 +66,9 @@ pub struct AutoSpectralConfig {
     /// KDE gate; on real cell controls it keeps debris and saturated events
     /// that bias the spectra.
     pub clean_controls: bool,
+    /// Publish into an `output_dir` that already holds files, replacing them;
+    /// otherwise a non-empty `output_dir` is refused before any input is read.
+    pub overwrite: bool,
 }
 
 /// Control gate names recorded in `run.json`.
@@ -81,6 +85,7 @@ impl AutoSpectralConfig {
             output_dir,
             debug_dir: None,
             clean_controls: true,
+            overwrite: false,
         }
     }
 }
@@ -268,6 +273,8 @@ impl AutoSpectralRunner {
         input_dir: &Path,
         config: &AutoSpectralConfig,
     ) -> Result<AutoSpectralSummary, AutoSpectralError> {
+        let existing = Existing::overwrite(config.overwrite);
+        cytiq_publish::check_output_dir(&config.output_dir, existing)?;
         info!(
             "autospectral pipeline: loading {} controls and {} samples from {}",
             controls.len(),
@@ -335,7 +342,12 @@ impl AutoSpectralRunner {
                 .collect(),
             summary,
         };
-        write_outputs(&result, &config.output_dir, config.debug_dir.as_deref())?;
+        write_outputs(
+            &result,
+            &config.output_dir,
+            existing,
+            config.debug_dir.as_deref(),
+        )?;
         info!("autospectral pipeline: completed successfully");
         Ok(result.summary)
     }

@@ -64,6 +64,7 @@ v2 records; reuse requires v3.
 | `RunRecord`, `FileRecord`, `BuildInfo`, `Platform`, `SCHEMA_VERSION` (3) | The document |
 | `record_path_for_file`, `record_path_for_dir` | Where a command's record goes |
 | `files_under` | Every file of an output directory, sorted, without records and `.tmp` files or directories (staged outputs and `.old.tmp` backups of `cytiq-publish`) |
+| `DirSnapshot` | `take` before a run, `published` after it: the files of a directory output the run wrote or replaced, so leftovers of earlier runs are never recorded |
 | `hash_file` | Streamed SHA-256 (also used by `cytiq-inspect`) |
 | `outcome::OutcomeReason`, `exit_code` | The 0–4 exit contract of every `cytiq` command: `success` 0, `runtime_error` 1, `invalid_configuration` 2, `checks_failed` 3, `output_conflict`/`incomplete` 4 |
 | `OutcomeReason::of_io_kind` / `of_io` / `of_publish` | Type-independent classification: a missing path is `incomplete`, an existing one `output_conflict`, malformed or truncated data `invalid_configuration`, other I/O and staging failures `runtime_error` |

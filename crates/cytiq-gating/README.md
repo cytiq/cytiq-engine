@@ -72,8 +72,9 @@ let xml = to_gatingml(&strategy)?;
 - `--format csv` (default) or `json`; one row per gate in evaluation order with
   `gate_id`, `gate_path`, `parent_id`, `gate_type`, `count`, `parent_count`,
   `percent_of_parent`, `percent_of_total`.
-- The output's parent directory is created if needed. An existing output file
-  is replaced.
+- The output's parent directory is created if needed. An existing output or
+  membership file is refused before any input is read unless `overwrite` is
+  set (`--overwrite`); then both are replaced together.
 - `masks` (CLI `--mask`) restricts gating to events every mask keeps; events
   outside belong to no gate and `percent_of_total` uses the masked count.
 - `membership` writes a Parquet file in the [`cytiq-mask`](../cytiq-mask)

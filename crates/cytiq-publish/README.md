@@ -19,6 +19,7 @@ run publishes none of its outputs.
 | `stage_dir(target)` | stage a directory; returns the empty directory to fill |
 | `commit()` | publish every staged output in staging order, then sync their directories; undo everything if that fails |
 | `write_file(target, existing, \|writer\| ...)` | one file: stage and commit |
+| `check_output_dir(directory, existing)` | before any work: refuse a non-empty directory output unless `Existing::Replace` |
 
 Errors are `PublishError::{Exists, Locked, StagedTwice, Io, RollbackFailed}`;
 `PublishError::path()` is the path an error is about. `RollbackFailed` keeps

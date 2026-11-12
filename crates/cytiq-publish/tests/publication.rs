@@ -5,7 +5,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use cytiq_publish::{Existing, Publication, PublishError, write_file};
+use cytiq_publish::{Existing, Publication, PublishError, check_output_dir, write_file};
 
 #[derive(Debug, thiserror::Error)]
 enum TestError {
@@ -366,4 +366,30 @@ fn modes_match_file_create_and_create_dir() {
         mode(root.path().join("published")),
         mode(root.path().join("plain"))
     );
+}
+
+#[test]
+fn directory_outputs_refuse_another_runs_files_unless_replacing() {
+    let root = tempfile::tempdir().unwrap();
+    let missing = root.path().join("missing");
+    let empty = root.path().join("empty");
+    let occupied = root.path().join("occupied");
+    let file = root.path().join("file");
+    fs::create_dir(&empty).unwrap();
+    fs::create_dir(&occupied).unwrap();
+    fs::write(occupied.join("metrics.json"), "{}").unwrap();
+    fs::write(&file, "").unwrap();
+    for existing in [Existing::Refuse, Existing::Replace] {
+        check_output_dir(&missing, existing).unwrap();
+        check_output_dir(&empty, existing).unwrap();
+        assert!(matches!(
+            check_output_dir(&file, existing),
+            Err(PublishError::Exists { .. })
+        ));
+    }
+    assert!(matches!(
+        check_output_dir(&occupied, Existing::Refuse),
+        Err(PublishError::Exists { path }) if path == occupied
+    ));
+    check_output_dir(&occupied, Existing::Replace).unwrap();
 }

@@ -104,6 +104,9 @@ pub(crate) struct FlowsomArgs {
     /// clustered. Repeat to combine several masks with AND.
     #[arg(long = "mask")]
     masks: Vec<PathBuf>,
+    /// Replace an existing assignment CSV.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -125,6 +128,7 @@ pub(crate) fn run(
         no_scale,
         training_events,
         masks,
+        overwrite,
     } = args;
     if let Some(command) = command {
         return run_flowsom_model(command, recorder);
@@ -157,7 +161,7 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(output.clone())
     );
-    let result = FlowSomRunner::run(&input, &output, &config)?;
+    let result = FlowSomRunner::run(&input, &output, &config, overwrite)?;
     info!(
         "flowsom assigned {} events across {} SOM nodes and {} metaclusters",
         result.summary.metrics.events,

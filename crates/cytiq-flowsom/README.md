@@ -25,7 +25,7 @@ seed, training count and preprocessing contract. Assign returns one-based
 Models are JSON and validated after loading. File workflows check transform
 settings and any upstream normalization ID. Training masks currently require a
 single input acquisition; CytoNorm manifests support per-file masks for cohorts.
-Existing outputs require `--overwrite` in the new model commands.
+Every command refuses an existing output (exit 4) unless `--overwrite` is passed.
 
 Model JSON documents are limited to 16 MiB before deserialization. Selected
 event values are limited to 8 GiB before row-matrix allocation. Channel values
@@ -37,7 +37,7 @@ The selected rows, RNG schedule, numeric casts and scaling are unchanged.
 features, Euclidean distance and average linkage inside and after resampling.
 Its RNG stream is independent of SOM training. This mode does not reproduce R's
 RNG sequence. The legacy command and `FlowSomRunner::run` retain their previous
-defaults, assignment schema and behavior.
+defaults and assignment schema.
 
 1. Read one FCS file and select channels (`$PnN`, then `$PnS`, then
    `"$PnN [$PnS]"`). Values are used as stored: no compensation or transform
@@ -76,7 +76,7 @@ use cytiq_flowsom::{FlowSomConfig, FlowSomRunner};
 
 let mut config = FlowSomConfig::new(parse_channel_list("CD3,CD4,CD8")?);
 config.debug_dir = Some("./flowsom-debug".into());
-let result = FlowSomRunner::run("sample.fcs", "sample.flowsom.csv", &config)?;
+let result = FlowSomRunner::run("sample.fcs", "sample.flowsom.csv", &config, false)?;
 println!("{} metaclusters", result.summary.metrics.metaclusters);
 ```
 
@@ -93,7 +93,7 @@ learning rate and radius schedules remain fixed constants.
 | --- | --- |
 | `UPSTREAM` | Upstream implementations and versions the crate is validated against (`parity/versions.txt`), recorded in provenance `algorithms` |
 | `FlowSomConstants` | The fixed training schedule, recorded in provenance `constants` |
-| `FlowSomRunner::run(input, output, &FlowSomConfig)` | Run the pipeline and write the assignment CSV |
+| `FlowSomRunner::run(input, output, &FlowSomConfig, overwrite)` | Run the pipeline and write the assignment CSV |
 | `FlowSomConfig` | `channels`, optional `debug_dir`, `masks`, `xdim`, `ydim`, `metaclusters`, `seed`, `scale`, `training_events` (defaults from `FLOWSOM_*`) |
 | `FlowSomResult` | `summary`, per-event `assignments`, `nodes`, `metaclusters` |
 | `FlowSomSummary`, `FlowSomParameters`, `FlowSomMetrics`, `FlowSomScaleSummary` | Run summary, written as `summary.json` |
@@ -108,7 +108,8 @@ learning rate and radius schedules remain fixed constants.
 - `output` is a CSV with one row per clustered event: `event_index` (0-based
   row in the input file), `source_event_id` (0-based row in the raw file, from
   `Original_ID` when present), `flowsom_node` (1..=100) and
-  `flowsom_metacluster` (1..=20). The file is created or replaced.
+  `flowsom_metacluster` (1..=20). It is published atomically; an existing
+  file is refused before any input is read unless `overwrite` is `true`.
 - With `masks` (CLI `--mask`), only events every mask keeps are scaled,
   trained on, assigned and listed. A mask that keeps nothing is an error.
 - With `debug_dir`: `summary.json`, `nodes.csv` (grid position, metacluster,

@@ -6,7 +6,7 @@ use cytiq_autospectral::{
     read_controls_manifest as read_autospectral_controls_manifest,
     read_detectors_manifest as read_autospectral_detectors_manifest, read_samples_manifest,
 };
-use cytiq_provenance::{files_under, record_path_for_dir};
+use cytiq_provenance::{DirSnapshot, record_path_for_dir};
 use log::{debug, info};
 use serde::Serialize;
 
@@ -47,6 +47,10 @@ pub(crate) struct AutospectralArgs {
     /// existing scripts).
     #[arg(long)]
     clean_controls: bool,
+    /// Write into an output directory that already holds files, replacing
+    /// the outputs of an earlier run.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -65,6 +69,7 @@ pub(crate) fn run(
         threads: _,
         quantile_gate,
         clean_controls: _,
+        overwrite,
     } = args;
     info!(
         "starting autospectral: controls={}, samples={}, input_dir={}, output={}",
@@ -105,11 +110,13 @@ pub(crate) fn run(
         output_dir: output.clone(),
         debug_dir,
         clean_controls: !quantile_gate,
+        overwrite,
     };
     let recorder = crate::provenance::begin!(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(output.clone())
     );
+    let before = DirSnapshot::take(&output);
     let summary =
         AutoSpectralRunner::run(&control_manifest, &sample_manifest, &input_dir, &config)?;
     info!(
@@ -122,7 +129,7 @@ pub(crate) fn run(
     info!("autospectral completed successfully");
     record_provenance(
         recorder,
-        &files_under(&output),
+        &before.published(&output),
         &record_path_for_dir(&output),
     )
 }

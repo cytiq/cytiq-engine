@@ -65,7 +65,9 @@ println!("kept {}", result.summary.metrics.events_after);
   selected channels without `CYTIQ_TRANSFORM` coverage, are reported in
   `summary.warnings` and the log; the run continues.
 - Input and output are FCS; an output path without a `.fcs` extension is an
-  error. An existing output file is replaced.
+  error. An existing output, mask or summary is refused before the input is
+  read unless `overwrite` is set (`--overwrite`); debug artifacts follow the
+  same rule when they are staged, so a refused run publishes nothing.
 - The output is FCS 3.1 with the retained events of every input parameter,
   plus an `Original_ID` column (the 1-based input row) unless the input already
   has one. It is float32, or float64 when float32 would change a value (for

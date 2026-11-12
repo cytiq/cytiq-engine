@@ -33,6 +33,9 @@ pub(crate) struct GateArgs {
     /// Optional Parquet path for per-event gate membership.
     #[arg(long)]
     membership: Option<PathBuf>,
+    /// Replace existing output files.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -47,6 +50,7 @@ pub(crate) fn run(
         threads: _,
         masks,
         membership,
+        overwrite,
     } = args;
     info!(
         "starting gate: input={}, gating_ml={}, output={}",
@@ -61,6 +65,7 @@ pub(crate) fn run(
         format: format.into(),
         masks,
         membership,
+        overwrite,
     };
     recorder.snapshot_inputs("input", std::slice::from_ref(&config.input))?;
     recorder.snapshot_inputs("gating_ml", std::slice::from_ref(&config.gating_ml))?;

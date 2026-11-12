@@ -258,6 +258,27 @@
             "value_names": [
               "CLEAN_CONTROLS"
             ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
@@ -454,6 +475,27 @@
             "value_names": [
               "THREADS"
             ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
@@ -608,6 +650,27 @@
             "short": null,
             "value_names": [
               "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
             ]
           }
         ],
@@ -1204,6 +1267,27 @@
             "value_names": [
               "THREADS"
             ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
@@ -1754,6 +1838,27 @@
             "value_names": [
               "STRICT"
             ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
@@ -2005,6 +2110,27 @@
             "short": null,
             "value_names": [
               "MASKS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
             ]
           }
         ],
@@ -2523,6 +2649,27 @@
             "value_names": [
               "MEMBERSHIP"
             ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
@@ -2839,6 +2986,27 @@
             "short": null,
             "value_names": [
               "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
             ]
           }
         ],
@@ -5203,6 +5371,7 @@
       "fsc",
       "input_dir",
       "output",
+      "overwrite",
       "quantile_gate",
       "samples",
       "ssc",
@@ -5216,6 +5385,7 @@
       "input_dir",
       "matrix_kind",
       "output",
+      "overwrite",
       "ssc",
       "threads",
       "transform_file"
@@ -5227,6 +5397,7 @@
       "fsc",
       "input_dir",
       "output",
+      "overwrite",
       "ssc",
       "threads"
     ],
@@ -5253,6 +5424,7 @@
       "max_fit_events",
       "no_viability",
       "output",
+      "overwrite",
       "require",
       "singlet_mad",
       "ssc",
@@ -5296,6 +5468,7 @@
       "input",
       "method",
       "output",
+      "overwrite",
       "reference",
       "strict",
       "threads"
@@ -5310,6 +5483,7 @@
       "metaclusters",
       "no_scale",
       "output",
+      "overwrite",
       "seed",
       "threads",
       "training_events",
@@ -5333,6 +5507,7 @@
       "metaclusters",
       "no_scale",
       "output",
+      "overwrite",
       "seed",
       "threads",
       "training_events",
@@ -5363,6 +5538,7 @@
       "metaclusters",
       "no_scale",
       "output",
+      "overwrite",
       "seed",
       "threads",
       "training_events",
@@ -5376,6 +5552,7 @@
       "masks",
       "membership",
       "output",
+      "overwrite",
       "threads"
     ],
     "mask combine": [
@@ -5395,6 +5572,7 @@
       "input",
       "method",
       "output",
+      "overwrite",
       "remove_margins",
       "remove_zeros",
       "threads"

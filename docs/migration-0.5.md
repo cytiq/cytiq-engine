@@ -42,3 +42,35 @@ the run went, not what it computed.
 `cytiq_cytoscan::parse_channel_list` were re-exports of
 `cytiq_fcs::parse_channel_list`. Import it from `cytiq_fcs`.
 `cytiq_transform::parse_channel_list` remains: it returns `TransformError`.
+
+## Existing outputs are refused (command line)
+
+Every command that writes results now refuses an existing output with exit
+4 (`output_conflict`) before doing any work, and leaves it untouched. Before
+0.5, `autospill`, `autospread`, `autospectral`, `peacoqc`, `cytoscan`, `gate`,
+`clean` and `flowsom` (without a subcommand) silently replaced their outputs.
+They gain `--overwrite`, as the other commands already had.
+
+- A rerun into the same paths needs `--overwrite`, or `--reuse skip` to reuse
+  a verified matching output without recomputing.
+- A directory output (`autospectral`, `cytoscan`, `clean`) must be missing or
+  empty without `--overwrite`. With it, the run's files replace their earlier
+  versions; other files in the directory are kept and are no longer listed
+  as outputs in `provenance.json`.
+- `peacoqc --debug-dir` artifacts follow the same rule: a run either
+  publishes the cleaned FCS, mask, summary and debug artifacts, or none.
+- `--debug-dir` forces a recomputation, so with `--reuse skip` it also needs
+  `--overwrite` when the output exists.
+- `flowsom` (without a subcommand) now publishes its assignment CSV
+  atomically: a failed run no longer leaves a truncated file.
+- `flowsom train`, `flowsom apply`, `cytonorm train`, `cytonorm apply` and
+  `classify` reported an existing output as invalid input (exit 2). They now
+  report it as an output conflict (exit 4), the documented code, as every
+  other command does.
+
+Rust API: `GatingConfig`, `PeacoQcConfig`, `CleanConfig`, `CytoScanConfig` and
+`AutoSpectralConfig` gain `overwrite`; `FlowSomRunner::run` gains an
+`overwrite` argument; `cytiq_autospill::export_matrix`,
+`export_spread_matrix` and `cytiq_autospectral::write_outputs` take an
+`Existing`. Pass `false` / `Existing::Refuse` for the new default, `true` /
+`Existing::Replace` for the old behaviour.

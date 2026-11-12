@@ -8,7 +8,7 @@ use super::{
     Cluster, DeterministicRng, EQUALITY_EPSILON, FlowSomAssignment, FlowSomConfig, FlowSomError,
     FlowSomScaleSummary, ResolvedChannel, SomGrid, assign_events, channel_matrix,
     closest_cluster_pair, hierarchical_metaclusters, load_dataset, resolve_channels, scale_matrix,
-    selected_rows, train_som, training_rows, validate_config, write_assignments_csv,
+    selected_rows, train_som, training_rows, validate_config, write_assignments,
 };
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -360,9 +360,7 @@ impl FlowSomModel {
     /// Returns I/O or model validation errors.
     pub fn save(&self, path: &Path, overwrite: bool) -> Result<(), FlowSomError> {
         self.validate()?;
-        if path.exists() && !overwrite {
-            return Err(invalid("model exists; pass --overwrite"));
-        }
+        Publication::new(Existing::overwrite(overwrite)).check(path)?;
         cytiq_publish::write_file(path, Existing::overwrite(overwrite), |writer| {
             serde_json::to_writer_pretty(writer, self).map_err(FlowSomError::from)
         })
@@ -383,9 +381,10 @@ impl FlowSomModel {
             .chain(masks.iter().cloned())
             .collect::<Vec<_>>();
         check_file_outputs(output, &sources, overwrite)?;
-        if input == output || (output.exists() && !overwrite) {
-            return Err(invalid("assignment output exists or aliases input"));
+        if input == output {
+            return Err(invalid("assignment output aliases its input"));
         }
+        Publication::new(Existing::overwrite(overwrite)).check(output)?;
         let dataset = load_dataset(input)?;
         let state = SignalState::of(&dataset.text).map_err(|source| FlowSomError::FcsRead {
             path: input.to_path_buf(),
@@ -444,7 +443,9 @@ impl FlowSomModel {
             })
             .collect::<Vec<_>>();
         let mut publication = Publication::new(Existing::overwrite(overwrite));
-        publication.stage_path(output, |path| write_assignments_csv(path, &assignments))?;
+        publication.stage_file(output, |writer| {
+            write_assignments(writer, output, &assignments)
+        })?;
         publication.commit()?;
         Ok(assignments.len())
     }
@@ -458,9 +459,7 @@ fn check_file_outputs(
     let mut provenance = output.as_os_str().to_os_string();
     provenance.push(".provenance.json");
     for path in [output, Path::new(&provenance)] {
-        if path.exists() && !overwrite {
-            return Err(invalid("output exists; pass --overwrite"));
-        }
+        Publication::new(Existing::overwrite(overwrite)).check(path)?;
         if let Ok(destination) = std::fs::canonicalize(path) {
             for input in inputs {
                 if std::fs::canonicalize(input)? == destination {

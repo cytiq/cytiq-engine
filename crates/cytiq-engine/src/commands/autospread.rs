@@ -32,6 +32,9 @@ pub(crate) struct AutospreadArgs {
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
     pub(crate) threads: Option<usize>,
+    /// Replace an existing output file.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -47,6 +50,7 @@ pub(crate) fn run(
         fsc,
         ssc,
         threads: _,
+        overwrite,
     } = args;
     info!(
         "starting autospread: controls={}, input_dir={}, output={}",
@@ -86,8 +90,11 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(output.clone())
     );
+    // Refuse an existing output before the computation, not after it.
+    let existing = cytiq_publish::Existing::overwrite(overwrite);
+    cytiq_publish::Publication::new(existing).check(&output)?;
     let result = AutospreadRunner::run(&manifest, &input_dir, &config)?;
-    export_spread_matrix(&result, &output)?;
+    export_spread_matrix(&result, &output, existing)?;
     info!(
         "autospread finished computation for {} dyes across {} detectors",
         result.dyes.len(),

@@ -81,9 +81,12 @@ the package.
   required). `transform` takes `--channels` / `--exclude-channels` only.
 - Numeric flags are validated at parse time (positive, non-negative or finite,
   depending on the flag).
-- `--overwrite` exists on `classify`, `transform`, `meta`, `stats`, `compensate`,
-  `mask combine` and `plot`; other commands follow the output rules of their library
-  crate.
+- Every command that writes files refuses an existing output with exit 4,
+  before any work and without touching it, unless `--overwrite` is passed. A
+  directory output must be missing or empty without `--overwrite`; with it,
+  this run's files replace their earlier versions and other files are kept
+  but never recorded as outputs. `--reuse skip` reuses a verified matching
+  output regardless of `--overwrite`.
 - `--mask FILE` (repeatable) restricts `classify`, `gate`, `flowsom` and `clean` to events
   every mask keeps; `plot` shows those events and draws the removed ones over them; see [cytiq-mask](../cytiq-mask/README.md).
 

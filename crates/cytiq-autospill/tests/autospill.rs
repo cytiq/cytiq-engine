@@ -61,8 +61,13 @@ fn export_matrix_writes_parquet_magic_bytes() {
         .expect("autospill should succeed");
 
     let output_path = directory.join("matrix.parquet");
-    export_matrix(&result, MatrixKind::Compensation, &output_path)
-        .expect("parquet export should succeed");
+    export_matrix(
+        &result,
+        MatrixKind::Compensation,
+        &output_path,
+        cytiq_publish::Existing::Refuse,
+    )
+    .expect("parquet export should succeed");
 
     let bytes = fs::read(output_path).expect("parquet output should exist");
     assert!(bytes.len() > 8);

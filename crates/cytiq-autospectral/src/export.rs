@@ -23,10 +23,11 @@ pub fn masks_path(output: &Path) -> std::path::PathBuf {
 pub fn write_outputs(
     result: &AutoSpectralResult,
     output_dir: &Path,
+    existing: Existing,
     debug_dir: Option<&Path>,
 ) -> Result<(), AutoSpectralError> {
     let references_dir = output_dir.join("references");
-    let mut publication = Publication::new(Existing::Replace);
+    let mut publication = Publication::new(existing);
     let spectra = references_dir.join("fluorophore_spectra.csv");
     publication.stage_file(&spectra, |writer| {
         write_reference_csv(writer, &spectra, result)

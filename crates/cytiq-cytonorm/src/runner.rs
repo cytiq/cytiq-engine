@@ -969,9 +969,7 @@ fn write_diagnostics(
 ) -> Result<()> {
     use plotly::{Plot, Scatter, common::Mode as PlotMode};
     let path = directory.join("report.html");
-    if path.exists() && !overwrite {
-        return Err(invalid("debug report exists; pass --overwrite"));
-    }
+    cytiq_publish::Publication::new(cytiq_publish::Existing::overwrite(overwrite)).check(&path)?;
     let mut plot = Plot::new();
     for m in &model.mappings {
         if let Some(s) = &m.spline {
@@ -1045,12 +1043,7 @@ fn check_destination(output: &Path, inputs: &[PathBuf], overwrite: bool) -> Resu
     if fs::symlink_metadata(output).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(invalid("output must not be a symlink"));
     }
-    if output.exists() && !overwrite {
-        return Err(invalid(format!(
-            "output exists: {}; pass --overwrite",
-            output.display()
-        )));
-    }
+    cytiq_publish::Publication::new(cytiq_publish::Existing::overwrite(overwrite)).check(output)?;
     let output = resolved(output)?;
     for input in inputs {
         let input = fs::canonicalize(input)?;

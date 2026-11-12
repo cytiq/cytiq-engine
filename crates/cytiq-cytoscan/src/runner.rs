@@ -106,6 +106,9 @@ pub struct CytoScanConfig {
     /// Fail instead of warning when a file has no spillover metadata or a
     /// selected channel is not in it, so no file is scored on raw values.
     pub strict: bool,
+    /// Publish into an `output_dir` that already holds files, replacing them;
+    /// otherwise a non-empty `output_dir` is refused before any input is read.
+    pub overwrite: bool,
 }
 
 impl CytoScanConfig {
@@ -120,6 +123,7 @@ impl CytoScanConfig {
             flag_method: FlagMethod::Outlier,
             debug_dir: None,
             strict: false,
+            overwrite: false,
         }
     }
 }
@@ -331,6 +335,10 @@ impl CytoScanRunner {
 
     fn run_inner(config: &CytoScanConfig) -> Result<CytoScanResult, CytoScanError> {
         validate_config(config)?;
+        cytiq_publish::check_output_dir(
+            &config.output_dir,
+            cytiq_publish::Existing::overwrite(config.overwrite),
+        )?;
         let (test_paths, reference_paths) = resolve_test_and_reference(config)?;
 
         info!(

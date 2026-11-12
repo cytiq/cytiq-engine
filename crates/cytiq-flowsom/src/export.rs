@@ -20,14 +20,14 @@ const BAR_PLOT_HEIGHT: usize = 520;
 const ASSIGNMENT_PLOT_HEIGHT: usize = 520;
 const ASSIGNMENT_SAMPLE_LIMIT: usize = 5_000;
 
-pub(crate) fn write_assignments_csv(
+/// The assignment CSV; `path` only names the target in errors. Callers
+/// stage it through `cytiq-publish`, so no run leaves a truncated file.
+pub(crate) fn write_assignments<W: std::io::Write>(
+    writer: W,
     path: &Path,
     assignments: &[FlowSomAssignment],
 ) -> Result<(), FlowSomError> {
-    let mut writer = csv::Writer::from_path(path).map_err(|source| FlowSomError::CsvWrite {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let mut writer = csv::Writer::from_writer(writer);
     for assignment in assignments {
         writer
             .serialize(assignment)

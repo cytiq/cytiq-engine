@@ -121,8 +121,9 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 
 ## Output rules
 
-- Always written under `output_dir` (created if missing; existing files are
-  replaced): `cytoscan_summary.csv`, `cytoscan_features.csv`,
+- Always written under `output_dir` (created if missing; a directory that
+  already holds files is refused before any input is read unless `overwrite`,
+  CLI `--overwrite`): `cytoscan_summary.csv`, `cytoscan_features.csv`,
   `cytoscan_config.json`.
 - With `debug_dir`: `reference_features.csv`, `aggregate_sampling.csv`,
   `model_diagnostics.json`, `pca_coordinates.csv`, `pca_loadings.csv`,

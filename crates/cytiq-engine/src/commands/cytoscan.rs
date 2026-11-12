@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_cytoscan::{CytoScanConfig, CytoScanConstants, CytoScanRunner};
-use cytiq_provenance::{files_under, record_path_for_dir};
+use cytiq_provenance::{DirSnapshot, record_path_for_dir};
 use log::{info, warn};
 use serde::Serialize;
 
@@ -41,6 +41,10 @@ pub(crate) struct CytoscanArgs {
     /// selected channel is not in it.
     #[arg(long)]
     strict: bool,
+    /// Write into an output directory that already holds files, replacing
+    /// the outputs of an earlier run.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -58,6 +62,7 @@ pub(crate) fn run(
         debug_dir,
         threads: _,
         strict,
+        overwrite,
     } = args;
     info!(
         "starting cytoscan: inputs={}, references={}, output={}, method={:?}, flag_method={:?}",
@@ -78,6 +83,7 @@ pub(crate) fn run(
         flag_method: flag_method.into(),
         debug_dir,
         strict,
+        overwrite,
     };
     let (test, reference) = CytoScanRunner::input_files(&config)?;
     recorder.snapshot_inputs("input", &test)?;
@@ -88,6 +94,7 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(config.output_dir.clone())
     );
+    let before = DirSnapshot::take(&config.output_dir);
     let result = CytoScanRunner::run(&config)?;
     for warning in &result.diagnostics.warnings {
         warn!("cytoscan: {warning}");
@@ -103,7 +110,7 @@ pub(crate) fn run(
     info!("cytoscan completed successfully");
     record_provenance(
         recorder,
-        &files_under(&config.output_dir),
+        &before.published(&config.output_dir),
         &record_path_for_dir(&config.output_dir),
     )
 }

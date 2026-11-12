@@ -11,12 +11,13 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter};
+use cytiq_publish::{Existing, Publication};
 use log::{debug, info, warn};
 use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::FlowSomError;
-use crate::export::{write_assignments_csv, write_debug_artifacts};
+use crate::export::{write_assignments, write_debug_artifacts};
 
 #[path = "model.rs"]
 mod model;
@@ -262,18 +263,21 @@ impl FlowSomRunner {
         input: impl AsRef<Path>,
         output: impl AsRef<Path>,
         config: &FlowSomConfig,
+        overwrite: bool,
     ) -> Result<FlowSomResult, FlowSomError> {
         let input = input.as_ref();
         let output = output.as_ref();
-        Self::run_inner(input, output, config)
+        Self::run_inner(input, output, config, Existing::overwrite(overwrite))
     }
 
     fn run_inner(
         input: &Path,
         output: &Path,
         config: &FlowSomConfig,
+        existing: Existing,
     ) -> Result<FlowSomResult, FlowSomError> {
         validate_config(config)?;
+        Publication::new(existing).check(output)?;
         let dataset = load_dataset(input)?;
         let rows = selected_rows(input, &dataset, &config.masks)?;
         let events = rows.len();
@@ -333,7 +337,9 @@ impl FlowSomRunner {
             training.as_ref().map_or(scaled.values.len(), Vec::len),
         );
 
-        write_assignments_csv(output, &assignments)?;
+        cytiq_publish::write_file(output, existing, |writer| {
+            write_assignments(writer, output, &assignments)
+        })?;
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             write_debug_artifacts(&summary, &assignments, &nodes, &metaclusters, debug_dir)?;
         }

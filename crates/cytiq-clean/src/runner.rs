@@ -8,6 +8,7 @@ use cytiq_gating::{
     BooleanOp, Gate, GateKind, GateRef, GatingResults, GatingStrategy, Transform, parse_gatingml,
     to_gatingml,
 };
+use cytiq_publish::Existing;
 use log::info;
 use serde::Serialize;
 use serde_json::json;
@@ -50,6 +51,9 @@ pub struct CleanConfig {
     /// Filters that must be `applied`; any other status fails the run before
     /// outputs are written.
     pub required: Vec<FilterKind>,
+    /// Publish into a directory that already holds files, replacing them;
+    /// otherwise a non-empty `output` is refused before the input is read.
+    pub overwrite: bool,
 }
 
 /// One of the three clean filters.
@@ -93,6 +97,7 @@ impl CleanConfig {
             max_fit_events: DEFAULT_MAX_FIT_EVENTS,
             masks: Vec::new(),
             required: Vec::new(),
+            overwrite: false,
         }
     }
 }
@@ -263,6 +268,7 @@ struct Plan {
 }
 
 fn run_inner(config: &CleanConfig) -> Result<CleanResult, CleanError> {
+    cytiq_publish::check_output_dir(&config.output, Existing::overwrite(config.overwrite))?;
     let dataset = read_fcs(&config.input)?;
     let roles = ChannelRoles::resolve(&dataset, &config.channels, &config.input)?;
     ensure_raw_roles(config, &dataset, &roles)?;
@@ -347,13 +353,7 @@ fn run_inner(config: &CleanConfig) -> Result<CleanResult, CleanError> {
         }),
     };
     write_outputs(
-        &config.output,
-        &metrics,
-        &masks,
-        &gatingml,
-        &strategy,
-        &dataset,
-        &results,
+        config, &metrics, &masks, &gatingml, &strategy, &dataset, &results,
     )?;
     info!(
         "clean kept {kept} of {event_count} event(s); wrote {}",

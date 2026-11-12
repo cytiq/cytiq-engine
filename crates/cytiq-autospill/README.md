@@ -66,7 +66,12 @@ use cytiq_autospill::{
 let rows = read_controls_manifest("controls.csv")?;
 let config = AutospillConfig { matrix_kind: MatrixKind::Spillover, ..Default::default() };
 let result = AutospillRunner::run(&rows, "./controls", &config)?;
-export_matrix(&result, config.matrix_kind, "spillover.parquet")?;
+export_matrix(
+    &result,
+    config.matrix_kind,
+    "spillover.parquet",
+    cytiq_publish::Existing::Refuse,
+)?;
 ```
 
 ## Manifests
@@ -134,7 +139,9 @@ PE,256,262144,4.418539922,0,-100
   rectangular: spillover is dye × detector, compensation is detector × dye,
   spread is dye × detector.
 - The output format comes from the file extension; anything else is
-  `UnsupportedOutputFormat`. Existing files are replaced.
+  `UnsupportedOutputFormat`. `export_matrix` and `export_spread_matrix` take
+  an `Existing`: `Refuse` (the CLI default) fails on an existing file,
+  `Replace` (`--overwrite`) replaces it.
 - `debug_dir` gets one `report.html` (gates, regressions, convergence,
   heatmaps) and `summary.json`.
 - Controls, gates, spillover rows, spread rows and refinement error passes run

@@ -152,10 +152,10 @@ impl ClassifyRunner {
         if cytiq_provenance::hash_file(&model)?.1 != bundle.model_sha256 {
             return Err(invalid("model checksum mismatch"));
         }
+        let refuse =
+            cytiq_publish::Publication::new(cytiq_publish::Existing::overwrite(config.overwrite));
         for name in ["predictions.parquet", "summary.json", "provenance.json"] {
-            if config.output.join(name).exists() && !config.overwrite {
-                return Err(invalid("output exists; pass --overwrite to replace it"));
-            }
+            refuse.check(config.output.join(name))?;
         }
         let FcsStream { metadata, batches } =
             FcsReader::open(&config.input)?.stream(batch_size, FcsReadLimits::default())?;
