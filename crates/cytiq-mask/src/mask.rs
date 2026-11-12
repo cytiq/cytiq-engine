@@ -545,6 +545,41 @@ mod tests {
     }
 
     #[test]
+    fn rejects_a_float_filter_column() {
+        // The shared reader decodes Float32 for classify tables; a mask
+        // filter column must still be Boolean.
+        let path = temp_path("float-filter.parquet");
+        let schema = Arc::new(Schema::new(vec![
+            Field::new(SOURCE_EVENT_ID_COLUMN, DataType::UInt64, false),
+            Field::new(KEEP_COLUMN, DataType::Boolean, false),
+            Field::new("score", DataType::Float32, true),
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![
+                Arc::new(UInt64Array::from(vec![0_u64, 1])),
+                Arc::new(BooleanArray::from(vec![true, false])),
+                Arc::new(arrow_array::Float32Array::from(vec![0.5_f32, 1.0])),
+            ],
+        )
+        .unwrap();
+        let properties = WriterProperties::builder()
+            .set_key_value_metadata(Some(vec![
+                KeyValue::new(SCHEMA_VERSION_KEY.to_owned(), SCHEMA_VERSION.to_string()),
+                KeyValue::new(ACQUISITION_KEY.to_owned(), RAW.to_owned()),
+                KeyValue::new(EVENT_ID_BASE_KEY.to_owned(), "0".to_owned()),
+            ]))
+            .build();
+        let mut writer =
+            ArrowWriter::try_new(File::create(&path).unwrap(), schema, Some(properties)).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+
+        let error = EventMask::read_parquet(&path).unwrap_err();
+        assert!(error.to_string().contains("Boolean"), "{error}");
+    }
+
+    #[test]
     fn rejects_a_mask_without_acquisition() {
         // A version 1 mask: the same columns, no key-value metadata.
         let path = temp_path("legacy.parquet");
