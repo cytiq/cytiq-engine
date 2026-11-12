@@ -39,16 +39,15 @@ this crate.
   (no duplicate outputs, no non-`.fcs` outputs, `overwrite` checks) and the
   metadata path are all checked before the first file is written. A
   `dry_run` must never touch the filesystem.
-- Output is deterministic for a given input and config regardless of
-  `threads`: parallelism is per file and per column, results are collected in
-  input order.
+- Output is deterministic for a given input and config regardless of the
+  thread count (the caller's rayon pool): parallelism is per file and per
+  column, results are collected in input order.
 
 ## Where changes belong
 
 - FCS parsing/writing details belong in `cytiq-fcs`.
-- CLI flags belong in `crates/cytiq-engine/src/commands/transform.rs`. Note that the CLI does
-  not expose `BiexponentialParameters` yet (defaults only); adding flags means
-  wiring them there.
+- CLI flags belong in `crates/cytiq-engine/src/commands/transform.rs`; their
+  defaults are the `DEFAULT_*` constants of this crate.
 - New scales that other crates need go in `scales.rs` with reference tests.
 
 ## Testing

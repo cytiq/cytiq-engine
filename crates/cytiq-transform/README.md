@@ -26,6 +26,16 @@ Logicle and hyperlog share `LogicleParameters` (`t`, `m`, `w`, `a`, defaults
 `262144`, `4.5`, `0.5`, `0`) and reject values outside `2W <= M` and
 `-W <= A <= M - 2W`.
 
+Biexponential takes `BiexponentialParameters` (`length`, `max_range`, `pos`,
+`neg`, `width`; defaults `DEFAULT_BIEXPONENTIAL_*`, the table above), the
+FlowJo `biex` attributes `length`, `maxRange`, `pos`, `neg` and `width`. The
+CLI sets them with `--biexponential-length`, `--biexponential-max-range`,
+`--biexponential-pos`, `--biexponential-neg` and `--biexponential-width`;
+they are recorded in `CYTIQ_TRANSFORM`. Non-default values are checked against
+`flowjo_biexp` (`parity/gen/flowjo_biexp_params.R`, negative decades
+included). A table cytolib would reject (`invalid zeroChan`) is an error
+before any input is read.
+
 `cytiq transform --help` lists every flag and its default.
 Parity against flowCore / flowWorkspace / FlowKit:
 [`parity/REPORT.md`](../../parity/REPORT.md) section 2.1.
@@ -103,8 +113,8 @@ let y = logicle.scale(1_000.0); // [0, 1] Gating-ML scale
   the run.
 - `dry_run` resolves inputs, channels and outputs without writing anything.
 - `debug_dir` gets `summary.json`, `metrics.csv` and a Plotly `report.html`.
-- Files and columns are processed in parallel with Rayon; `threads` caps the
-  pool size.
+- Files and columns are processed in parallel on the caller's rayon pool;
+  `cytiq transform --threads` sizes it.
 
 ## Dependencies
 

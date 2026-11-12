@@ -57,14 +57,6 @@ pub enum CleanError {
     },
     #[error("failed to write parquet `{path}`: {message}")]
     ParquetWrite { path: PathBuf, message: String },
-    #[error("threads must be greater than zero")]
-    InvalidThreads,
-    #[error("failed to build rayon thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("{0}")]
     Publish(#[from] cytiq_publish::PublishError),
 }

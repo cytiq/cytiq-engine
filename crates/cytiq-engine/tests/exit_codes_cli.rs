@@ -34,7 +34,19 @@ fn assert_outcome(outcome: &Path, command: &str, reason: &str, code: i64, comple
     assert_eq!(outcome["reason"], reason);
     assert_eq!(outcome["exit_code"], code);
     assert_eq!(outcome["completed"], completed);
-    assert_eq!(outcome["artifacts"], Value::Array(Vec::new()));
+    // A failure publishes nothing; a success lists what it published.
+    if code != 0 {
+        assert_eq!(outcome["artifacts"], Value::Array(Vec::new()));
+    }
+}
+
+fn artifact_paths(outcome: &Path) -> Vec<String> {
+    read_json(outcome)["artifacts"]
+        .as_array()
+        .expect("artifacts")
+        .iter()
+        .map(|artifact| artifact["path"].as_str().expect("path").to_owned())
+        .collect()
 }
 
 #[test]
@@ -58,6 +70,10 @@ fn success_writes_a_completed_outcome_and_leaves_stdout_alone() {
         "stdout holds only metadata"
     );
     assert_outcome(&outcome, "cytiq meta", "success", 0, true);
+    assert!(
+        artifact_paths(&outcome).is_empty(),
+        "stdout is not an artifact"
+    );
     assert_eq!(read_json(&outcome)["message"], "");
 }
 
@@ -126,6 +142,7 @@ fn existing_output_exits_four_as_output_conflict() {
 
     assert_eq!(cytiq(&args).status.code(), Some(0));
     assert_outcome(&outcome, "cytiq stats", "success", 0, true);
+    assert_eq!(artifact_paths(&outcome), [utf8(&stats)]);
     let output = cytiq(&args);
 
     assert_eq!(output.status.code(), Some(4));

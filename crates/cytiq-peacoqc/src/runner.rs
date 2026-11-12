@@ -13,7 +13,7 @@ use cytiq_fcs::{
     MarginBounds, Parameter, SignalState,
 };
 use log::{debug, info, warn};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::PeacoQcError;
@@ -88,7 +88,10 @@ pub struct PeacoQcConfig {
     pub remove_margins: bool,
     pub remove_zeros: bool,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
+    /// Replace an existing output, mask, summary or debug artifact;
+    /// otherwise the output, mask and summary are refused before the input is
+    /// read, and debug artifacts when they are staged.
+    pub overwrite: bool,
 }
 
 impl PeacoQcConfig {
@@ -100,7 +103,7 @@ impl PeacoQcConfig {
             remove_margins: false,
             remove_zeros: false,
             debug_dir: None,
-            threads: None,
+            overwrite: false,
         }
     }
 }
@@ -283,7 +286,7 @@ impl PeacoQcRunner {
     ) -> Result<PeacoQcResult, PeacoQcError> {
         let input = input.as_ref();
         let output = output.as_ref();
-        with_thread_pool(config.threads, || Self::run_inner(input, output, config))
+        Self::run_inner(input, output, config)
     }
 
     fn run_inner(
@@ -292,8 +295,13 @@ impl PeacoQcRunner {
         config: &PeacoQcConfig,
     ) -> Result<PeacoQcResult, PeacoQcError> {
         validate_output_path(output)?;
+        // The cleaned FCS, its mask and summary appear together or not at all.
+        let mut publication = Publication::new(Existing::overwrite(config.overwrite));
+        for target in [output, &masks_path(output), &summary_path(output)] {
+            publication.check(target)?;
+        }
         let dataset = load_dataset(input)?;
-        let events_before = event_count(&dataset);
+        let events_before = dataset.event_count();
         let channels = resolve_channels(input, &dataset, &config.channels)?;
         let mut warnings = input_warnings(input, &channels, &dataset)?;
         for warning in &warnings {
@@ -342,8 +350,6 @@ impl PeacoQcRunner {
         };
         let source_event_ids = cytiq_fcs::source_event_ids(&dataset).map_err(read_error)?;
         let acquisition = cytiq_fcs::acquisition_id(input, &dataset.text).map_err(read_error)?;
-        // The cleaned FCS and its mask appear together or not at all.
-        let mut publication = Publication::new(Existing::Replace);
         publication.stage_path(output, |path| {
             write_cleaned_fcs(input, output, path, &dataset, &mask, &acquisition)
         })?;
@@ -380,6 +386,8 @@ impl PeacoQcRunner {
                 }
             })
         })?;
+        // Debug artifacts share the publication: a failed debug write
+        // publishes nothing, and they follow the same `overwrite` rule.
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             stage_debug_artifacts(&mut publication, &summary, &mask, debug_dir)?;
         }
@@ -430,18 +438,16 @@ pub fn peacoqc_mask(
         .iter()
         .map(|(name, values)| ChannelData { name, values })
         .collect::<Vec<_>>();
-    with_thread_pool(config.threads, || {
-        let mut warnings = Vec::new();
-        let computation = compute_mask(source, &data, events, None, config, &mut warnings)?;
-        for warning in &warnings {
-            warn!("peacoqc: {warning}");
-        }
-        Ok(computation
-            .mask
-            .iter()
-            .map(|record| record.is_good)
-            .collect())
-    })
+    let mut warnings = Vec::new();
+    let computation = compute_mask(source, &data, events, None, config, &mut warnings)?;
+    for warning in &warnings {
+        warn!("peacoqc: {warning}");
+    }
+    Ok(computation
+        .mask
+        .iter()
+        .map(|record| record.is_good)
+        .collect())
 }
 
 fn compute_mask(
@@ -553,9 +559,6 @@ fn compute_mask(
     })
 }
 
-/// Shared with every command: see `cytiq_fcs::parse_channel_list`.
-pub use cytiq_fcs::parse_channel_list;
-
 fn validate_output_path(output: &Path) -> Result<(), PeacoQcError> {
     let is_fcs = output
         .extension()
@@ -584,7 +587,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, PeacoQcError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(PeacoQcError::EmptyInput {
             path: path.to_path_buf(),
         });
@@ -605,7 +608,8 @@ fn resolve_channels(
     let mut seen = HashSet::new();
     let mut channels = Vec::with_capacity(requested_channels.len());
     for channel in requested_channels {
-        let Some(parameter_index) = find_parameter_index(&dataset.parameters, channel) else {
+        let Some(parameter_index) = cytiq_fcs::find_parameter_index(&dataset.parameters, channel)
+        else {
             return Err(PeacoQcError::MissingChannel {
                 path: path.to_path_buf(),
                 channel: channel.clone(),
@@ -622,12 +626,11 @@ fn resolve_channels(
                 channel: parameter.name,
             });
         }
-        let values = column_to_f64(
-            dataset
-                .data
-                .column(parameter_index)
-                .expect("parameter index should have a data column"),
-        );
+        let values = dataset
+            .data
+            .column(parameter_index)
+            .expect("parameter index should have a data column")
+            .to_f64_vec();
         if values.iter().any(|value| !value.is_finite()) {
             return Err(PeacoQcError::NonFiniteChannel {
                 path: path.to_path_buf(),
@@ -1605,41 +1608,10 @@ fn count_working_events_from_bins(
         .count()
 }
 
-fn find_parameter_index(parameters: &[Parameter], channel: &str) -> Option<usize> {
-    parameters
-        .iter()
-        .position(|parameter| parameter.name == channel)
-        .or_else(|| {
-            parameters.iter().position(|parameter| {
-                parameter
-                    .label
-                    .as_deref()
-                    .is_some_and(|label| label == channel)
-            })
-        })
-        .or_else(|| {
-            parameters
-                .iter()
-                .position(|parameter| display_parameter_identifier(parameter) == channel)
-        })
-}
-
 fn display_parameter_identifier(parameter: &Parameter) -> String {
     match parameter.label.as_deref() {
         Some(label) if label != parameter.name => format!("{} [{}]", parameter.name, label),
         _ => parameter.name.clone(),
-    }
-}
-
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    match column {
-        ColumnData::UInt(values) => values.iter().map(|value| *value as f64).collect(),
-        ColumnData::F32(values) => values.iter().map(|value| f64::from(*value)).collect(),
-        ColumnData::F64(values) => values.clone(),
     }
 }
 
@@ -1675,16 +1647,12 @@ fn mean(values: &[f64]) -> f64 {
     }
 }
 
+/// R's `median`, with `0` for no values.
 fn median(mut values: Vec<f64>) -> f64 {
     if values.is_empty() {
-        return 0.0;
-    }
-    values.sort_by(f64::total_cmp);
-    let middle = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        f64::midpoint(values[middle - 1], values[middle])
+        0.0
     } else {
-        values[middle]
+        cytiq_density::median_mut(&mut values)
     }
 }
 
@@ -1703,23 +1671,6 @@ fn fraction(count: usize, denominator: usize) -> f64 {
     } else {
         count as f64 / denominator as f64
     }
-}
-
-fn with_thread_pool<T, F>(threads: Option<usize>, operation: F) -> Result<T, PeacoQcError>
-where
-    T: Send,
-    F: FnOnce() -> Result<T, PeacoQcError> + Send,
-{
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| PeacoQcError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 #[cfg(test)]
@@ -1750,12 +1701,6 @@ mod tests {
         assert_eq!(counts.removed_count, 3); // Observed extrema, not physical saturation.
     }
     use super::*;
-
-    #[test]
-    fn parses_comma_separated_channels() {
-        let channels = parse_channel_list("CD3, CD4,,CD8").expect("channels should parse");
-        assert_eq!(channels, vec!["CD3", "CD4", "CD8"]);
-    }
 
     #[test]
     fn computes_overlapping_bins() {

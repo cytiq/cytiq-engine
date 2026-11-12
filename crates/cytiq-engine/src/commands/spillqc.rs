@@ -65,14 +65,14 @@ pub(crate) struct SpillqcArgs {
     fail_on_flag: bool,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Replace the outputs of an earlier run in the output directory.
     #[arg(long)]
     overwrite: bool,
 }
 
 impl SpillqcArgs {
-    fn config(&self) -> Result<SpillQcConfig, String> {
+    fn config(&self) -> io::Result<SpillQcConfig> {
         let channels = if self.channels.is_none() && self.channel.is_empty() {
             None
         } else {
@@ -99,7 +99,6 @@ impl SpillqcArgs {
                 min_files: self.batch_min_files,
                 min_fraction: self.batch_min_fraction,
             },
-            threads: self.threads,
             overwrite: self.overwrite,
         })
     }
@@ -114,9 +113,7 @@ pub(crate) fn run(
         args.input.len(),
         args.output.display()
     );
-    let config = args
-        .config()
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let config = args.config()?;
     recorder.snapshot_inputs("input", &SpillQcRunner::input_files(&config)?)?;
     if let Some((matrix, _)) = &config.matrix {
         recorder.snapshot_inputs("matrix", std::slice::from_ref(matrix))?;

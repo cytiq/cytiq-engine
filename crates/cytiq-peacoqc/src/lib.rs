@@ -17,7 +17,7 @@ pub use crate::runner::{
     DEFAULT_MAX_BINS, DEFAULT_MIN_CELLS, DEFAULT_MIN_PEAK_BIN_PERCENT, DEFAULT_PEAK_REMOVAL,
     DEFAULT_STEP, DEFAULT_TIME_CHANNEL, EventMaskRecord, PeacoQcConfig, PeacoQcConstants,
     PeacoQcMethod, PeacoQcMetrics, PeacoQcParameters, PeacoQcResult, PeacoQcRunner, PeacoQcSummary,
-    masks_path, parse_channel_list, peacoqc_mask, summary_path,
+    masks_path, peacoqc_mask, summary_path,
 };
 
 /// Upstream implementations this crate is validated against

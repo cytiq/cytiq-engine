@@ -17,12 +17,15 @@ this crate.
 - `src/data.rs` — DATA length checks and decoding into typed columns, one
   1 MiB chunk of rows at a time; raw ANALYSIS bytes.
 - `src/types.rs` — public data types (`FcsDataset`, `FcsText`, `Parameter`,
-  `ColumnData`, ...) and `find_parameter_index`.
+  `ColumnData`, ...).
+- `src/channels.rs` — `parse_channel_list` (every command's `--channels`) and
+  `is_scatter_channel`.
 - `src/writer.rs` — FCS 3.1 little-endian float32 / float64 writer and the
   exact writer that picks between them.
 - `src/acquisition.rs` — `CYTIQ_ACQUISITION` and `acquisition_id`.
 - `src/lineage.rs` — `Original_ID` and `source_event_ids`.
-- `src/compensation.rs` — `Spillover`, `invert_matrix`, `compensate` and their
+- `src/compensation.rs` — `Spillover`, `invert_matrix`, `compensate`, the
+  `ColumnData`/`FcsDataset` conversions and `find_parameter_index`, and their
   unit tests.
 - `src/limits.rs` — bounds on sizes the file declares (`TEXT_BYTES_MAX`,
   `PARAMETERS_MAX`) and the defaults of `FcsReadLimits` (decoded DATA,

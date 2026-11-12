@@ -463,3 +463,158 @@ fn cli_rejects_log_amplified_flowsom_input() {
         "stderr: {stderr}"
     );
 }
+
+/// Two acquisitions of different sizes and positions, for cohort training.
+fn write_cohort_fcs(path: &Path, events: u16, shift: f32) {
+    let mut columns = vec![Vec::new(); 4];
+    for raw_index in 0..events {
+        let index = f32::from(raw_index);
+        let cluster = if raw_index % 3 == 0 { 300.0 } else { 0.0 };
+        columns[0].push(index);
+        columns[1].push(100.0 + shift + cluster + (index * 7.0) % 23.0);
+        columns[2].push(180.0 + shift * 0.5 + cluster * 0.5 + (index * 5.0) % 17.0);
+        columns[3].push(80.0 + shift * 0.25 + cluster * 0.25 + (index * 3.0) % 11.0);
+    }
+    let parameters = vec![
+        FcsWriteParameter::new("Time"),
+        FcsWriteParameter::with_label("FL1-A", "CD3"),
+        FcsWriteParameter::with_label("FL2-A", "CD4"),
+        FcsWriteParameter::with_label("FL3-A", "CD8"),
+    ];
+    cytiq_fcs::write_fcs3_1_f32(path, &parameters, &columns).expect("fixture FCS should write");
+}
+
+fn train_cohort(directory: &Path, output: &str, extra: &[&str]) -> PathBuf {
+    let model = directory.join(output);
+    let small = directory.join("small.fcs");
+    let large = directory.join("large.fcs");
+    let mut args = vec![
+        "flowsom",
+        "train",
+        "--input",
+        utf8(&small),
+        "--input",
+        utf8(&large),
+        "--output",
+        utf8(&model),
+        "--channels",
+        "FL1-A,FL2-A,FL3-A",
+        "--xdim",
+        "3",
+        "--ydim",
+        "3",
+        "--metaclusters",
+        "3",
+    ];
+    args.extend_from_slice(extra);
+    let output = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args(&args)
+        .output()
+        .expect("command should run");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    model
+}
+
+/// Characterization: pooled multi-file training (the default) concatenates
+/// the acquisitions in input order, scales the pooled matrix and samples it
+/// uniformly. Its models must stay byte-identical when cohort options are
+/// added; a deliberate change updates these digests with a reason.
+#[test]
+fn pooled_cohort_training_is_pinned() {
+    let directory = create_temp_dir("cytiq-engine-flowsom-cohort-pinned");
+    write_cohort_fcs(&directory.join("small.fcs"), 90, 0.0);
+    write_cohort_fcs(&directory.join("large.fcs"), 600, 40.0);
+
+    let full = train_cohort(&directory, "full.json", &[]);
+    let sampled = train_cohort(&directory, "sampled.json", &["--training-events", "200"]);
+    let consensus = train_cohort(
+        &directory,
+        "consensus.json",
+        &["--metaclustering", "consensus"],
+    );
+    let digests = [full, sampled, consensus]
+        .iter()
+        .map(|path| common::sha256_hex(path))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        digests, PINNED_COHORT_MODELS,
+        "pooled cohort models changed"
+    );
+}
+
+const PINNED_COHORT_MODELS: [&str; 3] = [
+    "787c4989cd0e752df5400c3a040066d2e7eb70e628327459936355fad3479ff7",
+    "6779d5dfb667773e6ee055a0154d7cacb708c8d06d44ab04277aa7be26bbd185",
+    "2996e70ec6eb6e5cce608cad0b70b72398a91c705b66559ccc97f2d0865ecd01",
+];
+
+/// Per-file cohort training with one mask per acquisition records its draw in
+/// the model; `per-file` needs `--training-events`.
+#[test]
+fn per_file_cohort_training_uses_each_inputs_own_mask() {
+    let directory = create_temp_dir("cytiq-engine-flowsom-cohort-per-file");
+    let small = directory.join("small.fcs");
+    let large = directory.join("large.fcs");
+    write_cohort_fcs(&small, 90, 0.0);
+    write_cohort_fcs(&large, 600, 40.0);
+    let mut masks = Vec::new();
+    for (path, events) in [(&small, 90), (&large, 600)] {
+        let mask = path.with_extension("parquet");
+        cytiq_mask::EventMask::new(
+            common::acquisition_of(path),
+            (0..events).map(|row| row % 3 != 0).collect(),
+            None,
+        )
+        .write_parquet(&mask)
+        .expect("mask should write");
+        masks.push(mask);
+    }
+    let model = train_cohort(
+        &directory,
+        "per-file.json",
+        &[
+            "--cohort-sampling",
+            "per-file",
+            "--training-events",
+            "100",
+            "--mask",
+            utf8(&masks[1]),
+            "--mask",
+            utf8(&masks[0]),
+        ],
+    );
+    let model: serde_json::Value =
+        serde_json::from_slice(&fs::read(&model).expect("model")).expect("JSON");
+    assert_eq!(model["schema_version"], 1);
+    assert_eq!(model["cohort"]["sampling"], "per_file");
+    assert_eq!(model["cohort"]["per_file_quota"], 50);
+    let drawn = model["cohort"]["acquisitions"]
+        .as_array()
+        .expect("acquisitions")
+        .iter()
+        .map(|entry| (entry["events"].clone(), entry["sampled"].clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(drawn, [(60.into(), 50.into()), (400.into(), 50.into())]);
+    assert_eq!(model["training_events"], 100);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args([
+            "flowsom",
+            "train",
+            "--input",
+            utf8(&small),
+            "--output",
+            utf8(&directory.join("unbounded.json")),
+            "--channels",
+            "FL1-A,FL2-A,FL3-A",
+            "--cohort-sampling",
+            "per-file",
+        ])
+        .output()
+        .expect("command should run");
+    assert_eq!(output.status.code(), Some(2));
+}

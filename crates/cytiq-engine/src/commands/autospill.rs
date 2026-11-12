@@ -36,7 +36,10 @@ pub(crate) struct AutospillArgs {
     ssc: String,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
+    /// Replace an existing output file.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -53,7 +56,8 @@ pub(crate) fn run(
         matrix_kind,
         fsc,
         ssc,
-        threads,
+        threads: _,
+        overwrite,
     } = args;
     info!(
         "starting autospill: controls={}, input_dir={}, output={}, matrix_kind={:?}",
@@ -102,19 +106,21 @@ pub(crate) fn run(
         detectors,
         transforms,
         debug_dir,
-        threads,
     };
     let recorder = crate::provenance::begin!(
         recorder,
         cytiq_provenance::reuse::Destination::File(output.clone())
     );
+    // Refuse an existing output before the computation, not after it.
+    let existing = cytiq_publish::Existing::overwrite(overwrite);
+    cytiq_publish::Publication::new(existing).check(&output)?;
     let result = AutospillRunner::run(&manifest, &input_dir, &config)?;
     info!(
         "autospill finished computation for {} dyes across {} detectors",
         result.dyes.len(),
         result.detectors.len()
     );
-    export_matrix(&result, config.matrix_kind, &output)?;
+    export_matrix(&result, config.matrix_kind, &output, existing)?;
     info!(
         "wrote {:?} matrix to {}",
         config.matrix_kind,

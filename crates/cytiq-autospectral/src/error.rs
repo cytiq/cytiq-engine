@@ -22,12 +22,6 @@ pub enum AutoSpectralError {
         #[source]
         source: csv::Error,
     },
-    #[error("failed to build autospectral worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("controls manifest is empty")]
     EmptyControlsManifest,
     #[error("samples manifest is empty")]

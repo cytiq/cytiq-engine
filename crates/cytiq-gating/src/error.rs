@@ -81,14 +81,6 @@ pub enum GatingError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("threads must be greater than zero")]
-    InvalidThreads,
-    #[error("failed to build rayon thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("{0}")]
     Publish(#[from] cytiq_publish::PublishError),
 }

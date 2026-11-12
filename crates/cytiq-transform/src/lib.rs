@@ -28,7 +28,7 @@ use cytiq_publish::{Existing, Publication};
 pub use error::TransformError;
 use export::write_debug_artifacts;
 use log::{debug, info};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 /// Upstream implementations this crate is validated against
@@ -40,11 +40,14 @@ const DEFAULT_LOGICLE_T: f64 = 262_144.0;
 const DEFAULT_LOGICLE_M: f64 = 4.5;
 const DEFAULT_LOGICLE_W: f64 = 0.5;
 const DEFAULT_LOGICLE_A: f64 = 0.0;
-const DEFAULT_BIEXPONENTIAL_LENGTH: f64 = 256.0;
-const DEFAULT_BIEXPONENTIAL_MAX_RANGE: f64 = 262_144.0;
-const DEFAULT_BIEXPONENTIAL_POS: f64 = 4.418_539_922;
-const DEFAULT_BIEXPONENTIAL_NEG: f64 = 0.0;
-const DEFAULT_BIEXPONENTIAL_WIDTH: f64 = -100.0;
+/// `FlowJo` `biex` defaults (`flowWorkspace::flowjo_biexp`): output channels
+/// (`length`), top of scale (`maxRange`), positive and negative decades
+/// (`pos`, `neg`) and width basis (`width`).
+pub const DEFAULT_BIEXPONENTIAL_LENGTH: f64 = 256.0;
+pub const DEFAULT_BIEXPONENTIAL_MAX_RANGE: f64 = 262_144.0;
+pub const DEFAULT_BIEXPONENTIAL_POS: f64 = 4.418_539_922;
+pub const DEFAULT_BIEXPONENTIAL_NEG: f64 = 0.0;
+pub const DEFAULT_BIEXPONENTIAL_WIDTH: f64 = -100.0;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -156,7 +159,6 @@ pub struct TransformConfig {
     pub dry_run: bool,
     pub metadata_json: Option<PathBuf>,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     /// Transform files that an earlier `cytiq transform` already transformed.
     pub allow_retransform: bool,
     /// Transform channels whose spillover matrix was not applied yet.
@@ -180,7 +182,6 @@ impl TransformConfig {
             dry_run: false,
             metadata_json: None,
             debug_dir: None,
-            threads: None,
             allow_retransform: false,
             allow_uncompensated: false,
         }
@@ -262,7 +263,7 @@ pub struct TransformRunner;
 
 impl TransformRunner {
     pub fn run(config: &TransformConfig) -> Result<TransformRunResult, TransformError> {
-        with_thread_pool(config.threads, || Self::run_inner(config))
+        Self::run_inner(config)
     }
 
     /// The FCS files a run with `config` reads, with directories and globs
@@ -310,22 +311,6 @@ impl TransformRunner {
     }
 }
 
-fn with_thread_pool<T: Send>(
-    threads: Option<usize>,
-    operation: impl FnOnce() -> Result<T, TransformError> + Send,
-) -> Result<T, TransformError> {
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| TransformError::ThreadPoolBuild { threads, source })?
-        .install(operation)
-}
-
 /// Parse a comma-separated list of channel names.
 pub fn parse_channel_list(raw: &str) -> Result<Vec<String>, TransformError> {
     cytiq_fcs::parse_channel_list(raw).map_err(|_| TransformError::EmptyChannelList)
@@ -357,11 +342,6 @@ fn validate_config(config: &TransformConfig) -> Result<(), TransformError> {
     if !config.biexponential.width.is_finite() {
         return Err(TransformError::InvalidFiniteParameter {
             parameter: "biexponential-width",
-        });
-    }
-    if config.threads == Some(0) {
-        return Err(TransformError::InvalidPositiveParameter {
-            parameter: "threads",
         });
     }
     TransformOperator::from_config(config)?;
@@ -462,7 +442,7 @@ fn transform_one(
 ) -> Result<TransformFileResult, TransformError> {
     let dataset = load_dataset(&plan.input)?;
     ensure_not_transformed(&plan.input, &dataset, config)?;
-    let events = event_count(&dataset);
+    let events = dataset.event_count();
     let selection = resolve_channel_selection(&plan.input, &dataset, config)?;
     ensure_compensated(&plan.input, &dataset, &selection.channels, config)?;
     let mut result = TransformFileResult {
@@ -647,7 +627,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, TransformError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(TransformError::EmptyFcs {
             path: path.to_path_buf(),
         });
@@ -1320,10 +1300,6 @@ fn method_parameters(config: &TransformConfig) -> TransformParameters {
     }
 }
 
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1348,7 +1324,6 @@ mod tests {
                 dry_run: false,
                 metadata_json: None,
                 debug_dir: None,
-                threads: None,
                 allow_retransform: false,
                 allow_uncompensated: false,
             })
@@ -1401,7 +1376,7 @@ mod tests {
     #[test]
     fn matches_baseline_bits_on_100_seeded_columns_and_both_thread_counts() {
         let pools = [1, 4].map(|threads| {
-            ThreadPoolBuilder::new()
+            rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
                 .build()
                 .unwrap()
@@ -1482,7 +1457,10 @@ mod tests {
 
     #[test]
     fn keeps_first_error_in_event_order_across_chunks() {
-        let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(4)
+            .build()
+            .unwrap();
         let operator = TransformOperator::Arcsinh {
             cofactor: f64::MIN_POSITIVE,
         };

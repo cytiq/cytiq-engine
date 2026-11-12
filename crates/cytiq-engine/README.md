@@ -71,19 +71,30 @@ the package.
 
 ## Shared flag conventions
 
-- `--threads N` caps worker threads; omitted means all logical CPUs, `0` is
-  rejected at parse time.
-- `--debug-dir DIR` writes optional diagnostics where the command supports it.
+- `--threads N` sizes the process-wide rayon pool once, before the command
+  runs; omitted means all logical CPUs (or `RAYON_NUM_THREADS`), `0` is
+  rejected at parse time. `classify --threads` sets ONNX Runtime threads.
+  Results never depend on it (`tests/threads_cli.rs`).
+- `--debug-dir DIR` writes optional diagnostics (`autospill`, `autospread`,
+  `autospectral`, `peacoqc`, `cytoscan`, `transform`, `flowsom`,
+  `cytonorm`); a run that requests it always recomputes.
 - Channels are passed either as `--channels A,B,C` or as repeated
-  `--channel A --channel B` (`peacoqc`, `flowsom`, `cytoscan`; at least one is
-  required). `transform` takes `--channels` / `--exclude-channels` only.
+  `--channel A --channel B` (`peacoqc`, `flowsom`, `cytoscan`, `spillqc`; at
+  least one is required, except `spillqc`, which selects channels itself when
+  neither is given). `transform` takes `--channels` / `--exclude-channels`
+  only, and `flowsom train` takes `--channels` only.
 - Numeric flags are validated at parse time (positive, non-negative or finite,
   depending on the flag).
-- `--overwrite` exists on `classify`, `transform`, `meta`, `stats`, `compensate`,
-  `mask combine` and `plot`; other commands follow the output rules of their library
-  crate.
+- Every command that writes files refuses an existing output with exit 4,
+  before any work and without touching it, unless `--overwrite` is passed. A
+  directory output must be missing or empty without `--overwrite`; with it,
+  this run's files replace their earlier versions and other files are kept
+  but never recorded as outputs. `--reuse skip` reuses a verified matching
+  output regardless of `--overwrite`.
 - `--mask FILE` (repeatable) restricts `classify`, `gate`, `flowsom` and `clean` to events
   every mask keeps; `plot` shows those events and draws the removed ones over them; see [cytiq-mask](../cytiq-mask/README.md).
+  `mask combine` takes the masks to combine; `qc` and `population observe`
+  take one final event mask to assess.
 
 ## Provenance
 
@@ -104,6 +115,8 @@ the SHA-256 of the command's input and output files; see
   wins, `target=` prefixes are ignored).
 - Without either variable the default is `info` when stderr is a terminal and
   `warn` otherwise.
+- `CYTIQ_LOG_FORMAT=json` writes one JSON object per line instead,
+  `{"level":"INFO","target":"cytiq","message":"..."}`, for log collectors.
 
 ## Exit codes
 
@@ -124,8 +137,11 @@ with code `2` before any command runs.
 `--outcome <PATH>` (accepted before or after the subcommand) also writes the
 outcome as JSON: `schema_version`, `command`, `completed` (true for `0` and
 `3`, and for published incomplete specimen packages), `reason`, `exit_code`,
-`message` and `artifacts` (always `[]` except for `population`/`specimen`
-packages). The file is replaced atomically; it is not written for argument
+`message` and `artifacts`: the outputs the command published or reused, each
+with `path`, `bytes` and `sha256`, as its provenance record lists them (paths
+as given on the command line; relative to the package for
+`population`/`specimen`; empty for commands without durable outputs and for
+failures). The file is replaced atomically; it is not written for argument
 errors, and failing to write it is reported on stderr without changing the
 exit code. `population` and `specimen` additionally print the same JSON as one
 line on stdout (see [the specimen contract](../cytiq-specimen/README.md#packages-and-orchestration-contract)).
@@ -134,6 +150,33 @@ Before 0.4.1, command failures used `1`: `qc`, `preflight` and
 `spillqc --fail-on-flag` now exit with `3`, invalid input with `2`, and a
 missing input or existing output with `4`. Scripts that tested for `1` should
 test for a non-zero code or the specific code they handle.
+
+## Orchestration (Argo Workflows, Prefect)
+
+A step is one `cytiq` invocation with explicit input and output paths:
+
+- Branch on the exit code (table above). Retry only `1`; `4` means an output
+  already exists or an input is missing, so retrying the same step cannot
+  succeed.
+- Pass `--outcome outcome.json` and read it as the step's result:
+  `reason`, `exit_code`, `artifacts` (paths and SHA-256 of every output) and
+  `execution.fingerprint`. It is written for every outcome except argument
+  syntax errors.
+- Make retries idempotent with `--reuse skip`: a step that already completed
+  with the same inputs, configuration and build reuses its verified outputs
+  instead of recomputing (`execution.reused: true`). Use `--overwrite` only
+  when a step must replace outputs of a different run.
+- Set `CYTIQ_LOG_FORMAT=json` for structured logs on stderr; stdout carries
+  only command output.
+- Outputs are published under a destination lock, each by one rename. A step
+  killed by `SIGTERM` or `SIGKILL` never leaves a partially written file, but
+  a kill during the final renames can leave a mix of new and previous outputs.
+  A set is complete only when its provenance record exists and every output
+  it lists matches its SHA-256, which is what `--reuse skip` verifies; the
+  next run on the same destination removes abandoned staging and restores a
+  predecessor moved aside by the crash (see
+  [cytiq-publish](../cytiq-publish/README.md#crashes)).
+- `--threads N` bounds CPU use and never changes results.
 
 ## Tests
 

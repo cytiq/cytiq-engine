@@ -6,7 +6,6 @@ use cytiq_fcs::FcsReader;
 use cytiq_mask::{EVENT_ID_COLUMN, EventMask, KEEP_COLUMN, SOURCE_EVENT_ID_COLUMN};
 use cytiq_publish::{Existing, Publication, Staging};
 use log::{debug, info};
-use rayon::ThreadPoolBuilder;
 
 use crate::error::GatingError;
 use crate::evaluate::{GateCount, GatingResults};
@@ -25,12 +24,14 @@ pub struct GatingConfig {
     pub gating_ml: PathBuf,
     pub output: PathBuf,
     pub format: OutputFormat,
-    pub threads: Option<usize>,
     /// Event masks (`masks.parquet`) restricting which events are gated;
     /// several are combined with AND.
     pub masks: Vec<PathBuf>,
     /// Optional Parquet file for per-event gate membership.
     pub membership: Option<PathBuf>,
+    /// Replace existing outputs; otherwise an existing output is refused
+    /// before any input is read.
+    pub overwrite: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -51,24 +52,18 @@ impl GatingRunner {
     /// Returns an error when the inputs cannot be read or parsed, gating
     /// fails, or the report cannot be written.
     pub fn run(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
-        if config.threads == Some(0) {
-            return Err(GatingError::InvalidThreads);
-        }
-        match config.threads {
-            Some(threads) => {
-                debug!("using local rayon thread pool with {threads} threads");
-                ThreadPoolBuilder::new()
-                    .num_threads(threads)
-                    .build()
-                    .map_err(|source| GatingError::ThreadPoolBuild { threads, source })?
-                    .install(|| run_inner(config))
-            }
-            None => run_inner(config),
-        }
+        run_inner(config)
     }
 }
 
 fn run_inner(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
+    // Counts and membership mask appear together or not at all. Existing
+    // outputs are refused before any input is read.
+    let mut publication = Publication::new(Existing::overwrite(config.overwrite));
+    publication.check(&config.output)?;
+    if let Some(membership) = &config.membership {
+        publication.check(membership)?;
+    }
     let xml =
         fs::read_to_string(&config.gating_ml).map_err(|source| GatingError::GatingMlRead {
             path: config.gating_ml.clone(),
@@ -111,8 +106,6 @@ fn run_inner(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
     let results = strategy.gate_sample_masked(&dataset, mask.as_deref())?;
     let report = results.report();
 
-    // Counts and membership mask appear together or not at all.
-    let mut publication = Publication::new(Existing::Replace);
     publication.stage_file(&config.output, |writer| match config.format {
         OutputFormat::Csv => write_csv(writer, &config.output, &report),
         OutputFormat::Json => write_json(writer, &config.output, &report),

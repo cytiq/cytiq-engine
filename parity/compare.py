@@ -476,6 +476,25 @@ def compare_gating(data: Path, rust: Path) -> dict:
             "extra_rust_gates": sorted(set(rows) - set(reference)), "counts": gates}
 
 
+def compare_gating_quadrant(rust: Path) -> dict:
+    """QuadrantGates: `cytiq gate` counts on the committed fixture equal FlowKit,
+    and FlowKit reads the Gating-ML cytiq writes back to the same membership."""
+    from gating_quadrant import flowkit_reference, validate
+
+    fixtures = Path(__file__).resolve().parents[1] / "data" / "fixtures" / "gating" / "quadrant"
+    reference = json.loads((fixtures / "flowkit_reference.json").read_text())["gates"]
+    rows = {row["gate_id"]: row for row in json.loads((rust / "gating_quadrant.json").read_text())}
+    matching = sum(1 for gate, expected in reference.items()
+                   if rows.get(gate, {}).get("count") == expected["count"])
+    written = fixtures / "cytiq_written.xml"
+    validate(written)
+    readback = flowkit_reference(fixtures / "sample.fcs", written)["gates"]
+    return {"gates": len(reference), "all_counts_match": matching == len(reference),
+            "extra_rust_gates": sorted(set(rows) - set(reference)),
+            "written_readback_disagreements": sorted(
+                gate for gate in reference if readback.get(gate) != reference[gate])}
+
+
 # --------------------------------------------------------------------------- pipeline
 PIPELINE_FLUOR = ["FL1-A", "FL2-A", "FL3-A", "FL4-A", "FL5-A", "FL6-A"]
 # Scatter detectors saturate too; the margin mask judges them with the matrix channels.
@@ -665,6 +684,7 @@ def main() -> None:
         "flowsom_hard": compare_flowsom(data, rust, upstream, "flowsom_hard"),
         "cytoscan": compare_cytoscan(data, rust, upstream),
         "gating": compare_gating(data, rust),
+        "gating_quadrant": compare_gating_quadrant(rust),
         "pipeline": compare_pipeline(data, rust, upstream),
         "spillqc": compare_spillqc(data, rust, upstream),
         "timing": {

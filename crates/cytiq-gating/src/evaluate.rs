@@ -344,7 +344,7 @@ impl<'a> Evaluator<'a> {
             .collect::<Vec<_>>();
 
         Ok(match &gate.kind {
-            GateKind::Rectangle { dimensions } => {
+            GateKind::Rectangle { dimensions } | GateKind::Quadrant { dimensions, .. } => {
                 let bounds = dimensions
                     .iter()
                     .map(|dimension| (dimension.min, dimension.max))

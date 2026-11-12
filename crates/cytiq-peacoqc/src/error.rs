@@ -46,12 +46,6 @@ pub enum PeacoQcError {
     NoPeakFeatures { path: PathBuf },
     #[error("PeacoQC output format for `{path}` is not supported; MVP supports `.fcs`")]
     UnsupportedOutputFormat { path: PathBuf },
-    #[error("failed to build peacoqc worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("failed to create debug output directory `{path}`: {source}")]
     DebugDirectoryCreate {
         path: PathBuf,

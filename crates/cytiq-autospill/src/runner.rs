@@ -11,7 +11,7 @@ use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter, SignalState};
 use log::{debug, info};
 use nalgebra::DMatrix;
 use ndarray::Array2;
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::AutospillError;
@@ -57,7 +57,6 @@ pub struct AutospillConfig {
     pub detectors: Vec<DetectorSpec>,
     pub transforms: Vec<TransformSpec>,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
 }
 
 impl Default for AutospillConfig {
@@ -69,7 +68,6 @@ impl Default for AutospillConfig {
             detectors: Vec::new(),
             transforms: Vec::new(),
             debug_dir: None,
-            threads: None,
         }
     }
 }
@@ -123,7 +121,6 @@ pub struct AutospreadConfig {
     pub ssc: String,
     pub detectors: Vec<DetectorSpec>,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
 }
 
 impl Default for AutospreadConfig {
@@ -133,7 +130,6 @@ impl Default for AutospreadConfig {
             ssc: "SSC-A".to_owned(),
             detectors: Vec::new(),
             debug_dir: None,
-            threads: None,
         }
     }
 }
@@ -264,9 +260,7 @@ impl AutospillRunner {
         config: &AutospillConfig,
     ) -> Result<AutospillResult, AutospillError> {
         let input_dir = input_dir.as_ref();
-        with_thread_pool(config.threads, || {
-            Self::run_inner(manifest_rows, input_dir, config)
-        })
+        Self::run_inner(manifest_rows, input_dir, config)
     }
 
     fn run_inner(
@@ -373,9 +367,7 @@ impl AutospreadRunner {
         config: &AutospreadConfig,
     ) -> Result<AutospreadResult, AutospillError> {
         let input_dir = input_dir.as_ref();
-        with_thread_pool(config.threads, || {
-            Self::run_inner(manifest_rows, input_dir, config)
-        })
+        Self::run_inner(manifest_rows, input_dir, config)
     }
 
     fn run_inner(
@@ -398,7 +390,6 @@ impl AutospreadRunner {
                 detectors: config.detectors.clone(),
                 transforms: Vec::new(),
                 debug_dir: config.debug_dir.clone(),
-                threads: config.threads,
             },
         )?;
         info!(
@@ -1381,12 +1372,11 @@ fn parameter_range(parameter: &Parameter) -> Option<f64> {
 /// default `truncate_max_range = TRUE`, which caps values above `$PnR` at
 /// `$PnR` (float data can exceed it).
 fn control_column(dataset: &FcsDataset, index: usize) -> Vec<f64> {
-    let mut values = column_to_f64(
-        dataset
-            .data
-            .column(index)
-            .expect("validated parameter index"),
-    );
+    let mut values = dataset
+        .data
+        .column(index)
+        .expect("validated parameter index")
+        .to_f64_vec();
     if let Some(range) = parameter_range(&dataset.parameters[index]) {
         for value in &mut values {
             if *value > range {
@@ -1395,14 +1385,6 @@ fn control_column(dataset: &FcsDataset, index: usize) -> Vec<f64> {
         }
     }
     values
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    match column {
-        ColumnData::UInt(values) => values.iter().map(|value| *value as f64).collect(),
-        ColumnData::F32(values) => values.iter().map(|value| f64::from(*value)).collect(),
-        ColumnData::F64(values) => values.clone(),
-    }
 }
 
 fn find_parameter_index(parameters: &[Parameter], channel: &str) -> Option<usize> {
@@ -1442,23 +1424,6 @@ where
         .collect::<Vec<_>>()
         .into_iter()
         .collect()
-}
-
-fn with_thread_pool<T, F>(threads: Option<usize>, operation: F) -> Result<T, AutospillError>
-where
-    T: Send,
-    F: FnOnce() -> Result<T, AutospillError> + Send,
-{
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| AutospillError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 fn dmat_to_array2(matrix: &DMatrix<f64>) -> Array2<f64> {

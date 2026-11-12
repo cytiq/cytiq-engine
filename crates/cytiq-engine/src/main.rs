@@ -1,6 +1,8 @@
 //! The `cytiq` binary: parse the command line, record provenance and run one command.
 
 mod cli;
+#[cfg(test)]
+mod cli_surface;
 mod commands;
 mod error;
 mod logging;
@@ -33,7 +35,7 @@ fn main() -> ExitCode {
     let result = match run(command, &name, reuse.into()) {
         Ok(Some(result)) => {
             if result.exit_code != 0 {
-                eprintln!("{:?}: {}", result.reason, result.message);
+                eprintln!("{}: {}", result.reason.as_str(), result.message);
             }
             result
         }
@@ -63,6 +65,12 @@ fn run(
     name: &str,
     policy: cytiq_provenance::reuse::ReusePolicy,
 ) -> Result<Option<CommandOutcome>, Box<dyn std::error::Error>> {
+    if let Some(threads) = command.rayon_threads() {
+        // Before anything else touches rayon; a build error exits 1.
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()?;
+    }
     let mut recorder = RunRecorder::start(
         name,
         env!("CARGO_PKG_VERSION"),

@@ -84,14 +84,16 @@ pub(crate) fn outline(
             dimensions,
             vertices,
         } => polygon(dimensions, vertices, axes, x, y),
-        GateKind::Rectangle { dimensions } => match dimensions.as_slice() {
-            [dimension] => range_lines(dimension, axes, x, y),
-            [_, _] => rectangle(dimensions, axes, x, y),
-            _ => Err(GeometryError::Unsupported(format!(
-                "has {} dimensions; only gates on one or two plot axes can be drawn",
-                dimensions.len()
-            ))),
-        },
+        GateKind::Rectangle { dimensions } | GateKind::Quadrant { dimensions, .. } => {
+            match dimensions.as_slice() {
+                [dimension] => range_lines(dimension, axes, x, y),
+                [_, _] => rectangle(dimensions, axes, x, y),
+                _ => Err(GeometryError::Unsupported(format!(
+                    "has {} dimensions; only gates on one or two plot axes can be drawn",
+                    dimensions.len()
+                ))),
+            }
+        }
         GateKind::Ellipsoid {
             dimensions,
             mean,
@@ -148,7 +150,9 @@ pub(crate) fn label_anchor(
         return None;
     }
     let [left, top] = match &gate.kind {
-        GateKind::Rectangle { dimensions } if dimensions.len() == 1 => {
+        GateKind::Rectangle { dimensions } | GateKind::Quadrant { dimensions, .. }
+            if dimensions.len() == 1 =>
+        {
             let dimension = &dimensions[0];
             let side = side(dimension, axes).ok()?;
             let unit = |axis: &Axis, bound: Option<f64>| {

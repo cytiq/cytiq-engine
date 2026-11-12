@@ -59,12 +59,14 @@ fn runner_unmixes_with_explicit_thread_limit() -> Result<(), Box<dyn Error>> {
     let output_dir = directory.join("out");
     let config = AutoSpectralConfig {
         output_dir: output_dir.clone(),
-        threads: Some(1),
         clean_controls: false,
         ..AutoSpectralConfig::new(output_dir)
     };
 
-    let summary = AutoSpectralRunner::run(&controls, &samples, &directory, &config)?;
+    // The runner uses the caller's pool; the CLI builds it from `--threads`.
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(1).build()?;
+    let summary =
+        pool.install(|| AutoSpectralRunner::run(&controls, &samples, &directory, &config))?;
 
     assert_eq!(summary.components, vec!["FITC", "PE", "Autofluorescence"]);
     assert_eq!(summary.samples.len(), 1);

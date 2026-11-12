@@ -5,7 +5,9 @@ Workspace rules live in the root CONTRIBUTING.md.
 - `manifest.rs`: strict versioned experimental design and relative paths.
 - `spline.rs`: independently implemented Fritsch–Carlson interpolation.
 - `bundle.rs`: checksum validation, portable models and spline Parquet I/O.
-- `runner.rs`: masked cohort loading, balanced sampling, fitting, apply, QC and atomic output publication.
+- `runner.rs`: masked cohort loading, balanced sampling (rows drawn by
+  `cytiq_flowsom::subsample_rows` with `sample_seed(seed, sample id)`),
+  fitting, apply, QC and atomic output publication.
 
 Never copy GPL upstream implementation code. Use the publications, documented
 interfaces and black-box R comparisons. Quantiles use `cytiq-density` type 7;

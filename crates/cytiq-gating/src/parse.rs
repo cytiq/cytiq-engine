@@ -9,7 +9,8 @@ use roxmltree::{Document, Node};
 
 use crate::error::GatingError;
 use crate::model::{
-    BooleanOp, CompensationRef, Dimension, Gate, GateKind, GateRef, GatingStrategy, SpectrumMatrix,
+    BooleanOp, CompensationRef, Dimension, Gate, GateKind, GateRef, GatingStrategy, Quadrant,
+    QuadrantDivider, QuadrantGate, SpectrumMatrix,
 };
 use crate::transforms::Transform;
 
@@ -22,8 +23,8 @@ const DATA_TYPE_NS: &str = "http://www.isac-net.org/std/Gating-ML/v2.0/datatypes
 /// # Errors
 ///
 /// Returns an error when the XML is malformed, uses unsupported `GatingML`
-/// features (quadrant gates, ratio transforms, new dimensions), or has
-/// dangling or cyclic references.
+/// features (ratio transforms, ratio or new dimensions), or has dangling or
+/// cyclic references.
 pub fn parse_gatingml(xml: &str) -> Result<GatingStrategy, GatingError> {
     let document = Document::parse(xml)?;
     let root = document.root_element();
@@ -62,6 +63,7 @@ pub fn parse_gatingml(xml: &str) -> Result<GatingStrategy, GatingError> {
                     )));
                 }
             }
+            (Some(GATING_NS), "QuadrantGate") => gates.extend(parse_quadrant(node)?.gates()?),
             (Some(GATING_NS), name) if name.ends_with("Gate") => gates.push(parse_gate(node)?),
             _ => {}
         }
@@ -83,6 +85,20 @@ pub(crate) fn build_strategy(
             });
         }
     }
+    // A QuadrantGate id shares the gate id namespace but names no population.
+    let mut quadrant_gates = HashMap::new();
+    for gate in &gates {
+        if let GateKind::Quadrant { definition, .. } = &gate.kind {
+            let known = quadrant_gates
+                .entry(definition.id.as_str())
+                .or_insert(definition);
+            if document_index.contains_key(&definition.id) || *known != definition {
+                return Err(GatingError::DuplicateGate {
+                    id: definition.id.clone(),
+                });
+            }
+        }
+    }
 
     let mut dependents = vec![Vec::new(); gates.len()];
     let mut pending = vec![0_usize; gates.len()];
@@ -94,6 +110,14 @@ pub(crate) fn build_strategy(
         }
         let unique = dependencies.into_iter().collect::<HashSet<_>>();
         for dependency in unique {
+            if quadrant_gates.contains_key(dependency.as_str()) {
+                return Err(invalid_gate(
+                    &gate.id,
+                    &format!(
+                        "`{dependency}` is a QuadrantGate; reference one of its quadrants instead"
+                    ),
+                ));
+            }
             let Some(&dependency_index) = document_index.get(dependency) else {
                 return Err(GatingError::UnknownGateRef {
                     gate: gate.id.clone(),
@@ -230,6 +254,47 @@ fn parse_gate(node: Node<'_, '_>) -> Result<Gate, GatingError> {
     })
 }
 
+/// A `gating:QuadrantGate`: its dividers (a dimension plus `gating:value`
+/// children) and quadrants (`gating:position` with `divider_ref` and
+/// `location`).
+fn parse_quadrant(node: Node<'_, '_>) -> Result<QuadrantGate, GatingError> {
+    let id = required_attr(node, GATING_NS, "id")?;
+    let dividers = children(node, GATING_NS, "divider")
+        .map(|divider| {
+            let values = children(divider, GATING_NS, "value")
+                .map(|value| parse_number(value, "value", value.text().unwrap_or_default()))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(QuadrantDivider {
+                id: required_attr(divider, GATING_NS, "id")?,
+                dimension: parse_dimension(divider)?,
+                values,
+            })
+        })
+        .collect::<Result<Vec<_>, GatingError>>()?;
+    let quadrants = children(node, GATING_NS, "Quadrant")
+        .map(|quadrant| {
+            let positions = children(quadrant, GATING_NS, "position")
+                .map(|position| {
+                    Ok((
+                        required_attr(position, GATING_NS, "divider_ref")?,
+                        number_attr(position, GATING_NS, "location")?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, GatingError>>()?;
+            Ok(Quadrant {
+                id: required_attr(quadrant, GATING_NS, "id")?,
+                positions,
+            })
+        })
+        .collect::<Result<Vec<_>, GatingError>>()?;
+    Ok(QuadrantGate {
+        parent_id: attr(node, GATING_NS, "parent_id"),
+        id,
+        dividers,
+        quadrants,
+    })
+}
+
 fn parse_ellipsoid(node: Node<'_, '_>, id: &str) -> Result<GateKind, GatingError> {
     let dimensions = parse_dimensions(node)?;
     let size = dimensions.len();
@@ -326,32 +391,35 @@ fn parse_boolean(node: Node<'_, '_>, id: &str) -> Result<GateKind, GatingError> 
 
 fn parse_dimensions(node: Node<'_, '_>) -> Result<Vec<Dimension>, GatingError> {
     children(node, GATING_NS, "dimension")
-        .map(|dimension| {
-            if child(dimension, DATA_TYPE_NS, "new-dimension").is_some() {
-                return Err(GatingError::UnsupportedElement {
-                    element: "data-type:new-dimension".to_owned(),
-                });
-            }
-            let fcs_dimension =
-                child(dimension, DATA_TYPE_NS, "fcs-dimension").ok_or_else(|| {
-                    GatingError::InvalidGatingMl(
-                        "gate dimension needs a `data-type:fcs-dimension`".to_owned(),
-                    )
-                })?;
-            let compensation = match attr(dimension, GATING_NS, "compensation-ref").as_deref() {
-                None | Some("uncompensated") => CompensationRef::Uncompensated,
-                Some("FCS") => CompensationRef::Fcs,
-                Some(reference) => CompensationRef::Matrix(reference.to_owned()),
-            };
-            Ok(Dimension {
-                name: required_attr(fcs_dimension, DATA_TYPE_NS, "name")?,
-                compensation,
-                transform: attr(dimension, GATING_NS, "transformation-ref"),
-                min: optional_number_attr(dimension, GATING_NS, "min")?,
-                max: optional_number_attr(dimension, GATING_NS, "max")?,
-            })
-        })
+        .map(parse_dimension)
         .collect()
+}
+
+/// A `gating:dimension` or `gating:divider`: one FCS channel, its
+/// compensation and transformation, and optional rectangle bounds.
+fn parse_dimension(dimension: Node<'_, '_>) -> Result<Dimension, GatingError> {
+    for unsupported in ["new-dimension", "ratio-dimension"] {
+        if child(dimension, DATA_TYPE_NS, unsupported).is_some() {
+            return Err(GatingError::UnsupportedElement {
+                element: format!("data-type:{unsupported}"),
+            });
+        }
+    }
+    let fcs_dimension = child(dimension, DATA_TYPE_NS, "fcs-dimension").ok_or_else(|| {
+        GatingError::InvalidGatingMl("gate dimension needs a `data-type:fcs-dimension`".to_owned())
+    })?;
+    let compensation = match attr(dimension, GATING_NS, "compensation-ref").as_deref() {
+        None | Some("uncompensated") => CompensationRef::Uncompensated,
+        Some("FCS") => CompensationRef::Fcs,
+        Some(reference) => CompensationRef::Matrix(reference.to_owned()),
+    };
+    Ok(Dimension {
+        name: required_attr(fcs_dimension, DATA_TYPE_NS, "name")?,
+        compensation,
+        transform: attr(dimension, GATING_NS, "transformation-ref"),
+        min: optional_number_attr(dimension, GATING_NS, "min")?,
+        max: optional_number_attr(dimension, GATING_NS, "max")?,
+    })
 }
 
 fn parse_transformation(node: Node<'_, '_>, id: &str) -> Result<Transform, GatingError> {
@@ -741,11 +809,32 @@ mod tests {
     }
 
     #[test]
-    fn rejects_quadrant_gates() {
+    fn rejects_ratio_and_new_dimensions_as_unsupported() {
+        for dimension in [
+            r#"<data-type:ratio-dimension data-type:ratio-ref="ratio"/>"#,
+            r#"<data-type:new-dimension data-type:transformation-ref="t"/>"#,
+        ] {
+            let xml = document(&format!(
+                r#"<gating:RectangleGate gating:id="r">
+  <gating:dimension gating:min="0">{dimension}</gating:dimension>
+</gating:RectangleGate>"#
+            ));
+            assert!(
+                matches!(
+                    parse_gatingml(&xml),
+                    Err(GatingError::UnsupportedElement { .. })
+                ),
+                "{dimension}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_quadrant_gate_is_invalid() {
         let xml = document(r#"<gating:QuadrantGate gating:id="q"/>"#);
         assert!(matches!(
             parse_gatingml(&xml),
-            Err(GatingError::UnsupportedElement { .. })
+            Err(GatingError::InvalidGate { id, .. }) if id == "q"
         ));
     }
 

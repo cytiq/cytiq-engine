@@ -29,6 +29,7 @@ fn model() -> FlowSomModel {
         training_events: 10,
         transform: None,
         normalization_model: None,
+        cohort: None,
     }
 }
 

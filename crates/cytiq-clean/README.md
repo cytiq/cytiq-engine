@@ -78,7 +78,9 @@ println!("kept {} of {}", result.metrics.kept, result.metrics.event_count);
 
 ## Output rules
 
-`output` is a directory (created if needed; existing files are replaced):
+`output` is a directory (created if needed). A directory that already holds
+files is refused before the input is read unless `overwrite` is set
+(`--overwrite`); then these files are replaced and other files are kept:
 
 ```
 masks.parquet       event_id, source_event_id, non_debris, singlets, live, keep

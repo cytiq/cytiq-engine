@@ -11,7 +11,7 @@ this crate.
   `is_autofluorescence_dye` and `normalize_identifier` used by the runner.
 - `src/runner.rs` — `AutoSpectralRunner`, algorithm constants, detector and
   primary-channel inference, scatter gate, positive selection, condition
-  number, QR least-squares unmixing, control cleaning, thread pool and
+  number, QR least-squares unmixing, control cleaning and
   `parallel_try_map`.
 - `src/spectrum.rs` — `get.fluorophore.spectra`'s estimator: `MASS::rlm`
   slopes, scatter-matched negatives (`FNN::knnx.index`); unit tests against
@@ -37,8 +37,9 @@ this crate.
 - The condition-number warning uses fluorophores only; the hard limit
   (`CONDITION_NUMBER_LIMIT`) uses the full matrix including AF.
 - Parallel stages go through `parallel_try_map`, which keeps results and errors
-  in input order. Keep outputs deterministic regardless of `threads`.
-- `threads: Some(n)` runs in a local rayon pool; `None` uses the global pool.
+  in input order. Keep outputs deterministic regardless of the thread count.
+- The runner runs on the caller's rayon pool; the CLI sizes the global pool
+  with `--threads`.
 - Unmixed FCS files carry the sample's acquisition keywords, but never its
   spillover matrix or earlier `CYTIQ_*` state, which describe the replaced
   detectors. They must record `CYTIQ_UNMIXING`, so later stages know the

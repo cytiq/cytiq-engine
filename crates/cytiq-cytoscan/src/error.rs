@@ -72,8 +72,6 @@ pub enum CytoScanError {
     EmptyFcs { path: PathBuf },
     #[error("`--reference` is required when `--flag-method` is `{flag_method}`")]
     MissingReference { flag_method: &'static str },
-    #[error("threads must be greater than zero")]
-    InvalidThreads,
     #[error("reference input was provided but no reference files were resolved")]
     EmptyReference,
     #[error("failed to parse spillover metadata in `{path}`: {reason}")]
@@ -138,12 +136,6 @@ pub enum CytoScanError {
         path: PathBuf,
         #[source]
         source: std::io::Error,
-    },
-    #[error("failed to build cytoscan worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
     },
     #[error("{0}")]
     Publish(#[from] cytiq_publish::PublishError),

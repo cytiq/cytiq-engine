@@ -39,9 +39,9 @@ done
 
 timed autospill "$BIN" autospill --controls "$DATA/autospill/controls.csv" \
   --input-dir "$DATA/autospill" --output "$OUT/autospill_spillover.csv" \
-  --matrix-kind spillover --debug-dir "$OUT/autospill_debug"
+  --matrix-kind spillover --debug-dir "$OUT/autospill_debug" --overwrite
 timed autospread "$BIN" autospread --controls "$DATA/autospill/controls.csv" \
-  --input-dir "$DATA/autospill" --output "$OUT/autospread.csv"
+  --input-dir "$DATA/autospill" --output "$OUT/autospread.csv" --overwrite
 
 rm -rf "$OUT/autospectral"
 timed autospectral "$BIN" autospectral --controls "$DATA/autospectral/controls.csv" \
@@ -51,7 +51,7 @@ timed autospectral "$BIN" autospectral --controls "$DATA/autospectral/controls.c
 for method in all mad it; do
   timed "peacoqc_$method" "$BIN" peacoqc --input "$DATA/peacoqc/sample.fcs" \
     --output "$OUT/peacoqc_$method.fcs" --channels "$(cat "$DATA/peacoqc/channels.txt")" \
-    --method "$method" --debug-dir "$OUT/peacoqc_${method}_debug"
+    --method "$method" --debug-dir "$OUT/peacoqc_${method}_debug" --overwrite
 done
 
 timed spillqc "$BIN" spillqc --input "$DATA/spillqc" --output "$OUT/spillqc" --overwrite
@@ -59,7 +59,7 @@ timed spillqc "$BIN" spillqc --input "$DATA/spillqc" --output "$OUT/spillqc" --o
 for dataset in flowsom flowsom_hard; do
   timed "$dataset" "$BIN" flowsom --input "$DATA/$dataset/sample.fcs" \
     --output "$OUT/$dataset.csv" --channels "$(cat "$DATA/$dataset/channels.txt")" \
-    --debug-dir "$OUT/${dataset}_debug"
+    --debug-dir "$OUT/${dataset}_debug" --overwrite
 done
 
 for dataset in cytoscan_exact cytoscan cytoscan_ref100; do
@@ -70,12 +70,15 @@ for dataset in cytoscan_exact cytoscan cytoscan_ref100; do
     timed "${dataset}_$method" "$BIN" cytoscan --input "$DATA/$dataset/test" \
       --reference "$DATA/$dataset/reference" --output "$OUT/$dataset/$method" \
       --channels "$(cat "$DATA/$dataset/channels.txt")" --method "$method" --flag-method both \
-      --debug-dir "$OUT/${dataset}_debug/$method"
+      --debug-dir "$OUT/${dataset}_debug/$method" --overwrite
   done
 done
 
 timed gating "$BIN" gate --input "$DATA/gating/sample.fcs" \
-  --gating-ml "$DATA/gating/gates.xml" --output "$OUT/gating.json" --format json
+  --gating-ml "$DATA/gating/gates.xml" --output "$OUT/gating.json" --format json --overwrite
+QUADRANT="$ROOT/data/fixtures/gating/quadrant"
+timed gating_quadrant "$BIN" gate --input "$QUADRANT/sample.fcs" \
+  --gating-ml "$QUADRANT/gates.xml" --output "$OUT/gating_quadrant.json" --format json --overwrite
 
 # End-to-end golden pipeline (parity/gen/pipeline.py): the documented chain.
 FLUOR=FL1-A,FL2-A,FL3-A,FL4-A,FL5-A

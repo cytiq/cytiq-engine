@@ -1,4 +1,5 @@
 use cytiq_transform::parse_channel_list as parse_transform_channel_list;
+use std::io;
 use std::path::PathBuf;
 
 pub(crate) fn parse_threads(raw: &str) -> Result<usize, String> {
@@ -59,10 +60,16 @@ pub(crate) fn parse_non_negative_f64(raw: &str) -> Result<f64, String> {
     }
 }
 
-pub(crate) fn parse_optional_transform_channels(raw: Option<&str>) -> Result<Vec<String>, String> {
+/// Channel lists are checked in the command arm, not by clap, so that an
+/// invalid list still writes `--outcome` (exit 2, invalid input).
+fn invalid_input(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message.into())
+}
+
+pub(crate) fn parse_optional_transform_channels(raw: Option<&str>) -> io::Result<Vec<String>> {
     raw.map(parse_transform_channel_list)
         .transpose()
-        .map_err(|error| error.to_string())
+        .map_err(|error| invalid_input(error.to_string()))
         .map(Option::unwrap_or_default)
 }
 
@@ -71,23 +78,31 @@ pub(crate) fn parse_optional_transform_channels(raw: Option<&str>) -> Result<Vec
 pub(crate) fn parse_channels(
     channels: Option<&str>,
     repeated_channels: &[String],
-) -> Result<Vec<String>, String> {
+) -> io::Result<Vec<String>> {
     let mut parsed = channels
         .map(cytiq_fcs::parse_channel_list)
-        .transpose()?
+        .transpose()
+        .map_err(invalid_input)?
         .unwrap_or_default();
     for channel in repeated_channels {
         let channel = channel.trim();
         if channel.is_empty() {
-            return Err("channel must not be empty".to_owned());
+            return Err(invalid_input("channel must not be empty"));
         }
         parsed.push(channel.to_owned());
     }
     if parsed.is_empty() {
-        Err("at least one `--channels` or `--channel` value is required".to_owned())
+        Err(invalid_input(
+            "at least one `--channels` or `--channel` value is required",
+        ))
     } else {
         Ok(parsed)
     }
+}
+
+/// A comma-separated `--channels` value, as [`parse_channels`] reports errors.
+pub(crate) fn parse_channel_list(raw: &str) -> io::Result<Vec<String>> {
+    cytiq_fcs::parse_channel_list(raw).map_err(invalid_input)
 }
 
 /// `LO,HI`: two finite numbers with `LO < HI`.

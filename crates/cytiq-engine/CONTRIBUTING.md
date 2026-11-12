@@ -23,8 +23,8 @@ this crate.
   `parse_channels` for every `--channels` + `--channel` pair, built on
   `cytiq_fcs::parse_channel_list`).
 - `src/provenance.rs` — build info, Invocation, the begin macro, and recording under an output lock.
-- `src/logging.rs` — the stderr logger; the binary's own modules all log as
-  `cytiq`.
+- `src/logging.rs` — the stderr logger (`CYTIQ_LOG` level, `CYTIQ_LOG_FORMAT`
+  text or JSON lines); the binary's own modules all log as `cytiq`.
 - `tests/<command>_cli.rs` — integration tests per subcommand, running the
   `cytiq` binary.
 
@@ -75,9 +75,12 @@ The package is `cytiq-engine`; the binary is `cytiq` (`[[bin]]` in `Cargo.toml`)
   argument parsing and return it to `main`, which exits with its code. Package layout,
   validation and publication stay in `cytiq-specimen::runner` and
   `cytiq-population::artifact`.
-- `--overwrite` is passed through to the library, which enforces it
-  (`transform`, `meta`, `compensate`, `mask combine`, `plot`). `meta` maps
-  `--output -` to stdout before building `MetaConfig`.
+- `--overwrite` is passed through to the library, which refuses existing
+  outputs before any work (`PublishError::Exists`, exit 4). Directory outputs
+  use `cytiq_publish::check_output_dir`; their records list
+  `DirSnapshot::published`, never `files_under`. `autospill`/`autospread`
+  export in the command arm, so the arm checks the output before computing.
+  `meta` maps `--output -` to stdout before building `MetaConfig`.
 
 ## Adding a subcommand
 
@@ -136,6 +139,13 @@ determinism), `preflight_cli.rs`,
 `qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`. `tests/common/mod.rs` holds `assert_provenance`,
 `assert_provenance_chain` and `adjusted_rand_index`.
 `channels_cli.rs` pins the channel flag errors of every command.
+`orchestration_cli.rs` pins what workflow engines read: outcome artifacts,
+JSON log lines and the conflict reason. `overwrite_cli.rs` pins the output-conflict contract of every result-writing
+command (exit 4, `--overwrite`, `--reuse skip`/`reject`). `threads_cli.rs`
+checks that `--threads` never changes outputs. `src/cli_surface.rs` compares
+every flag, default and recorded config key with
+`tests/fixtures/cli-surface.json`; update that fixture by hand, in the same
+change, only for an intended CLI change.
 `src/cli.rs` has one unit test, `cli_definition_is_consistent`
 (`Cli::command().debug_assert()`); logic worth unit-testing usually belongs in
 a library crate. `autospill_cli.rs` and

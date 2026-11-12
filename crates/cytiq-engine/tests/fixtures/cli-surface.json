@@ -1,0 +1,5854 @@
+{
+  "command": {
+    "args": [
+      {
+        "action": "set",
+        "aliases": [],
+        "conflicts_with": [],
+        "defaults": [],
+        "global": true,
+        "hidden": false,
+        "id": "outcome",
+        "long": "outcome",
+        "num_args": null,
+        "positional": false,
+        "possible_values": [],
+        "required": false,
+        "short": null,
+        "value_names": [
+          "PATH"
+        ]
+      },
+      {
+        "action": "set",
+        "aliases": [],
+        "conflicts_with": [],
+        "defaults": [
+          "recompute"
+        ],
+        "global": true,
+        "hidden": false,
+        "id": "reuse",
+        "long": "reuse",
+        "num_args": null,
+        "positional": false,
+        "possible_values": [
+          "recompute",
+          "skip",
+          "reject"
+        ],
+        "required": false,
+        "short": null,
+        "value_names": [
+          "REUSE"
+        ]
+      }
+    ],
+    "args_conflict_with_subcommands": false,
+    "subcommand_required": true,
+    "subcommands": {
+      "autospectral": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "controls",
+            "long": "controls",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "CONTROLS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "samples",
+            "long": "samples",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "SAMPLES"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input_dir",
+            "long": "input-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "detectors",
+            "long": "detectors",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DETECTORS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "FSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "fsc",
+            "long": "fsc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "SSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "ssc",
+            "long": "ssc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [
+              "clean_controls"
+            ],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "quantile_gate",
+            "long": "quantile-gate",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "QUANTILE_GATE"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "clean_controls",
+            "long": "clean-controls",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CLEAN_CONTROLS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "autospill": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "controls",
+            "long": "controls",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "CONTROLS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input_dir",
+            "long": "input-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "detectors",
+            "long": "detectors",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DETECTORS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "transform_file",
+            "long": "transform-file",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "TRANSFORM_FILE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "compensation"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "matrix_kind",
+            "long": "matrix-kind",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "compensation",
+              "spillover"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MATRIX_KIND"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "FSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "fsc",
+            "long": "fsc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "SSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "ssc",
+            "long": "ssc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "autospread": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "controls",
+            "long": "controls",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "CONTROLS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input_dir",
+            "long": "input-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "detectors",
+            "long": "detectors",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DETECTORS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "FSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "fsc",
+            "long": "fsc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "SSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "ssc",
+            "long": "ssc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "classify": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "model",
+            "long": "model",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "MODEL"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "masks",
+            "long": "mask",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MASKS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "65536"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "batch_size",
+            "long": "batch-size",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BATCH_SIZE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "abstain_margin",
+            "long": "abstain-margin",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "ABSTAIN_MARGIN"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "decision_policy",
+            "long": "decision-policy",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DECISION_POLICY"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "clean": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "masks",
+            "long": "mask",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MASKS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "require",
+            "long": "require",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "debris",
+              "singlets",
+              "viability"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "REQUIRE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "gates",
+            "long": "gates",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "GATES"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "FSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "fsc",
+            "long": "fsc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "FSC-H"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "fsc_h",
+            "long": "fsc-h",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FSC_H"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "FSC-W"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "fsc_w",
+            "long": "fsc-w",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FSC_W"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "SSC-A"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "ssc",
+            "long": "ssc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SSC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "adaptive"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "debris_mode",
+            "long": "debris-mode",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "adaptive",
+              "population",
+              "fixed",
+              "off"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBRIS_MODE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debris_fsc_min",
+            "long": "debris-fsc-min",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBRIS_FSC_MIN"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debris_ssc_min",
+            "long": "debris-ssc-min",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBRIS_SSC_MIN"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "3"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "singlet_mad",
+            "long": "singlet-mad",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SINGLET_MAD"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [
+              "no_viability"
+            ],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "viability_channel",
+            "long": "viability-channel",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "VIABILITY_CHANNEL"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "no_viability",
+            "long": "no-viability",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "NO_VIABILITY"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [
+              "viability_threshold"
+            ],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "viability_control",
+            "long": "viability-control",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "VIABILITY_CONTROL"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0.995"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "viability_control_quantile",
+            "long": "viability-control-quantile",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "VIABILITY_CONTROL_QUANTILE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "viability_threshold",
+            "long": "viability-threshold",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "VIABILITY_THRESHOLD"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "150"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "viability_cofactor",
+            "long": "viability-cofactor",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "VIABILITY_COFACTOR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "50000"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "max_fit_events",
+            "long": "max-fit-events",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MAX_FIT_EVENTS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "compensate": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "matrix",
+            "long": "matrix",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MATRIX"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "matrix_kind",
+            "long": "matrix-kind",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "compensation",
+              "spillover"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MATRIX_KIND"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "cytonorm": {
+        "args": [],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": true,
+        "subcommands": {
+          "apply": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "input",
+                "long": "input",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "INPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "model",
+                "long": "model",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MODEL"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "batch",
+                "long": "batch",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "BATCH"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "threads",
+                "long": "threads",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "THREADS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "debug_dir",
+                "long": "debug-dir",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "DEBUG_DIR"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "train": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "manifest",
+                "long": "manifest",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MANIFEST"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "threads",
+                "long": "threads",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "THREADS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "debug_dir",
+                "long": "debug-dir",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "DEBUG_DIR"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
+      "cytoscan": {
+        "args": [
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "reference",
+            "long": "reference",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "REFERENCE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channels",
+            "long": "channels",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNELS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channel",
+            "long": "channel",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNEL"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "quantiles"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "method",
+            "long": "method",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "summary",
+              "quantiles",
+              "emd",
+              "binning",
+              "fingerprint"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "METHOD"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "outlier"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "flag_method",
+            "long": "flag-method",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "outlier",
+              "novelty",
+              "both"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FLAG_METHOD"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "strict",
+            "long": "strict",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "STRICT"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "flowsom": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channels",
+            "long": "channels",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNELS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channel",
+            "long": "channel",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNEL"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "10"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "xdim",
+            "long": "xdim",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "XDIM"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "10"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "ydim",
+            "long": "ydim",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "YDIM"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "20"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "metaclusters",
+            "long": "metaclusters",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "METACLUSTERS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "1"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "seed",
+            "long": "seed",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SEED"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "no_scale",
+            "long": "no-scale",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "NO_SCALE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "training_events",
+            "long": "training-events",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "TRAINING_EVENTS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "masks",
+            "long": "mask",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MASKS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": true,
+        "subcommand_required": false,
+        "subcommands": {
+          "apply": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "input",
+                "long": "input",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "INPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "model",
+                "long": "model",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MODEL"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "masks",
+                "long": "mask",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "MASKS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "threads",
+                "long": "threads",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "THREADS"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "train": {
+            "args": [
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "input",
+                "long": "input",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "INPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "channels",
+                "long": "channels",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "CHANNELS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "10"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "xdim",
+                "long": "xdim",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "XDIM"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "10"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "ydim",
+                "long": "ydim",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "YDIM"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "20"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "metaclusters",
+                "long": "metaclusters",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "METACLUSTERS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "1"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "seed",
+                "long": "seed",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "SEED"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "no_scale",
+                "long": "no-scale",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "NO_SCALE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "average"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "metaclustering",
+                "long": "metaclustering",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "average",
+                  "consensus"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "METACLUSTERING"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "training_events",
+                "long": "training-events",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "TRAINING_EVENTS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "pooled"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "cohort_sampling",
+                "long": "cohort-sampling",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "pooled",
+                  "per-file"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "COHORT_SAMPLING"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "masks",
+                "long": "mask",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "MASKS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "threads",
+                "long": "threads",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "THREADS"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
+      "gate": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "gating_ml",
+            "long": "gating-ml",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "GATING_ML"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "csv"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "format",
+            "long": "format",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "csv",
+              "json"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FORMAT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "masks",
+            "long": "mask",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MASKS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "membership",
+            "long": "membership",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MEMBERSHIP"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "mask": {
+        "args": [],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": true,
+        "subcommands": {
+          "combine": {
+            "args": [
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "masks",
+                "long": "mask",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MASKS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
+      "meta": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "peacoqc": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channels",
+            "long": "channels",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNELS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channel",
+            "long": "channel",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNEL"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "all"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "method",
+            "long": "method",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "all",
+              "mad",
+              "it",
+              "peaks-only"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "METHOD"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "remove_margins",
+            "long": "remove-margins",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "REMOVE_MARGINS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "remove_zeros",
+            "long": "remove-zeros",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "REMOVE_ZEROS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "plot": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "masks",
+            "long": "mask",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MASKS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "gating_ml",
+            "long": "gating-ml",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "GATING_ML"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "color_by",
+            "long": "color-by",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "COLOR_BY"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "class_column",
+            "long": "class-column",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CLASS_COLUMN"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [
+              "bins",
+              "contour_step",
+              "gates",
+              "height",
+              "kind",
+              "max_points",
+              "palette",
+              "population",
+              "removed",
+              "title",
+              "width",
+              "x",
+              "x_range",
+              "x_scale",
+              "y",
+              "y_range",
+              "y_scale"
+            ],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "config",
+            "long": "config",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CONFIG"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "svg"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "formats",
+            "long": "format",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "svg",
+              "plotly"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FORMATS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "density"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "kind",
+            "long": "type",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "density",
+              "scatter",
+              "contour",
+              "histogram"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "KIND"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "x",
+            "long": "x",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "X"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "y",
+            "long": "y",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "Y"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "gates",
+            "long": "gate",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "GATES"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "population",
+            "long": "population",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "POPULATION"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "auto"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "x_scale",
+            "long": "x-scale",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "auto",
+              "linear",
+              "logicle",
+              "arcsinh"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "X_SCALE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "auto"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "y_scale",
+            "long": "y-scale",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "auto",
+              "linear",
+              "logicle",
+              "arcsinh"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "Y_SCALE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "x_range",
+            "long": "x-range",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "X_RANGE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "y_range",
+            "long": "y-range",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "Y_RANGE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "256"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "bins",
+            "long": "bins",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BINS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "10000"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "max_points",
+            "long": "max-points",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MAX_POINTS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "pseudocolor"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "palette",
+            "long": "palette",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "pseudocolor",
+              "viridis"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "PALETTE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "overlay"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "removed",
+            "long": "removed",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "overlay",
+              "hide"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "REMOVED"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0.1"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "contour_step",
+            "long": "contour-step",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CONTOUR_STEP"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "600"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "width",
+            "long": "width",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "WIDTH"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "560"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "height",
+            "long": "height",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "HEIGHT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "title",
+            "long": "title",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "TITLE"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "population": {
+        "args": [],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": true,
+        "subcommands": {
+          "observe": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "plan",
+                "long": "plan",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "PLAN"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "acquisition",
+                "long": "acquisition",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "ACQUISITION"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "source",
+                "long": "source",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "SOURCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "annotations",
+                "long": "annotations",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "ANNOTATIONS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "producer_provenance",
+                "long": "producer-provenance",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "PRODUCER_PROVENANCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "mask",
+                "long": "mask",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MASK"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "qc_report",
+                "long": "qc-report",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "QC_REPORT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "qc_provenance",
+                "long": "qc-provenance",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "QC_PROVENANCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "validate": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "plan",
+                "long": "plan",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "PLAN"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "acquisition",
+                "long": "acquisition",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "ACQUISITION"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "source",
+                "long": "source",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "SOURCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "annotations",
+                "long": "annotations",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "ANNOTATIONS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "producer_provenance",
+                "long": "producer-provenance",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "PRODUCER_PROVENANCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "mask",
+                "long": "mask",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MASK"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "qc_report",
+                "long": "qc-report",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "QC_REPORT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "qc_provenance",
+                "long": "qc-provenance",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "QC_PROVENANCE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
+      "preflight": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "manifest",
+            "long": "manifest",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "MANIFEST"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "qc": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "manifest",
+            "long": "manifest",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "MANIFEST"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "sample",
+            "long": "sample",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "SAMPLE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "mask",
+            "long": "mask",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "MASK"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "require_policy",
+            "long": "require-policy",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "REQUIRE_POLICY"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "specimen": {
+        "args": [],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": true,
+        "subcommands": {
+          "compare": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "baseline",
+                "long": "baseline",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "BASELINE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "candidate",
+                "long": "candidate",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "CANDIDATE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "policy",
+                "long": "policy",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "POLICY"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "plan": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "manifest",
+                "long": "manifest",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MANIFEST"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "layout",
+                "long": "layout",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "LAYOUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "specimen",
+                "long": "specimen",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "SPECIMEN"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "selections",
+                "long": "select",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "PANEL=ACQUISITION"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "report": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "input",
+                "long": "input",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "INPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "all"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "format",
+                "long": "format",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "all",
+                  "html",
+                  "csv",
+                  "json"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "FORMAT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "run": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "plan",
+                "long": "plan",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "PLAN"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "observations",
+                "long": "observations",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OBSERVATIONS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "validate": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "manifest",
+                "long": "manifest",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MANIFEST"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "layout",
+                "long": "layout",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "LAYOUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "specimen",
+                "long": "specimen",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "SPECIMEN"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "selections",
+                "long": "select",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "PANEL=ACQUISITION"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
+      "spillqc": {
+        "args": [
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": "i",
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": "o",
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "matrix",
+            "long": "matrix",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MATRIX"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "matrix_kind",
+            "long": "matrix-kind",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "compensation",
+              "spillover"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MATRIX_KIND"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [
+              "matrix",
+              "no_margins",
+              "no_peacoqc"
+            ],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "preprocessed",
+            "long": "preprocessed",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "PREPROCESSED"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "no_margins",
+            "long": "no-margins",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "NO_MARGINS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "no_peacoqc",
+            "long": "no-peacoqc",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "NO_PEACOQC"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channels",
+            "long": "channels",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNELS"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channel",
+            "long": "channel",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNEL"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "4"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "segments",
+            "long": "segments",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SEGMENTS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "50"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "min_events",
+            "long": "min-events",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "MIN_EVENTS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "3"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "batch_min_files",
+            "long": "batch-min-files",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BATCH_MIN_FILES"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0.5"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "batch_min_fraction",
+            "long": "batch-min-fraction",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BATCH_MIN_FRACTION"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "fail_on_flag",
+            "long": "fail-on-flag",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FAIL_ON_FLAG"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "stats": {
+        "args": [
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "256"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "bins",
+            "long": "bins",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BINS"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      },
+      "transform": {
+        "args": [
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "input",
+            "long": "input",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": "i",
+            "value_names": [
+              "INPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": true,
+            "short": "o",
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "arcsinh"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "method",
+            "long": "method",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "arcsinh",
+              "biexponential",
+              "hyperlog",
+              "logicle",
+              "none"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "METHOD"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "150"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "cofactor",
+            "long": "cofactor",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "COFACTOR"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "262144"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "logicle_t",
+            "long": "logicle-t",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "LOGICLE_T"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "4.5"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "logicle_m",
+            "long": "logicle-m",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "LOGICLE_M"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0.5"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "logicle_w",
+            "long": "logicle-w",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "LOGICLE_W"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "logicle_a",
+            "long": "logicle-a",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "LOGICLE_A"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "256"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_length",
+            "long": "biexponential-length",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_LENGTH"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "262144"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_max_range",
+            "long": "biexponential-max-range",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_MAX_RANGE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "4.418539922"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_pos",
+            "long": "biexponential-pos",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_POS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_neg",
+            "long": "biexponential-neg",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_NEG"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "-100"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_width",
+            "long": "biexponential-width",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_WIDTH"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "threads",
+            "long": "threads",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "THREADS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "channels",
+            "long": "channels",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "CHANNELS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "exclude_channels",
+            "long": "exclude-channels",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "EXCLUDE_CHANNELS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "fcs"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "format",
+            "long": "format",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "fcs",
+              "csv",
+              "parquet"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "FORMAT"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              ".transformed"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "suffix",
+            "long": "suffix",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "SUFFIX"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "dry_run",
+            "long": "dry-run",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DRY_RUN"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "metadata_json",
+            "long": "metadata-json",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "METADATA_JSON"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "debug_dir",
+            "long": "debug-dir",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "DEBUG_DIR"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "allow_retransform",
+            "long": "allow-retransform",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "ALLOW_RETRANSFORM"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "allow_uncompensated",
+            "long": "allow-uncompensated",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "ALLOW_UNCOMPENSATED"
+            ]
+          }
+        ],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": false,
+        "subcommands": {}
+      }
+    }
+  },
+  "config_keys": {
+    "autospectral": [
+      "clean_controls",
+      "controls",
+      "debug_dir",
+      "detectors",
+      "fsc",
+      "input_dir",
+      "output",
+      "overwrite",
+      "quantile_gate",
+      "samples",
+      "ssc",
+      "threads"
+    ],
+    "autospill": [
+      "controls",
+      "debug_dir",
+      "detectors",
+      "fsc",
+      "input_dir",
+      "matrix_kind",
+      "output",
+      "overwrite",
+      "ssc",
+      "threads",
+      "transform_file"
+    ],
+    "autospread": [
+      "controls",
+      "debug_dir",
+      "detectors",
+      "fsc",
+      "input_dir",
+      "output",
+      "overwrite",
+      "ssc",
+      "threads"
+    ],
+    "classify": [
+      "abstain_margin",
+      "batch_size",
+      "input",
+      "masks",
+      "model",
+      "output",
+      "overwrite",
+      "threads"
+    ],
+    "clean": [
+      "debris_fsc_min",
+      "debris_mode",
+      "debris_ssc_min",
+      "fsc",
+      "fsc_h",
+      "fsc_w",
+      "gates",
+      "input",
+      "masks",
+      "max_fit_events",
+      "no_viability",
+      "output",
+      "overwrite",
+      "require",
+      "singlet_mad",
+      "ssc",
+      "threads",
+      "viability_channel",
+      "viability_cofactor",
+      "viability_control",
+      "viability_control_quantile",
+      "viability_threshold"
+    ],
+    "compensate": [
+      "input",
+      "matrix",
+      "matrix_kind",
+      "output",
+      "overwrite"
+    ],
+    "cytonorm apply": [
+      "Apply",
+      "Apply.batch",
+      "Apply.debug_dir",
+      "Apply.input",
+      "Apply.model",
+      "Apply.output",
+      "Apply.overwrite",
+      "Apply.threads"
+    ],
+    "cytonorm train": [
+      "Train",
+      "Train.debug_dir",
+      "Train.manifest",
+      "Train.output",
+      "Train.overwrite",
+      "Train.threads"
+    ],
+    "cytoscan": [
+      "channel",
+      "channels",
+      "debug_dir",
+      "flag_method",
+      "input",
+      "method",
+      "output",
+      "overwrite",
+      "reference",
+      "strict",
+      "threads"
+    ],
+    "flowsom": [
+      "channel",
+      "channels",
+      "command",
+      "debug_dir",
+      "input",
+      "masks",
+      "metaclusters",
+      "no_scale",
+      "output",
+      "overwrite",
+      "seed",
+      "threads",
+      "training_events",
+      "xdim",
+      "ydim"
+    ],
+    "flowsom apply": [
+      "channel",
+      "channels",
+      "command",
+      "command.Apply",
+      "command.Apply.input",
+      "command.Apply.masks",
+      "command.Apply.model",
+      "command.Apply.output",
+      "command.Apply.overwrite",
+      "command.Apply.threads",
+      "debug_dir",
+      "input",
+      "masks",
+      "metaclusters",
+      "no_scale",
+      "output",
+      "overwrite",
+      "seed",
+      "threads",
+      "training_events",
+      "xdim",
+      "ydim"
+    ],
+    "flowsom train": [
+      "channel",
+      "channels",
+      "command",
+      "command.Train",
+      "command.Train.channels",
+      "command.Train.input",
+      "command.Train.masks",
+      "command.Train.metaclustering",
+      "command.Train.metaclusters",
+      "command.Train.no_scale",
+      "command.Train.output",
+      "command.Train.overwrite",
+      "command.Train.seed",
+      "command.Train.threads",
+      "command.Train.training_events",
+      "command.Train.xdim",
+      "command.Train.ydim",
+      "debug_dir",
+      "input",
+      "masks",
+      "metaclusters",
+      "no_scale",
+      "output",
+      "overwrite",
+      "seed",
+      "threads",
+      "training_events",
+      "xdim",
+      "ydim"
+    ],
+    "gate": [
+      "format",
+      "gating_ml",
+      "input",
+      "masks",
+      "membership",
+      "output",
+      "overwrite",
+      "threads"
+    ],
+    "mask combine": [
+      "masks",
+      "output",
+      "overwrite"
+    ],
+    "meta": [
+      "input",
+      "output",
+      "overwrite"
+    ],
+    "peacoqc": [
+      "channel",
+      "channels",
+      "debug_dir",
+      "input",
+      "method",
+      "output",
+      "overwrite",
+      "remove_margins",
+      "remove_zeros",
+      "threads"
+    ],
+    "plot": [
+      "bins",
+      "class_column",
+      "color_by",
+      "config",
+      "contour_step",
+      "formats",
+      "gates",
+      "gating_ml",
+      "height",
+      "input",
+      "kind",
+      "masks",
+      "max_points",
+      "output",
+      "overwrite",
+      "palette",
+      "population",
+      "removed",
+      "title",
+      "width",
+      "x",
+      "x_range",
+      "x_scale",
+      "y",
+      "y_range",
+      "y_scale"
+    ],
+    "population observe": [
+      "Observe",
+      "Observe.inputs",
+      "Observe.inputs.acquisition",
+      "Observe.inputs.annotations",
+      "Observe.inputs.mask",
+      "Observe.inputs.plan",
+      "Observe.inputs.producer_provenance",
+      "Observe.inputs.qc_provenance",
+      "Observe.inputs.qc_report",
+      "Observe.inputs.source",
+      "Observe.output",
+      "Observe.overwrite"
+    ],
+    "population validate": [
+      "Validate",
+      "Validate.acquisition",
+      "Validate.annotations",
+      "Validate.mask",
+      "Validate.plan",
+      "Validate.producer_provenance",
+      "Validate.qc_provenance",
+      "Validate.qc_report",
+      "Validate.source"
+    ],
+    "preflight": [
+      "manifest",
+      "output",
+      "overwrite"
+    ],
+    "qc": [
+      "manifest",
+      "mask",
+      "output",
+      "overwrite",
+      "require_policy",
+      "sample"
+    ],
+    "specimen compare": [
+      "Compare",
+      "Compare.baseline",
+      "Compare.candidate",
+      "Compare.output",
+      "Compare.overwrite",
+      "Compare.policy"
+    ],
+    "specimen plan": [
+      "Plan",
+      "Plan.inputs",
+      "Plan.inputs.layout",
+      "Plan.inputs.manifest",
+      "Plan.inputs.selections",
+      "Plan.inputs.specimen",
+      "Plan.output",
+      "Plan.overwrite"
+    ],
+    "specimen report": [
+      "Report",
+      "Report.format",
+      "Report.input",
+      "Report.output",
+      "Report.overwrite"
+    ],
+    "specimen run": [
+      "Run",
+      "Run.observations",
+      "Run.output",
+      "Run.overwrite",
+      "Run.plan"
+    ],
+    "specimen validate": [
+      "Validate",
+      "Validate.layout",
+      "Validate.manifest",
+      "Validate.selections",
+      "Validate.specimen"
+    ],
+    "spillqc": [
+      "batch_min_files",
+      "batch_min_fraction",
+      "channel",
+      "channels",
+      "fail_on_flag",
+      "input",
+      "matrix",
+      "matrix_kind",
+      "min_events",
+      "no_margins",
+      "no_peacoqc",
+      "output",
+      "overwrite",
+      "preprocessed",
+      "segments",
+      "threads"
+    ],
+    "stats": [
+      "bins",
+      "input",
+      "output",
+      "overwrite"
+    ],
+    "transform": [
+      "allow_retransform",
+      "allow_uncompensated",
+      "channels",
+      "cofactor",
+      "debug_dir",
+      "dry_run",
+      "exclude_channels",
+      "format",
+      "input",
+      "logicle_a",
+      "logicle_m",
+      "logicle_t",
+      "logicle_w",
+      "metadata_json",
+      "method",
+      "output",
+      "overwrite",
+      "suffix",
+      "threads"
+    ]
+  }
+}

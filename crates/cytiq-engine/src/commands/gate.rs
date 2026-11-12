@@ -25,7 +25,7 @@ pub(crate) struct GateArgs {
     format: CliGateOutputFormat,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Event mask Parquet (`masks.parquet`) restricting the gated events;
     /// repeat to combine several masks with AND.
     #[arg(long = "mask")]
@@ -33,6 +33,9 @@ pub(crate) struct GateArgs {
     /// Optional Parquet path for per-event gate membership.
     #[arg(long)]
     membership: Option<PathBuf>,
+    /// Replace existing output files.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -44,9 +47,10 @@ pub(crate) fn run(
         gating_ml,
         output,
         format,
-        threads,
+        threads: _,
         masks,
         membership,
+        overwrite,
     } = args;
     info!(
         "starting gate: input={}, gating_ml={}, output={}",
@@ -59,9 +63,9 @@ pub(crate) fn run(
         gating_ml,
         output,
         format: format.into(),
-        threads,
         masks,
         membership,
+        overwrite,
     };
     recorder.snapshot_inputs("input", std::slice::from_ref(&config.input))?;
     recorder.snapshot_inputs("gating_ml", std::slice::from_ref(&config.gating_ml))?;

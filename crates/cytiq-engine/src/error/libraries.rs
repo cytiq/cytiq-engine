@@ -173,7 +173,7 @@ fn spillqc(error: &cytiq_spillqc::SpillQcError) -> OutcomeReason {
         E::Csv { source, .. } => csv(source, RUNTIME),
         E::Json { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::Report { .. } | E::ThreadPoolBuild { .. } => RUNTIME,
+        E::Report { .. } => RUNTIME,
         E::Flagged { .. } => CHECKS,
         E::EmptyInputs
         | E::NonFcsInput { .. }
@@ -230,7 +230,7 @@ fn transform(error: &cytiq_transform::TransformError) -> OutcomeReason {
             json(source, RUNTIME)
         }
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::NonFiniteOutputValues { .. } | E::ThreadPoolBuild { .. } => RUNTIME,
+        E::NonFiniteOutputValues { .. } => RUNTIME,
         E::EmptyInputs
         | E::NonFcsInput { .. }
         | E::UnsupportedGlob { .. }
@@ -289,7 +289,6 @@ fn gating(error: &cytiq_gating::GatingError) -> OutcomeReason {
         E::CsvWrite { source, .. } => csv(source, RUNTIME),
         E::JsonWrite { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::ThreadPoolBuild { .. } => RUNTIME,
         E::Xml { .. }
         | E::InvalidGatingMl { .. }
         | E::UnsupportedElement { .. }
@@ -304,8 +303,7 @@ fn gating(error: &cytiq_gating::GatingError) -> OutcomeReason {
         | E::InvalidGate { .. }
         | E::MaskLength { .. }
         | E::ReservedGateId { .. }
-        | E::AlreadyProcessed { .. }
-        | E::InvalidThreads => INVALID,
+        | E::AlreadyProcessed { .. } => INVALID,
     }
 }
 
@@ -318,14 +316,13 @@ fn clean(error: &cytiq_clean::CleanError) -> OutcomeReason {
         E::GatingMlRead { source, .. } | E::OutputWrite { source, .. } => io(source),
         E::JsonWrite { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::ParquetWrite { .. } | E::ThreadPoolBuild { .. } => RUNTIME,
+        E::ParquetWrite { .. } => RUNTIME,
         E::MissingChannel { .. }
         | E::AmbiguousViabilityChannel { .. }
         | E::RequiredFilterNotApplied { .. }
         | E::TransformedViability { .. }
         | E::TransformedScatter { .. }
-        | E::InvalidConfig { .. }
-        | E::InvalidThreads => INVALID,
+        | E::InvalidConfig { .. } => INVALID,
     }
 }
 
@@ -341,9 +338,7 @@ fn peacoqc(error: &cytiq_peacoqc::PeacoQcError) -> OutcomeReason {
         E::CsvWrite { source, .. } => csv(source, RUNTIME),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::NonFiniteOutputValues { .. } | E::ParquetWrite { .. } | E::ThreadPoolBuild { .. } => {
-            RUNTIME
-        }
+        E::NonFiniteOutputValues { .. } | E::ParquetWrite { .. } => RUNTIME,
         E::EmptyInput { .. }
         | E::EmptyChannels
         | E::DuplicateChannel { .. }
@@ -371,7 +366,6 @@ fn flowsom(error: &cytiq_flowsom::FlowSomError) -> OutcomeReason {
         E::CsvWrite { source, .. } => csv(source, RUNTIME),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::ThreadPoolBuild { .. } => RUNTIME,
         E::InvalidConfig { .. }
         | E::EmptyInput { .. }
         | E::NoMaskedEvents { .. }
@@ -400,7 +394,6 @@ fn cytoscan(error: &cytiq_cytoscan::CytoScanError) -> OutcomeReason {
         E::CsvWrite { source, .. } => csv(source, RUNTIME),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::ThreadPoolBuild { .. } => RUNTIME,
         E::EmptyInputs
         | E::MissingSpillover { .. }
         | E::ChannelNotCompensated { .. }
@@ -415,7 +408,6 @@ fn cytoscan(error: &cytiq_cytoscan::CytoScanError) -> OutcomeReason {
         | E::NonFiniteChannel { .. }
         | E::EmptyFcs { .. }
         | E::MissingReference { .. }
-        | E::InvalidThreads
         | E::InvalidSpillover { .. }
         | E::SingularSpillover { .. }
         | E::EmptyFeatureMatrix
@@ -440,7 +432,7 @@ fn autospill(error: &cytiq_autospill::AutospillError) -> OutcomeReason {
         | E::DebugWrite { source, .. }
         | E::CreateOutputFile { source, .. } => io(source),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::ThreadPoolBuild { .. } | E::ParquetWrite { .. } | E::ParquetBatch { .. } => RUNTIME,
+        E::ParquetWrite { .. } | E::ParquetBatch { .. } => RUNTIME,
         E::EmptyManifest
         | E::EmptyDetectorsManifest
         | E::EmptyManifestField { .. }
@@ -485,7 +477,6 @@ fn autospectral(error: &cytiq_autospectral::AutoSpectralError) -> OutcomeReason 
         | E::JsonWrite { source, .. } => io(source),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
-        E::ThreadPoolBuild { .. } => RUNTIME,
         E::EmptyControlsManifest
         | E::EmptySamplesManifest
         | E::EmptyDetectorsManifest

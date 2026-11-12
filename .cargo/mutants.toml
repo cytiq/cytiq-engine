@@ -5,10 +5,12 @@ examine_globs = [
     "crates/cytiq-engine/src/logging.rs",
     "crates/cytiq-clean/src/debris.rs",
     "crates/cytiq-flowsom/src/model.rs",
+    "crates/cytiq-flowsom/src/runner.rs",
     "crates/cytiq-peacoqc/src/runner.rs",
     "crates/cytiq-spillqc/src/runner.rs",
     "crates/cytiq-spillqc/src/preprocess.rs",
     "crates/cytiq-gating/src/parse.rs",
+    "crates/cytiq-gating/src/model.rs",
     "crates/cytiq-fcs/src/layout.rs",
     "crates/cytiq-fcs/src/inputs.rs",
     "crates/cytiq-cytonorm/src/bundle.rs",
@@ -26,10 +28,12 @@ examine_re = [
     'crates/cytiq-fcs/src/inputs.rs:.*\b(resolve_inputs|resolve_glob|filename_matcher|collect_files|is_fcs_path)\b',
     'crates/cytiq-engine/src/logging.rs:.*\bparse_log_level_token\b',
     'crates/cytiq-clean/src/debris.rs:.*\bfit_population\b',
-    'crates/cytiq-flowsom/src/model.rs:.*\bpopulations\b',
+    'crates/cytiq-flowsom/src/model.rs:.*\b(populations|train_files|MaskRouting::take|MaskRouting::finish|validate)\b',
+    'crates/cytiq-flowsom/src/runner.rs:.*\b(subsample_rows|sample_seed|training_rows)\b',
     'crates/cytiq-peacoqc/src/runner.rs:.*\b(isolation_tree_good_bins|isolation_children)\b',
     'crates/cytiq-spillqc/src/preprocess.rs:.*\b(prepare|prepare_logicle_columns)\b',
-    'crates/cytiq-gating/src/parse.rs:.*\b(parse_gatingml|parse_transformation|parse_linear_transform|parse_log_transform|parse_asinh_transform)\b',
+    'crates/cytiq-gating/src/parse.rs:.*\b(parse_gatingml|parse_transformation|parse_linear_transform|parse_log_transform|parse_asinh_transform|parse_quadrant|parse_dimension|build_strategy)\b',
+    'crates/cytiq-gating/src/model.rs:.*\b(QuadrantGate::gates|gate_path)\b',
     'crates/cytiq-fcs/src/layout.rs:.*\b(resolve_layout|resolve_parameter)\b',
     'crates/cytiq-cytonorm/src/bundle.rs:.*\b(validate|validate_panel|validate_som_contract|validate_training_contract|validate_channel_labels|validate_goals|validate_mappings)\b',
     'crates/cytiq-cytonorm/src/runner.rs:.*\b(train_inner|balanced_training_values|train_som|publish_training_model)\b',
@@ -46,7 +50,13 @@ exclude_globs = ["**/tests/**", "**/*tests.rs", "**/examples/**", "**/benches/**
 # Near 1, an f32 sum differs from 1 by a multiple of 2^-24. The f32
 # value 1e-5 is not such a multiple, so equality cannot occur here.
 # Tests cover the closest representable sums on either side of the tolerance.
-exclude_re = ['^crates/cytiq-classify/src/lib\.rs:.*replace > with >= in validate_probabilities$']
+# A training subsample equal to the event count draws a full permutation,
+# which `subsample_rows` sorts back to `0..events`: the SOM trains on an
+# identical copy of the matrix, so `<=` differs only in a log line.
+exclude_re = [
+    '^crates/cytiq-classify/src/lib\.rs:.*replace > with >= in validate_probabilities$',
+    '^crates/cytiq-flowsom/src/runner\.rs:.*replace < with <= in training_rows$',
+]
 additional_cargo_args = ["--locked"]
 gitignore = true
 copy_target = true

@@ -89,9 +89,11 @@ fn existing_outputs_are_rejected_before_input_loading_and_overwrite_is_explicit(
             abstain_margin: 0.0,
             overwrite: false,
         };
-        assert!(
-            matches!(ClassifyRunner::run(&config), Err(ClassifyError::Invalid(reason)) if reason == "output exists; pass --overwrite to replace it")
-        );
+        assert!(matches!(
+            ClassifyRunner::run(&config),
+            Err(ClassifyError::Publish(cytiq_publish::PublishError::Exists { path }))
+                if path == output.join(name)
+        ));
         assert_eq!(fs::read(output.join(name)).unwrap(), b"protected");
         assert_eq!(fs::read_dir(&output).unwrap().count(), 1);
         config.overwrite = true;

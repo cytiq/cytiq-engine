@@ -38,6 +38,7 @@ cytiq-qc = { workspace = true, features = ["preflight"] }
 cytiq-spillqc.workspace = true
 cytiq-transform.workspace = true
 log.workspace = true
+rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

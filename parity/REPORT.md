@@ -704,7 +704,7 @@ flagged `under`, and the SSI moves less (median 0.09 at −0.05 against 1.2 at
 | AutoSpectral | negatives capped at 1,000 evenly spaced instead of a random `sample` | reproducible runs | — |
 | AutoSpectral | no WLS/Poisson/per-cell AF (R's default `AutoSpectral` method) | comparable only to `method = "OLS"` | separate task |
 | AutoSpread | no upstream; units are σ/√F while AutoSpectral expects σ²/F | format incompatibility | document the units |
-| transform | biexponential parameters cannot be set from the CLI (defaults hard-coded) | functionality | add `--biex-*` flags |
+| transform | biexponential parameters were fixed to the defaults until 0.5 | functionality | resolved: `--biexponential-*` flags, checked against `flowjo_biexp` at non-default values (`data/fixtures/transform/flowjo_biexp_params.rs`) |
 | cytoscan | subsamples come from `rand`, not R's MT19937, so features on large files agree only statistically | Rust–R Δ equals R's seed-to-seed Δ | port R's RNG if bit-identical features are needed |
 | cytoscan | isotree uses its own C++ RNG | scores agree within isotree's Monte Carlo noise (≈0.014 at 1000 trees) | — |
 | cytoscan | the mixture search has mclust's spherical and diagonal structures, `EEE` and `VVV`, not `VEE`, `EVE`, `VVE`, `EEV`, `VEV`, `EVV`; with more reference files than features EM starts from `hcEII` where mclust uses `hcVVV` | on the parity cohorts mclust picks none of the missing structures; on the same features the model, G and flags equal mclust's in 12 of 15 cases | port the rest if a cohort needs them |

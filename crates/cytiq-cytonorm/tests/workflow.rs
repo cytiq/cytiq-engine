@@ -11,7 +11,6 @@ fn configs(root: &std::path::Path, mode: &str) -> (TrainConfig, ApplyConfig) {
         TrainConfig {
             manifest,
             output: root.join("model"),
-            threads: Some(1),
             debug_dir: None,
             overwrite: false,
         },
@@ -20,7 +19,6 @@ fn configs(root: &std::path::Path, mode: &str) -> (TrainConfig, ApplyConfig) {
             model: root.join("model"),
             batch: "b".into(),
             output: root.join("normalized.fcs"),
-            threads: Some(2),
             debug_dir: None,
             overwrite: false,
         },
@@ -93,13 +91,19 @@ fn aggregate_training_is_deterministic_across_threads_and_does_not_fit_validatio
         serde_json::json!({"id":"b2","batch":"b","file":"b2.fcs"}),
     ]);
     support::save(&train.manifest, &manifest);
-    CytoNormRunner::train(&train).unwrap();
+    // One and two worker threads must train the same model.
+    let pool = |threads| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .unwrap()
+    };
+    pool(1).install(|| CytoNormRunner::train(&train)).unwrap();
     let first = CytoNormModel::load(&train.output).unwrap();
     support::write_sample(&temp.path().join("vb.fcs"), 1.0, 100.0, 0.005, false);
     let mut second = train.clone();
     second.output = temp.path().join("second");
-    second.threads = Some(2);
-    CytoNormRunner::train(&second).unwrap();
+    pool(2).install(|| CytoNormRunner::train(&second)).unwrap();
     let second = CytoNormModel::load(&second.output).unwrap();
     assert_eq!(first.model_sha256, second.model_sha256);
     assert_eq!(first.som, second.som);

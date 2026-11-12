@@ -22,12 +22,6 @@ pub enum AutospillError {
         #[source]
         source: csv::Error,
     },
-    #[error("failed to build autospill worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("controls manifest is empty")]
     EmptyManifest,
     #[error("detectors manifest is empty")]

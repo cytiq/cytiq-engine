@@ -22,7 +22,6 @@ use crate::{
 pub struct TrainConfig {
     pub manifest: PathBuf,
     pub output: PathBuf,
-    pub threads: Option<usize>,
     pub debug_dir: Option<PathBuf>,
     pub overwrite: bool,
 }
@@ -32,7 +31,6 @@ pub struct ApplyConfig {
     pub model: PathBuf,
     pub batch: String,
     pub output: PathBuf,
-    pub threads: Option<usize>,
     pub debug_dir: Option<PathBuf>,
     pub overwrite: bool,
 }
@@ -74,7 +72,7 @@ impl CytoNormRunner {
     /// # Errors
     /// Rejects incompatible cohorts, sparse mappings and output collisions.
     pub fn train(config: &TrainConfig) -> Result<RunResult> {
-        with_pool(config.threads, || train_inner(config))
+        train_inner(config)
     }
 
     /// Apply fixed clustering and batch splines, preserving all event identities.
@@ -82,25 +80,7 @@ impl CytoNormRunner {
     /// # Errors
     /// Rejects unknown batches, incompatible signal state and invalid bundles.
     pub fn apply(config: &ApplyConfig) -> Result<RunResult> {
-        with_pool(config.threads, || apply_inner(config))
-    }
-}
-
-fn with_pool<T: Send>(
-    threads: Option<usize>,
-    work: impl FnOnce() -> Result<T> + Send,
-) -> Result<T> {
-    if let Some(threads) = threads {
-        if threads == 0 {
-            return Err(invalid("threads must be positive"));
-        }
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build()
-            .map_err(|e| invalid(e.to_string()))?
-            .install(work)
-    } else {
-        work()
+        apply_inner(config)
     }
 }
 
@@ -187,10 +167,10 @@ fn load_cohort(manifest: &Manifest, selected_channels: &[String]) -> Result<Trai
                         "training_events is smaller than the balanced file quotas",
                     ));
                 }
-                rows = subsample_indices(
+                rows = cytiq_flowsom::subsample_rows(
                     rows.len(),
                     quota,
-                    sample_seed(manifest.som.seed, &sample.id),
+                    cytiq_flowsom::sample_seed(manifest.som.seed, &sample.id),
                 )
                 .into_iter()
                 .map(|i| rows[i])
@@ -428,10 +408,10 @@ fn balanced_training_values(
             .iter()
             .filter(|s| s.role == Role::Train && s.batch == *batch)
         {
-            let rows = subsample_indices(
+            let rows = cytiq_flowsom::subsample_rows(
                 sample.values.len(),
                 quota,
-                sample_seed(manifest.som.seed, &sample.id),
+                cytiq_flowsom::sample_seed(manifest.som.seed, &sample.id),
             );
             som_values.extend(rows.iter().map(|&i| {
                 cluster_indices
@@ -815,26 +795,6 @@ fn instrument(dataset: &FcsDataset) -> Option<String> {
             .then(|| v.to_owned())
     })
 }
-fn sample_seed(seed: u64, id: &str) -> u64 {
-    id.bytes().fold(seed ^ 0x9e37_79b9_7f4a_7c15, |s, b| {
-        s.wrapping_mul(0x100_0000_01b3) ^ u64::from(b)
-    })
-}
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn subsample_indices(events: usize, quota: usize, mut seed: u64) -> Vec<usize> {
-    let n = quota.min(events);
-    let mut ids = (0..events).collect::<Vec<_>>();
-    for i in 0..n {
-        seed = seed
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1_442_695_040_888_963_407);
-        let j = i + ((seed >> 11) as f64 / (1_u64 << 53) as f64 * (events - i) as f64) as usize;
-        ids.swap(i, j.min(events - 1));
-    }
-    ids.truncate(n);
-    ids.sort_unstable();
-    ids
-}
 fn quantiles(sorted: &[f64], probabilities: &[f64]) -> Vec<f64> {
     if sorted.is_empty() {
         Vec::new()
@@ -989,9 +949,7 @@ fn write_diagnostics(
 ) -> Result<()> {
     use plotly::{Plot, Scatter, common::Mode as PlotMode};
     let path = directory.join("report.html");
-    if path.exists() && !overwrite {
-        return Err(invalid("debug report exists; pass --overwrite"));
-    }
+    cytiq_publish::Publication::new(cytiq_publish::Existing::overwrite(overwrite)).check(&path)?;
     let mut plot = Plot::new();
     for m in &model.mappings {
         if let Some(s) = &m.spline {
@@ -1065,12 +1023,7 @@ fn check_destination(output: &Path, inputs: &[PathBuf], overwrite: bool) -> Resu
     if fs::symlink_metadata(output).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(invalid("output must not be a symlink"));
     }
-    if output.exists() && !overwrite {
-        return Err(invalid(format!(
-            "output exists: {}; pass --overwrite",
-            output.display()
-        )));
-    }
+    cytiq_publish::Publication::new(cytiq_publish::Existing::overwrite(overwrite)).check(output)?;
     let output = resolved(output)?;
     for input in inputs {
         let input = fs::canonicalize(input)?;

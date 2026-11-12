@@ -19,6 +19,7 @@
   "data/fixtures/fcs/fcs3_2_mixed.fcs": "d0d15308ed008af199882231dff8e561e973a839a1a39e7419833b42be5e9a73",
   "data/fixtures/flowcyt/Case12_P.fcs": "6fb668ec3bf9edb5add9ed37ad8cd7c7fffca16158023860aaf525c019c4d560",
   "data/fixtures/flowcyt/Case30_P.fcs": "895c9a136939faccaf65093e5b5338cd9a685b561b994c84002fa557491f8670",
+  "data/fixtures/gating/quadrant/sample.fcs": "2ef01aca8fad9ebf4843aaa9176693f70714a358d38d5592829b83bb0889ade5",
   "data/fixtures/gating/sample.fcs": "845547da45bb515a660d979e98194f8439d9e20f912f021d64793a8c73eeb039",
   "data/fixtures/parity/autospectral/apc.fcs": "98ee4997ee32b3848756b7ce00739d2cf84eab712229d6efc8a8845c6cf18d0c",
   "data/fixtures/parity/autospectral/bv421.fcs": "05c750d73894037bd22d438f81915e23ab8770856bcb39756f2f8f07baedd0f5",

@@ -36,7 +36,8 @@ cytiq peacoqc --input sample.fcs --output sample.peacoqc.fcs \
 From Rust:
 
 ```rust
-use cytiq_peacoqc::{PeacoQcConfig, PeacoQcMethod, PeacoQcRunner, parse_channel_list};
+use cytiq_fcs::parse_channel_list;
+use cytiq_peacoqc::{PeacoQcConfig, PeacoQcMethod, PeacoQcRunner};
 
 let mut config = PeacoQcConfig::new(parse_channel_list("CD3 BUV395,CD4 BV750")?);
 config.method = PeacoQcMethod::Mad;
@@ -54,7 +55,6 @@ println!("kept {}", result.summary.metrics.events_after);
 | `PeacoQcMethod` | `All`, `Mad`, `It`, `PeaksOnly` |
 | `PeacoQcSummary`, `PeacoQcParameters`, `PeacoQcMetrics` | `summary.json` contents |
 | `EventMaskRecord` | Per-event result (`mask.csv` row) |
-| `parse_channel_list` | Split a comma-separated `--channels` value |
 | `peacoqc_mask` | The good-event mask of compensated, transformed channels held in memory (margins are the caller's), as `run` computes it; used by `cytiq spillqc` |
 | `DEFAULT_*` | Fixed algorithm constants |
 | `PeacoQcError` | Error type for every failure mode |
@@ -65,7 +65,9 @@ println!("kept {}", result.summary.metrics.events_after);
   selected channels without `CYTIQ_TRANSFORM` coverage, are reported in
   `summary.warnings` and the log; the run continues.
 - Input and output are FCS; an output path without a `.fcs` extension is an
-  error. An existing output file is replaced.
+  error. An existing output, mask or summary is refused before the input is
+  read unless `overwrite` is set (`--overwrite`); debug artifacts follow the
+  same rule when they are staged, so a refused run publishes nothing.
 - The output is FCS 3.1 with the retained events of every input parameter,
   plus an `Original_ID` column (the 1-based input row) unless the input already
   has one. It is float32, or float64 when float32 would change a value (for
@@ -97,7 +99,7 @@ println!("kept {}", result.summary.metrics.events_after);
 - `summary.json` `status` is `WARN` when `warnings` is not empty, otherwise
   `PASS`. It does not judge how much was removed; panel thresholds are
   checked by `cytiq qc`.
-- `threads: Some(n)` runs in a local rayon pool.
+- Work runs on the caller's rayon pool; `cytiq peacoqc --threads` sizes it.
 
 ## Dependencies
 

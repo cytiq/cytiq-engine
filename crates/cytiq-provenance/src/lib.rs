@@ -474,6 +474,67 @@ pub fn files_under(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// The files under a directory output before a run. With `--overwrite` a
+/// directory can hold an earlier run's files; [`DirSnapshot::published`]
+/// lists only what this run wrote, so a record never claims leftovers.
+///
+/// Publication always renames a new file into place, so a published file has
+/// a new identity (inode on Unix, else size and modification time) even when
+/// its bytes did not change.
+#[derive(Clone, Debug, Default)]
+pub struct DirSnapshot {
+    files: BTreeMap<PathBuf, FileStamp>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileStamp {
+    len: u64,
+    modified: Option<std::time::SystemTime>,
+    #[cfg(unix)]
+    inode: (u64, u64),
+}
+
+impl FileStamp {
+    fn of(path: &Path) -> Option<Self> {
+        let metadata = fs::metadata(path).ok()?;
+        Some(Self {
+            len: metadata.len(),
+            modified: metadata.modified().ok(),
+            #[cfg(unix)]
+            inode: {
+                use std::os::unix::fs::MetadataExt as _;
+                (metadata.dev(), metadata.ino())
+            },
+        })
+    }
+}
+
+impl DirSnapshot {
+    /// Record the files [`files_under`] `dir` lists now.
+    #[must_use]
+    pub fn take(dir: &Path) -> Self {
+        Self {
+            files: files_under(dir)
+                .into_iter()
+                .filter_map(|path| FileStamp::of(&path).map(|stamp| (path, stamp)))
+                .collect(),
+        }
+    }
+
+    /// [`files_under`] `dir` that are new or replaced since [`Self::take`].
+    #[must_use]
+    pub fn published(&self, dir: &Path) -> Vec<PathBuf> {
+        files_under(dir)
+            .into_iter()
+            .filter(|path| {
+                self.files
+                    .get(path)
+                    .is_none_or(|before| FileStamp::of(path).as_ref() != Some(before))
+            })
+            .collect()
+    }
+}
+
 fn is_record_or_temporary(path: &Path) -> bool {
     let record = path
         .file_name()
@@ -595,6 +656,32 @@ mod tests {
         assert_eq!(record.outputs[0].path, target.display().to_string());
         assert_eq!(record.outputs[0].sha256, ABC_SHA256);
         assert!(!target.exists());
+    }
+
+    #[test]
+    fn snapshots_list_only_files_a_run_published() {
+        let directory = temp_dir("snapshot");
+        fs::write(directory.join("left.csv"), "earlier run").unwrap();
+        fs::write(directory.join("replaced.csv"), "same").unwrap();
+        let snapshot = DirSnapshot::take(&directory);
+        // Publication renames a new file into place, even for equal bytes.
+        fs::write(directory.join("replaced.csv.tmp"), "same").unwrap();
+        fs::rename(
+            directory.join("replaced.csv.tmp"),
+            directory.join("replaced.csv"),
+        )
+        .unwrap();
+        fs::write(directory.join("new.csv"), "this run").unwrap();
+        assert_eq!(
+            snapshot.published(&directory),
+            [directory.join("new.csv"), directory.join("replaced.csv")]
+        );
+        assert!(
+            DirSnapshot::take(&directory.join("absent"))
+                .files
+                .is_empty()
+        );
+        fs::remove_dir_all(&directory).unwrap();
     }
 
     #[test]

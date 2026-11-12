@@ -1,11 +1,11 @@
-use std::io::{self};
 use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_provenance::{record_path_for_dir, record_path_for_file};
 use cytiq_transform::{
-    BiexponentialParameters, LogicleParameters, TransformConfig, TransformParameters,
-    TransformRunResult, TransformRunner,
+    BiexponentialParameters, DEFAULT_BIEXPONENTIAL_LENGTH, DEFAULT_BIEXPONENTIAL_MAX_RANGE,
+    DEFAULT_BIEXPONENTIAL_NEG, DEFAULT_BIEXPONENTIAL_POS, DEFAULT_BIEXPONENTIAL_WIDTH,
+    LogicleParameters, TransformConfig, TransformParameters, TransformRunResult, TransformRunner,
 };
 use log::info;
 use serde::Serialize;
@@ -16,6 +16,52 @@ use crate::parsers::{
     parse_positive_f64, parse_threads,
 };
 use crate::provenance::record_provenance;
+
+/// `FlowJo` `biex` parameters of `--method biexponential`.
+#[derive(Debug, Serialize, Args)]
+#[allow(clippy::struct_field_names)] // the prefix is part of each flag name
+pub(crate) struct BiexponentialArgs {
+    /// Biexponential output channels (`FlowJo` `length`), rounded to a whole
+    /// number of channels.
+    #[arg(long, default_value_t = DEFAULT_BIEXPONENTIAL_LENGTH, value_parser = parse_positive_f64)]
+    biexponential_length: f64,
+    /// Biexponential top of scale (`FlowJo` `maxRange`).
+    #[arg(long, default_value_t = DEFAULT_BIEXPONENTIAL_MAX_RANGE, value_parser = parse_positive_f64)]
+    biexponential_max_range: f64,
+    /// Biexponential positive decades (`FlowJo` `pos`).
+    #[arg(long, default_value_t = DEFAULT_BIEXPONENTIAL_POS, value_parser = parse_positive_f64)]
+    biexponential_pos: f64,
+    /// Biexponential negative decades (`FlowJo` `neg`).
+    #[arg(long, default_value_t = DEFAULT_BIEXPONENTIAL_NEG, value_parser = parse_non_negative_f64)]
+    biexponential_neg: f64,
+    /// Biexponential width basis (`FlowJo` `width`; negative values widen the
+    /// linear region around zero).
+    #[arg(long, default_value_t = DEFAULT_BIEXPONENTIAL_WIDTH, value_parser = parse_finite_f64, allow_negative_numbers = true)]
+    biexponential_width: f64,
+}
+
+impl BiexponentialArgs {
+    #[allow(clippy::float_cmp)] // defaults parse to exactly these constants
+    fn is_default(&self) -> bool {
+        self.biexponential_length == DEFAULT_BIEXPONENTIAL_LENGTH
+            && self.biexponential_max_range == DEFAULT_BIEXPONENTIAL_MAX_RANGE
+            && self.biexponential_pos == DEFAULT_BIEXPONENTIAL_POS
+            && self.biexponential_neg == DEFAULT_BIEXPONENTIAL_NEG
+            && self.biexponential_width == DEFAULT_BIEXPONENTIAL_WIDTH
+    }
+}
+
+impl From<BiexponentialArgs> for BiexponentialParameters {
+    fn from(args: BiexponentialArgs) -> Self {
+        Self {
+            length: args.biexponential_length,
+            max_range: args.biexponential_max_range,
+            pos: args.biexponential_pos,
+            neg: args.biexponential_neg,
+            width: args.biexponential_width,
+        }
+    }
+}
 
 // Each bool is an independent command-line flag.
 #[allow(clippy::struct_excessive_bools)]
@@ -44,9 +90,15 @@ pub(crate) struct TransformArgs {
     /// Logicle/hyperlog A parameter, additional negative decades (-W <= A <= M - 2W).
     #[arg(long, default_value_t = 0.0, value_parser = parse_finite_f64, allow_negative_numbers = true)]
     logicle_a: f64,
+    /// Recorded in provenance only when changed, so default runs keep the
+    /// configuration of earlier versions; `CYTIQ_TRANSFORM` always holds the
+    /// effective values.
+    #[command(flatten)]
+    #[serde(flatten, skip_serializing_if = "BiexponentialArgs::is_default")]
+    biexponential: BiexponentialArgs,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Comma-separated channel names to transform.
     #[arg(long)]
     channels: Option<String>,
@@ -92,7 +144,8 @@ pub(crate) fn run(
         logicle_m,
         logicle_w,
         logicle_a,
-        threads,
+        biexponential,
+        threads: _,
         channels,
         exclude_channels,
         format,
@@ -110,10 +163,8 @@ pub(crate) fn run(
         output.display(),
         method
     );
-    let channels = parse_optional_transform_channels(channels.as_deref())
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
-    let exclude_channels = parse_optional_transform_channels(exclude_channels.as_deref())
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let channels = parse_optional_transform_channels(channels.as_deref())?;
+    let exclude_channels = parse_optional_transform_channels(exclude_channels.as_deref())?;
     let config = TransformConfig {
         inputs: input,
         output,
@@ -125,7 +176,7 @@ pub(crate) fn run(
             w: logicle_w,
             a: logicle_a,
         },
-        biexponential: BiexponentialParameters::default(),
+        biexponential: biexponential.into(),
         channels,
         exclude_channels,
         format: format.into(),
@@ -134,7 +185,6 @@ pub(crate) fn run(
         dry_run,
         metadata_json,
         debug_dir,
-        threads,
         allow_retransform,
         allow_uncompensated,
     };

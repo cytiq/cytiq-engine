@@ -88,12 +88,6 @@ pub enum SpillQcError {
     },
     #[error("failed to render report `{path}`: {reason}")]
     Report { path: PathBuf, reason: String },
-    #[error("failed to build spillqc worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("{0}")]
     Publish(#[from] cytiq_publish::PublishError),
     /// The run completed and wrote its report, but flagged pairs.

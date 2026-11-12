@@ -1,4 +1,3 @@
-use std::io::{self};
 use std::path::PathBuf;
 
 use clap::Args;
@@ -38,7 +37,10 @@ pub(crate) struct PeacoqcArgs {
     debug_dir: Option<PathBuf>,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
+    /// Replace existing output files (FCS, mask and summary).
+    #[arg(long)]
+    overwrite: bool,
 }
 
 pub(crate) fn run(
@@ -54,7 +56,8 @@ pub(crate) fn run(
         remove_margins,
         remove_zeros,
         debug_dir,
-        threads,
+        threads: _,
+        overwrite,
     } = args;
     info!(
         "starting peacoqc: input={}, output={}, method={:?}",
@@ -62,15 +65,14 @@ pub(crate) fn run(
         output.display(),
         method
     );
-    let channels = parse_channels(channels.as_deref(), &channel)
-        .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
+    let channels = parse_channels(channels.as_deref(), &channel)?;
     let config = PeacoQcConfig {
         channels,
         method: method.into(),
         remove_margins,
         remove_zeros,
         debug_dir,
-        threads,
+        overwrite,
     };
     recorder.snapshot_inputs("input", std::slice::from_ref(&input))?;
     recorder.set_constants(&PeacoQcConstants::default());

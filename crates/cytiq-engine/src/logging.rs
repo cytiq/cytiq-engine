@@ -8,12 +8,22 @@ pub(crate) static LOGGER: SimpleLogger = SimpleLogger::new();
 
 pub(crate) struct SimpleLogger {
     level: OnceLock<LevelFilter>,
+    format: OnceLock<LogFormat>,
+}
+
+/// `CYTIQ_LOG_FORMAT`: `text` (default) or `json`, one object per line for
+/// log collectors (Argo Workflows, Prefect, Loki).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LogFormat {
+    Text,
+    Json,
 }
 
 impl SimpleLogger {
     const fn new() -> Self {
         Self {
             level: OnceLock::new(),
+            format: OnceLock::new(),
         }
     }
 }
@@ -36,7 +46,20 @@ impl Log for SimpleLogger {
             target
         };
         let mut stderr = io::stderr();
-        let _ = writeln!(stderr, "[{}] {}: {}", record.level(), target, record.args());
+        let _ = match self.format.get().copied().unwrap_or(LogFormat::Text) {
+            LogFormat::Text => {
+                writeln!(stderr, "[{}] {}: {}", record.level(), target, record.args())
+            }
+            LogFormat::Json => writeln!(
+                stderr,
+                "{}",
+                serde_json::json!({
+                    "level": record.level().as_str(),
+                    "target": target,
+                    "message": record.args().to_string(),
+                })
+            ),
+        };
     }
 
     fn flush(&self) {}
@@ -45,6 +68,9 @@ impl Log for SimpleLogger {
 pub(crate) fn init_logging() -> Result<(), SetLoggerError> {
     let level = configured_log_level();
     let _ = LOGGER.level.set(level);
+    let _ = LOGGER.format.set(parse_log_format(
+        env::var("CYTIQ_LOG_FORMAT").ok().as_deref(),
+    ));
     log::set_logger(&LOGGER)?;
     log::set_max_level(level);
     Ok(())
@@ -64,6 +90,14 @@ pub(crate) fn default_log_level() -> LevelFilter {
         LevelFilter::Info
     } else {
         LevelFilter::Warn
+    }
+}
+
+/// `json` (any case) selects JSON lines; anything else keeps the text format.
+pub(crate) fn parse_log_format(raw: Option<&str>) -> LogFormat {
+    match raw {
+        Some(value) if value.trim().eq_ignore_ascii_case("json") => LogFormat::Json,
+        _ => LogFormat::Text,
     }
 }
 
@@ -89,6 +123,15 @@ pub(crate) fn parse_log_level_token(token: &str) -> Option<LevelFilter> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_json_selects_json_lines() {
+        assert_eq!(parse_log_format(Some("json")), LogFormat::Json);
+        assert_eq!(parse_log_format(Some(" JSON ")), LogFormat::Json);
+        assert_eq!(parse_log_format(Some("text")), LogFormat::Text);
+        assert_eq!(parse_log_format(Some("yaml")), LogFormat::Text);
+        assert_eq!(parse_log_format(None), LogFormat::Text);
+    }
 
     #[test]
     fn recognizes_each_level_and_directive_suffix() {

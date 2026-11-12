@@ -11,12 +11,14 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter};
+use cytiq_mask::EventMask;
+use cytiq_publish::{Existing, Publication};
 use log::{debug, info, warn};
-use rayon::{ThreadPoolBuilder, prelude::*};
-use serde::Serialize;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::error::FlowSomError;
-use crate::export::{write_assignments_csv, write_debug_artifacts};
+use crate::export::{write_assignments, write_debug_artifacts};
 
 #[path = "model.rs"]
 mod model;
@@ -67,7 +69,6 @@ const TRAINING_SAMPLE_STREAM: u64 = 0x9e37_79b9_7f4a_7c15;
 pub struct FlowSomConfig {
     pub channels: Vec<String>,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     /// SOM grid width and height; defaults `FLOWSOM_XDIM` × `FLOWSOM_YDIM`.
     pub xdim: usize,
     pub ydim: usize,
@@ -81,8 +82,49 @@ pub struct FlowSomConfig {
     /// assign every event to its nearest node. `None` trains on all events.
     pub training_events: Option<usize>,
     /// Event masks (`masks.parquet`); only events every mask keeps are
-    /// scaled, trained on and assigned.
+    /// scaled, trained on and assigned. With several training inputs, each
+    /// mask applies to the input of its acquisition.
     pub masks: Vec<PathBuf>,
+    /// How multi-file training draws its events; see [`CohortSampling`].
+    pub cohort_sampling: CohortSampling,
+}
+
+/// How [`FlowSomModel::train_files`] draws training events from several
+/// acquisitions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CohortSampling {
+    /// Concatenate every kept event of every file, scale the pooled matrix
+    /// and subsample it uniformly (`training_events`): larger acquisitions
+    /// weigh more. The default, and the behaviour of earlier versions.
+    #[default]
+    Pooled,
+    /// Draw `ceil(training_events / files)` kept events from each file (all
+    /// of a smaller file), as `FlowSOM`'s `AggregateFlowFrames` does, then scale
+    /// and train on that balanced aggregate: every acquisition weighs alike.
+    PerFile,
+}
+
+/// The per-file draw of a model trained with [`CohortSampling::PerFile`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CohortSummary {
+    pub sampling: CohortSampling,
+    /// Events drawn from each acquisition at most.
+    pub per_file_quota: usize,
+    /// In input order.
+    pub acquisitions: Vec<CohortAcquisition>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CohortAcquisition {
+    /// `cytiq_fcs::acquisition_id` of the input.
+    pub acquisition: String,
+    /// Events the masks kept.
+    pub events: usize,
+    /// Events drawn for training: `min(events, per_file_quota)`.
+    pub sampled: usize,
 }
 
 impl FlowSomConfig {
@@ -91,7 +133,6 @@ impl FlowSomConfig {
         Self {
             channels,
             debug_dir: None,
-            threads: None,
             xdim: FLOWSOM_XDIM,
             ydim: FLOWSOM_YDIM,
             metaclusters: FLOWSOM_METACLUSTERS,
@@ -99,6 +140,7 @@ impl FlowSomConfig {
             scale: FLOWSOM_SCALE_INPUT,
             training_events: None,
             masks: Vec::new(),
+            cohort_sampling: CohortSampling::Pooled,
         }
     }
 }
@@ -264,18 +306,21 @@ impl FlowSomRunner {
         input: impl AsRef<Path>,
         output: impl AsRef<Path>,
         config: &FlowSomConfig,
+        overwrite: bool,
     ) -> Result<FlowSomResult, FlowSomError> {
         let input = input.as_ref();
         let output = output.as_ref();
-        with_thread_pool(config.threads, || Self::run_inner(input, output, config))
+        Self::run_inner(input, output, config, Existing::overwrite(overwrite))
     }
 
     fn run_inner(
         input: &Path,
         output: &Path,
         config: &FlowSomConfig,
+        existing: Existing,
     ) -> Result<FlowSomResult, FlowSomError> {
         validate_config(config)?;
+        Publication::new(existing).check(output)?;
         let dataset = load_dataset(input)?;
         let rows = selected_rows(input, &dataset, &config.masks)?;
         let events = rows.len();
@@ -335,7 +380,9 @@ impl FlowSomRunner {
             training.as_ref().map_or(scaled.values.len(), Vec::len),
         );
 
-        write_assignments_csv(output, &assignments)?;
+        cytiq_publish::write_file(output, existing, |writer| {
+            write_assignments(writer, output, &assignments)
+        })?;
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             write_debug_artifacts(&summary, &assignments, &nodes, &metaclusters, debug_dir)?;
         }
@@ -355,30 +402,6 @@ impl FlowSomRunner {
     }
 }
 
-/// Shared with every command: see `cytiq_fcs::parse_channel_list`.
-pub use cytiq_fcs::parse_channel_list;
-
-fn with_thread_pool<T: Send>(
-    threads: Option<usize>,
-    operation: impl FnOnce() -> Result<T, FlowSomError> + Send,
-) -> Result<T, FlowSomError> {
-    let Some(threads) = threads else {
-        return operation();
-    };
-    if threads == 0 {
-        return Err(FlowSomError::InvalidConfig(
-            "threads must be positive".to_owned(),
-        ));
-    }
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| FlowSomError::ThreadPoolBuild { threads, source })?
-        .install(operation)
-}
-
 fn load_dataset(path: &Path) -> Result<FcsDataset, FlowSomError> {
     if !path.is_file() {
         return Err(FlowSomError::MissingInputFile {
@@ -393,7 +416,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, FlowSomError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(FlowSomError::EmptyInput {
             path: path.to_path_buf(),
         });
@@ -427,7 +450,17 @@ fn validate_config(config: &FlowSomConfig) -> Result<(), FlowSomError> {
 /// own RNG stream so the training draws match a full run's seed, in row order.
 fn training_rows(events: usize, config: &FlowSomConfig) -> Option<Vec<usize>> {
     let target = config.training_events.filter(|target| *target < events)?;
-    let mut rng = DeterministicRng::new(config.seed ^ TRAINING_SAMPLE_STREAM);
+    Some(subsample_rows(events, target, sample_seed(config.seed, "")))
+}
+
+/// `quota.min(events)` distinct rows of `0..events`, in row order: a partial
+/// Fisher–Yates shuffle driven by the crate's LCG from `state`. Training
+/// subsamples, cohort training and `CytoNorm`'s balanced SOM input draw their
+/// rows with it, so the same `state` always selects the same rows.
+#[must_use]
+pub fn subsample_rows(events: usize, quota: usize, state: u64) -> Vec<usize> {
+    let target = quota.min(events);
+    let mut rng = DeterministicRng::new(state);
     let mut rows = (0..events).collect::<Vec<_>>();
     for position in 0..target {
         let swap_with = position + rng.next_index(events - position);
@@ -435,7 +468,18 @@ fn training_rows(events: usize, config: &FlowSomConfig) -> Option<Vec<usize>> {
     }
     rows.truncate(target);
     rows.sort_unstable();
-    Some(rows)
+    rows
+}
+
+/// The [`subsample_rows`] state for the sample named `id` (a `CytoNorm` sample
+/// id, an acquisition): `id` mixed into `seed` on the training-sample stream.
+/// `sample_seed(seed, "")` is the stream of a single-input training subsample.
+#[must_use]
+pub fn sample_seed(seed: u64, id: &str) -> u64 {
+    id.bytes()
+        .fold(seed ^ TRAINING_SAMPLE_STREAM, |state, byte| {
+            state.wrapping_mul(0x100_0000_01b3) ^ u64::from(byte)
+        })
 }
 
 /// `FlowSOM` distances assume transformed (arcsinh/logicle) marker values; on
@@ -472,15 +516,29 @@ fn selected_rows(
     masks: &[PathBuf],
 ) -> Result<Vec<usize>, FlowSomError> {
     let Some(mask) = cytiq_mask::read_combined(masks)? else {
-        return Ok((0..event_count(dataset)).collect());
+        return Ok((0..dataset.event_count()).collect());
     };
-    let acquisition =
-        cytiq_fcs::acquisition_id(path, &dataset.text).map_err(|source| FlowSomError::FcsRead {
-            path: path.to_path_buf(),
-            source,
-        })?;
+    kept_rows(path, dataset, &mask, &acquisition_of(path, dataset)?)
+}
+
+/// `cytiq_fcs::acquisition_id` of a loaded input.
+pub(crate) fn acquisition_of(path: &Path, dataset: &FcsDataset) -> Result<String, FlowSomError> {
+    cytiq_fcs::acquisition_id(path, &dataset.text).map_err(|source| FlowSomError::FcsRead {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+/// The rows of `dataset` (acquisition `acquisition`) that `mask` keeps;
+/// `NoMaskedEvents` when it keeps none.
+pub(crate) fn kept_rows(
+    path: &Path,
+    dataset: &FcsDataset,
+    mask: &EventMask,
+    acquisition: &str,
+) -> Result<Vec<usize>, FlowSomError> {
     let rows = mask
-        .keep_for(dataset, &acquisition)?
+        .keep_for(dataset, acquisition)?
         .iter()
         .enumerate()
         .filter_map(|(row, keep)| keep.then_some(row))
@@ -488,7 +546,7 @@ fn selected_rows(
     info!(
         "flowsom: event mask keeps {} of {} event(s)",
         rows.len(),
-        event_count(dataset)
+        dataset.event_count()
     );
     if rows.is_empty() {
         return Err(FlowSomError::NoMaskedEvents {
@@ -512,7 +570,9 @@ fn resolve_channels(
         requested_channels,
         "FlowSOM channel extraction",
         |_, channel| {
-            let Some(parameter_index) = find_parameter_index(&dataset.parameters, channel) else {
+            let Some(parameter_index) =
+                cytiq_fcs::find_parameter_index(&dataset.parameters, channel)
+            else {
                 return Err(FlowSomError::MissingChannel {
                     path: path.to_path_buf(),
                     channel: channel.clone(),
@@ -997,25 +1057,6 @@ fn grid_distance_chebyshev(left: usize, right: usize, xdim: usize) -> f64 {
     dx.max(dy) as f64
 }
 
-fn find_parameter_index(parameters: &[Parameter], channel: &str) -> Option<usize> {
-    parameters
-        .iter()
-        .position(|parameter| parameter.name == channel)
-        .or_else(|| {
-            parameters.iter().position(|parameter| {
-                parameter
-                    .label
-                    .as_deref()
-                    .is_some_and(|label| label == channel)
-            })
-        })
-        .or_else(|| {
-            parameters
-                .iter()
-                .position(|parameter| display_parameter_identifier(parameter) == channel)
-        })
-}
-
 fn display_parameter_identifier(parameter: &Parameter) -> String {
     match parameter.label.as_deref() {
         Some(label) if label != parameter.name => format!("{} [{}]", parameter.name, label),
@@ -1023,25 +1064,9 @@ fn display_parameter_identifier(parameter: &Parameter) -> String {
     }
 }
 
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parses_comma_separated_channels() {
-        let channels = parse_channel_list("CD3, CD4,,CD8").expect("channels should parse");
-        assert_eq!(channels, vec!["CD3", "CD4", "CD8"]);
-    }
-
-    #[test]
-    fn rejects_empty_comma_separated_channels() {
-        let error = parse_channel_list(" , ,, ").expect_err("empty list should fail");
-        assert!(error.contains("at least one channel"));
-    }
 
     #[test]
     fn trains_som_deterministically() {
@@ -1066,6 +1091,98 @@ mod tests {
         assert_eq!(rows.len(), 10);
         assert!(rows.windows(2).all(|pair| pair[0] < pair[1]));
         assert_eq!(training_rows(100, &config), Some(rows));
+    }
+
+    /// Frozen copies of the two samplers `subsample_rows` replaced: `FlowSOM`'s
+    /// `training_rows` (0.4.1) and `CytoNorm`'s `subsample_indices` and
+    /// `sample_seed` (0.4.1). The shared sampler must select exactly their rows,
+    /// so saved models and `CytoNorm` bundles stay bit-identical.
+    mod frozen {
+        use super::super::{DeterministicRng, TRAINING_SAMPLE_STREAM};
+
+        pub fn flowsom_training_rows(events: usize, target: usize, seed: u64) -> Vec<usize> {
+            let mut rng = DeterministicRng::new(seed ^ TRAINING_SAMPLE_STREAM);
+            let mut rows = (0..events).collect::<Vec<_>>();
+            for position in 0..target {
+                let swap_with = position + rng.next_index(events - position);
+                rows.swap(position, swap_with);
+            }
+            rows.truncate(target);
+            rows.sort_unstable();
+            rows
+        }
+
+        pub fn cytonorm_sample_seed(seed: u64, id: &str) -> u64 {
+            id.bytes().fold(seed ^ 0x9e37_79b9_7f4a_7c15, |s, b| {
+                s.wrapping_mul(0x100_0000_01b3) ^ u64::from(b)
+            })
+        }
+
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
+        pub fn cytonorm_subsample_indices(
+            events: usize,
+            quota: usize,
+            mut seed: u64,
+        ) -> Vec<usize> {
+            let n = quota.min(events);
+            let mut ids = (0..events).collect::<Vec<_>>();
+            for i in 0..n {
+                seed = seed
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                let j =
+                    i + ((seed >> 11) as f64 / (1_u64 << 53) as f64 * (events - i) as f64) as usize;
+                ids.swap(i, j.min(events - 1));
+            }
+            ids.truncate(n);
+            ids.sort_unstable();
+            ids
+        }
+    }
+
+    #[test]
+    fn shared_sampler_selects_the_rows_of_both_replaced_samplers() {
+        for seed in [
+            0,
+            1,
+            42,
+            FLOWSOM_RANDOM_SEED,
+            u64::MAX,
+            0x0123_4567_89ab_cdef,
+        ] {
+            for events in [0_usize, 1, 2, 7, 100, 1_001] {
+                for quota in [
+                    0,
+                    1,
+                    3,
+                    events / 2,
+                    events.saturating_sub(1),
+                    events,
+                    events + 5,
+                ] {
+                    if quota < events {
+                        assert_eq!(
+                            subsample_rows(events, quota, sample_seed(seed, "")),
+                            frozen::flowsom_training_rows(events, quota, seed),
+                            "flowsom seed={seed} events={events} quota={quota}"
+                        );
+                    }
+                    for id in ["", "a", "b2", "sample-17", "0123456789abcdef"] {
+                        let state = sample_seed(seed, id);
+                        assert_eq!(state, frozen::cytonorm_sample_seed(seed, id));
+                        assert_eq!(
+                            subsample_rows(events, quota, state),
+                            frozen::cytonorm_subsample_indices(events, quota, state),
+                            "cytonorm seed={seed} id={id} events={events} quota={quota}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

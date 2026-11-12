@@ -118,7 +118,7 @@ pub(crate) fn write_outputs(
     reference_files: &[LoadedFile],
 ) -> Result<(), CytoScanError> {
     // The three outputs describe one run: publish them together.
-    let mut publication = Publication::new(Existing::Replace);
+    let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     publication.stage_path(config.output_dir.join(SUMMARY_FILE_NAME), |path| {
         write_summary_csv(path, result)
     })?;

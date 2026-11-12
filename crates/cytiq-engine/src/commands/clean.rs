@@ -6,7 +6,7 @@ use cytiq_clean::{
     DEFAULT_MAX_FIT_EVENTS, DEFAULT_SINGLET_MAD, DEFAULT_SSC_A, DEFAULT_VIABILITY_COFACTOR,
     DEFAULT_VIABILITY_CONTROL_QUANTILE, DebrisConfig, FilterKind, FilterStatus, ViabilityConfig,
 };
-use cytiq_provenance::{files_under, record_path_for_dir};
+use cytiq_provenance::{DirSnapshot, record_path_for_dir};
 use log::info;
 use serde::Serialize;
 
@@ -76,7 +76,11 @@ pub(crate) struct CleanArgs {
     max_fit_events: usize,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
+    /// Write into an output directory that already holds files, replacing
+    /// the outputs of an earlier run.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 impl From<CleanArgs> for CleanConfig {
@@ -106,9 +110,9 @@ impl From<CleanArgs> for CleanConfig {
             },
             gates: args.gates,
             max_fit_events: args.max_fit_events,
-            threads: args.threads,
             masks: args.masks,
             required: args.require.into_iter().map(FilterKind::from).collect(),
+            overwrite: args.overwrite,
         }
     }
 }
@@ -131,12 +135,13 @@ pub(crate) fn run(
         cytiq_provenance::reuse::Destination::Dir(args.output.clone())
     );
     let config: CleanConfig = args.into();
+    let before = DirSnapshot::take(&config.output);
     let result = match CleanRunner::run(&config) {
         Ok(result) => result,
         Err(error @ cytiq_clean::CleanError::RequiredFilterNotApplied { .. }) => {
             let mut outcome = crate::provenance::record_with_reason(
                 recorder,
-                &files_under(&config.output),
+                &before.published(&config.output),
                 &record_path_for_dir(&config.output),
                 cytiq_provenance::outcome::OutcomeReason::ChecksFailed,
             )?;
@@ -174,7 +179,7 @@ pub(crate) fn run(
     );
     record_provenance(
         recorder,
-        &files_under(&result.output),
+        &before.published(&result.output),
         &record_path_for_dir(&result.output),
     )
 }

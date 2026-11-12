@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gating:Gating-ML
+    xmlns:gating="http://www.isac-net.org/std/Gating-ML/v2.0/gating"
+    xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v2.0/transformations"
+    xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v2.0/datatypes">
+  <transforms:transformation transforms:id="logicle">
+    <transforms:logicle transforms:T="262144" transforms:W="0.5" transforms:M="4.5" transforms:A="0"/>
+  </transforms:transformation>
+  <gating:RectangleGate gating:id="Cells">
+    <gating:dimension gating:compensation-ref="uncompensated" gating:min="20000">
+      <data-type:fcs-dimension data-type:name="FSC-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:QuadrantGate gating:id="CD3_bins">
+    <gating:divider gating:id="CD3_divider" gating:compensation-ref="FCS" gating:transformation-ref="logicle">
+      <data-type:fcs-dimension data-type:name="FL1-A"/>
+      <gating:value>0.6</gating:value>
+      <gating:value>0.3</gating:value>
+    </gating:divider>
+    <gating:Quadrant gating:id="CD3_low">
+      <gating:position gating:divider_ref="CD3_divider" gating:location="0.1"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="CD3_mid">
+      <gating:position gating:divider_ref="CD3_divider" gating:location="0.3"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="CD3_high">
+      <gating:position gating:divider_ref="CD3_divider" gating:location="0.9"/>
+    </gating:Quadrant>
+  </gating:QuadrantGate>
+  <gating:QuadrantGate gating:id="Quad" gating:parent_id="Cells">
+    <gating:divider gating:id="FSC_divider" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FSC-A"/>
+      <gating:value>100000</gating:value>
+    </gating:divider>
+    <gating:divider gating:id="SSC_divider" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="SSC-A"/>
+      <gating:value>50000</gating:value>
+    </gating:divider>
+    <gating:Quadrant gating:id="FSChi_SSChi">
+      <gating:position gating:divider_ref="FSC_divider" gating:location="150000"/>
+      <gating:position gating:divider_ref="SSC_divider" gating:location="80000"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="FSChi_SSClo">
+      <gating:position gating:divider_ref="FSC_divider" gating:location="150000"/>
+      <gating:position gating:divider_ref="SSC_divider" gating:location="20000"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="FSClo_SSChi">
+      <gating:position gating:divider_ref="FSC_divider" gating:location="50000"/>
+      <gating:position gating:divider_ref="SSC_divider" gating:location="80000"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="FSClo_SSClo">
+      <gating:position gating:divider_ref="FSC_divider" gating:location="50000"/>
+      <gating:position gating:divider_ref="SSC_divider" gating:location="20000"/>
+    </gating:Quadrant>
+  </gating:QuadrantGate>
+  <gating:QuadrantGate gating:id="FL2_sign" gating:parent_id="Cells">
+    <gating:divider gating:id="FL2_divider" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FL2-A"/>
+      <gating:value>-500</gating:value>
+      <gating:value>0</gating:value>
+    </gating:divider>
+    <gating:Quadrant gating:id="FL2_below">
+      <gating:position gating:divider_ref="FL2_divider" gating:location="-1000"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="FL2_between">
+      <gating:position gating:divider_ref="FL2_divider" gating:location="-250"/>
+    </gating:Quadrant>
+    <gating:Quadrant gating:id="FL2_above">
+      <gating:position gating:divider_ref="FL2_divider" gating:location="0"/>
+    </gating:Quadrant>
+  </gating:QuadrantGate>
+  <gating:RectangleGate gating:id="HiHi_FL3" gating:parent_id="FSChi_SSChi">
+    <gating:dimension gating:compensation-ref="uncompensated" gating:min="1000">
+      <data-type:fcs-dimension data-type:name="FL3-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:BooleanGate gating:id="HiHi_and_CD3mid">
+    <gating:and>
+      <gating:gateReference gating:ref="FSChi_SSChi"/>
+      <gating:gateReference gating:ref="CD3_mid"/>
+    </gating:and>
+  </gating:BooleanGate>
+  <gating:BooleanGate gating:id="not_LoLo" gating:parent_id="Cells">
+    <gating:not>
+      <gating:gateReference gating:ref="FSClo_SSClo"/>
+    </gating:not>
+  </gating:BooleanGate>
+</gating:Gating-ML>

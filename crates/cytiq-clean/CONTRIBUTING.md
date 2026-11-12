@@ -28,8 +28,8 @@ this crate.
 - Masks are always computed by evaluating a `GatingStrategy` through
   `cytiq-gating`, and the same strategy is written with `to_gatingml`. The
   exported file must reproduce the masks exactly (`exported_gates_reproduce_masks`).
-  Consequently fitted gates may only use what `to_gatingml` can write: no
-  `logicle` or `hyperlog` transforms.
+  `to_gatingml` writes every element the parser reads, `logicle` and
+  `hyperlog` included.
 - Gate ids `non_debris`, `singlets`, `live`, `clean` are a contract with
   `--gates`; renaming them breaks re-application of edited files.
 - `clean` is a Boolean `and`; with a single applied filter the gate is ANDed

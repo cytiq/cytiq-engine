@@ -83,7 +83,7 @@ println!("condition number {:.3e}", summary.condition_number);
 | `AutoSpectralSummary` | Returned run summary (also `diagnostics/run.json`) |
 | `read_controls_manifest`, `read_samples_manifest`, `read_detectors_manifest` | CSV readers with validation |
 | `ControlManifestRow`, `SampleManifestRow`, `DetectorSpec` | Manifest rows |
-| `write_outputs` | Output writer used by the runner |
+| `write_outputs` | Output writer used by the runner; takes the `Existing` policy |
 | `SOLVER`, `POSITIVITY_THRESHOLD`, `POSITIVE_EVENT_LIMIT`, `NEGATIVE_EVENT_LIMIT`, `RLM_MAX_ITERATIONS`, `SCATTER_NEIGHBOURS`, `MIN_*`, `CONDITION_NUMBER_LIMIT`, `SCATTER_GATE_*`, `AUTO_EXCLUDED_CHANNELS`, ... | Fixed algorithm constants |
 | `AutoSpectralError` | Error type for every failure mode |
 
@@ -144,7 +144,9 @@ The optional detectors CSV uses the [AutoSpill detector format](../cytiq-autospi
 - `Time` and `Original_ID` are never inferred as detectors; explicitly selecting
   `Original_ID` is an error.
 - Duplicate sample stems get a `-<row>` suffix.
-- Existing output files are replaced; there is no `--overwrite` check.
+- An output directory that already holds files is refused before any input is
+  read unless `overwrite` is set (`--overwrite`). Debug artifacts are
+  replaced.
 
 ## Scientific diagnostics
 

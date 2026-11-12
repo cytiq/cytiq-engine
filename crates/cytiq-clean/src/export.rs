@@ -9,7 +9,7 @@ use cytiq_publish::{Existing, Publication};
 use crate::error::CleanError;
 use crate::filter::{LIVE_GATE, NON_DEBRIS_GATE, SINGLETS_GATE};
 use crate::report::report_html;
-use crate::runner::{CleanMasks, CleanMetrics};
+use crate::runner::{CleanConfig, CleanMasks, CleanMetrics};
 
 pub const MASKS_FILE: &str = "masks.parquet";
 pub const METRICS_FILE: &str = "metrics.json";
@@ -19,7 +19,7 @@ pub const REPORT_FILE: &str = "report.html";
 /// Masks, metrics, Gating-ML and report are published together, the report
 /// last, so a directory never holds outputs of two runs.
 pub(crate) fn write_outputs(
-    directory: &Path,
+    config: &CleanConfig,
     metrics: &CleanMetrics,
     masks: &CleanMasks,
     gatingml: &str,
@@ -27,7 +27,8 @@ pub(crate) fn write_outputs(
     dataset: &FcsDataset,
     results: &GatingResults,
 ) -> Result<(), CleanError> {
-    let mut publication = Publication::new(Existing::Replace);
+    let directory = config.output.as_path();
+    let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     stage_masks_parquet(&mut publication, &directory.join(MASKS_FILE), masks)?;
     stage_metrics_json(&mut publication, &directory.join(METRICS_FILE), metrics)?;
     stage_text(&mut publication, &directory.join(GATINGML_FILE), gatingml)?;

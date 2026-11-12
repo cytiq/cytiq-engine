@@ -8,7 +8,8 @@ this crate.
 
 - `src/lib.rs` — crate docs and re-exports only.
 - `src/model.rs` — `GatingStrategy`, `Gate`, `GateKind`, `Dimension`,
-  `CompensationRef`, `SpectrumMatrix`.
+  `CompensationRef`, `SpectrumMatrix`, and `QuadrantGate` with the interval
+  rule that turns its quadrants into gates.
 - `src/parse.rs` — Gating-ML 2.0 XML parser (`roxmltree`) and
   `build_strategy`: reference validation and topological ordering.
 - `src/write.rs` — `to_gatingml`, the inverse of the parser.
@@ -23,9 +24,10 @@ this crate.
 ## Invariants
 
 - Per-event membership must stay identical to FlowKit 1.3.0 on
-  `data/fixtures/gating/`. Boundary rules in `geometry.rs` are deliberate:
-  rectangles `min <= x < max`, polygons odd winding number (left/bottom edges
-  inside, right/top outside), ellipsoids inclusive. Do not "fix" them.
+  `data/fixtures/gating/` and `data/fixtures/gating/quadrant/`. Boundary rules
+  in `geometry.rs` are deliberate: rectangles and quadrants `min <= x < max`,
+  polygons odd winding number (left/bottom edges inside, right/top outside),
+  ellipsoids inclusive. Do not "fix" them.
 - Every gate is ANDed with its parent after evaluation.
 - `GatingStrategy` keeps gates in evaluation order: each gate after its parent
   and after every gate it references. Ordering is Kahn's algorithm with ties in
@@ -40,8 +42,15 @@ this crate.
   in evaluation order) and uses shortest round-trip number formatting, so
   `parse_gatingml(to_gatingml(s))` yields the same strategy. `cytiq-clean`
   relies on this to make its exported gates reproduce its masks.
-- Unsupported elements fail loudly (`UnsupportedElement`); never skip them
-  silently.
+- Unsupported gate, transformation and dimension elements fail loudly
+  (`UnsupportedElement`); never skip them silently. The only deliberate
+  leniencies are ignoring non-gate top-level elements and reading a missing
+  `compensation-ref` as `uncompensated` (FlowJo exports); keep both
+  documented in the README.
+- A QuadrantGate id names no population: only quadrants are gates, and a
+  reference to the QuadrantGate id is rejected. `gate_path` inserts it, as
+  FlowKit does. `to_gatingml` writes each QuadrantGate once, at its first
+  quadrant in evaluation order.
 
 ## Where changes belong
 
@@ -62,6 +71,10 @@ cargo test -p cytiq-engine --test gate_cli
 Unit tests sit next to the code in `geometry.rs`, `parse.rs`, `transforms.rs`
 and `write.rs`. `tests/parse_transforms.rs` checks transformation parameters,
 their boundaries and duplicate or reserved ids through `parse_gatingml`. When
-you change semantics or add a gate/transform type, extend
-`parity/gen/gating.py`, regenerate `data/fixtures/gating/` (command in its
-README) and keep `tests/flowkit_parity.rs` green.
+you change semantics or add a gate/transform type, add a new fixture folder
+with its own generator, as `parity/gen/gating_quadrant.py` does for
+`data/fixtures/gating/quadrant/`, rather than regenerating existing
+references. Never use FlowKit's Gating-ML *writer* for fixtures: it guesses
+quadrant locations. `tests/flowkit_quadrant_parity.rs` also pins
+`quadrant/cytiq_written.xml`; when the writer changes, check the new output
+with `just parity` (FlowKit reads it back) before replacing it.
