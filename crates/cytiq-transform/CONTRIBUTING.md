@@ -46,9 +46,8 @@ this crate.
 ## Where changes belong
 
 - FCS parsing/writing details belong in `cytiq-fcs`.
-- CLI flags belong in `crates/cytiq-engine/src/commands/transform.rs`. Note that the CLI does
-  not expose `BiexponentialParameters` yet (defaults only); adding flags means
-  wiring them there.
+- CLI flags belong in `crates/cytiq-engine/src/commands/transform.rs`; their
+  defaults are the `DEFAULT_*` constants of this crate.
 - New scales that other crates need go in `scales.rs` with reference tests.
 
 ## Testing

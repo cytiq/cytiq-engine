@@ -40,11 +40,14 @@ const DEFAULT_LOGICLE_T: f64 = 262_144.0;
 const DEFAULT_LOGICLE_M: f64 = 4.5;
 const DEFAULT_LOGICLE_W: f64 = 0.5;
 const DEFAULT_LOGICLE_A: f64 = 0.0;
-const DEFAULT_BIEXPONENTIAL_LENGTH: f64 = 256.0;
-const DEFAULT_BIEXPONENTIAL_MAX_RANGE: f64 = 262_144.0;
-const DEFAULT_BIEXPONENTIAL_POS: f64 = 4.418_539_922;
-const DEFAULT_BIEXPONENTIAL_NEG: f64 = 0.0;
-const DEFAULT_BIEXPONENTIAL_WIDTH: f64 = -100.0;
+/// `FlowJo` `biex` defaults (`flowWorkspace::flowjo_biexp`): output channels
+/// (`length`), top of scale (`maxRange`), positive and negative decades
+/// (`pos`, `neg`) and width basis (`width`).
+pub const DEFAULT_BIEXPONENTIAL_LENGTH: f64 = 256.0;
+pub const DEFAULT_BIEXPONENTIAL_MAX_RANGE: f64 = 262_144.0;
+pub const DEFAULT_BIEXPONENTIAL_POS: f64 = 4.418_539_922;
+pub const DEFAULT_BIEXPONENTIAL_NEG: f64 = 0.0;
+pub const DEFAULT_BIEXPONENTIAL_WIDTH: f64 = -100.0;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]

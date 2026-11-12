@@ -110,3 +110,13 @@ Rust API: `GateKind` gains `Quadrant { definition, dimensions }`; exhaustive
 matches outside `cytiq-gating` need an arm (treating it like `Rectangle`
 gives the right geometry). `Logicle::parameters` and `Hyperlog::parameters`
 return `[T, W, M, A]`.
+
+## Biexponential parameters (additive)
+
+`cytiq transform --method biexponential` accepts `--biexponential-length`,
+`--biexponential-max-range`, `--biexponential-pos`, `--biexponential-neg` and
+`--biexponential-width` (FlowJo `biex` attributes). Their defaults are the
+values used before, so default output is unchanged. They appear in the
+provenance `config` only when one differs from its default; `CYTIQ_TRANSFORM`
+always records the effective values.
+`cytiq_transform::DEFAULT_BIEXPONENTIAL_*` are now public.

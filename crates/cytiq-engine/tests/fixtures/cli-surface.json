@@ -5164,6 +5164,106 @@
             "action": "set",
             "aliases": [],
             "conflicts_with": [],
+            "defaults": [
+              "256"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_length",
+            "long": "biexponential-length",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_LENGTH"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "262144"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_max_range",
+            "long": "biexponential-max-range",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_MAX_RANGE"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "4.418539922"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_pos",
+            "long": "biexponential-pos",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_POS"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "0"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_neg",
+            "long": "biexponential-neg",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_NEG"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "-100"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "biexponential_width",
+            "long": "biexponential-width",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "BIEXPONENTIAL_WIDTH"
+            ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
             "defaults": [],
             "global": false,
             "hidden": false,

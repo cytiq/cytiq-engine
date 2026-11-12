@@ -740,3 +740,81 @@ fn cli_rejects_log_amplified_input() {
     );
     assert!(!output_path.exists());
 }
+
+mod biexp_reference {
+    #![allow(dead_code, clippy::unreadable_literal, clippy::excessive_precision)]
+    include!("../../../data/fixtures/transform/flowjo_biexp_params.rs");
+}
+
+/// `--biexponential-*` reach `flowjo_biexp` and are recorded in the transform
+/// contract (reference: `parity/gen/flowjo_biexp_params.R`).
+#[test]
+fn cli_biexponential_parameters_match_flowworkspace() {
+    let directory = create_temp_dir("cytiq-engine-transform-biexp-params");
+    let input = directory.join("sample.fcs");
+    let output_path = directory.join("sample.biexp.fcs");
+    let metadata_path = directory.join("metadata.json");
+    #[allow(clippy::cast_possible_truncation)]
+    let values = biexp_reference::BIEXP_PARAMS_INPUT
+        .iter()
+        .map(|value| *value as f32)
+        .collect::<Vec<_>>();
+    let columns = vec![(0_u16..12).map(f32::from).collect(), values];
+    let parameters = vec![
+        FcsWriteParameter::new("Time"),
+        FcsWriteParameter::with_label("FL1-A", "CD3"),
+    ];
+    cytiq_fcs::write_fcs3_1_f32(&input, &parameters, &columns).expect("fixture FCS");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args([
+            "transform",
+            "--input",
+            utf8(&input),
+            "--output",
+            utf8(&output_path),
+            "--method",
+            "biexponential",
+            "--channels",
+            "CD3",
+            "--biexponential-length",
+            "1024",
+            "--biexponential-max-range",
+            "100000",
+            "--biexponential-pos",
+            "4",
+            "--biexponential-neg",
+            "0.5",
+            "--biexponential-width",
+            "-50",
+            "--metadata-json",
+            utf8(&metadata_path),
+        ])
+        .output()
+        .expect("command should run");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let dataset = FcsReader::open(&output_path)
+        .and_then(FcsReader::read)
+        .expect("transformed FCS should be readable");
+    let Some(ColumnData::F32(values)) = dataset.data.column(1) else {
+        panic!("expected f32 column");
+    };
+    for (actual, expected) in values.iter().zip(biexp_reference::BIEXP_NEG) {
+        // Output is float32: compare at its precision.
+        assert!(
+            (f64::from(*actual) - expected).abs() <= 1e-6 * expected.abs().max(1.0),
+            "{actual} vs {expected}"
+        );
+    }
+    let metadata: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(metadata_path).expect("metadata"))
+            .expect("metadata JSON");
+    assert_eq!(
+        metadata["parameters"]["biexponential"],
+        serde_json::json!({"length": 1024.0, "max_range": 100_000.0, "pos": 4.0, "neg": 0.5, "width": -50.0})
+    );
+}

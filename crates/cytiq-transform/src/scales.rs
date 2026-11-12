@@ -659,6 +659,7 @@ mod tests {
 
     include!("../../../data/fixtures/transform/flowcore_reference.rs");
     include!("../../../data/fixtures/transform/estimate_logicle_reference.rs");
+    include!("../../../data/fixtures/transform/flowjo_biexp_params.rs");
 
     #[test]
     fn logicle_width_matches_flowcore_estimate_logicle() {
@@ -709,6 +710,30 @@ mod tests {
             );
             let round_trip = hyperlog.inverse(actual);
             assert!((round_trip - value).abs() <= 1e-8 * value.abs().max(1.0));
+        }
+    }
+
+    /// Negative decades, another range and width, as the `--biexponential-*`
+    /// flags allow (`parity/gen/flowjo_biexp_params.R`).
+    #[test]
+    fn flowjo_biexp_matches_flowworkspace_at_other_parameters() {
+        for (biexp, expected) in [
+            (
+                FlowJoBiexp::new(1024, 100_000.0, 4.0, 0.5, -50.0).expect("valid"),
+                BIEXP_NEG,
+            ),
+            (
+                FlowJoBiexp::new(256, 262_144.0, 4.5, 1.0, -1000.0).expect("valid"),
+                BIEXP_WIDE,
+            ),
+        ] {
+            for (value, expected) in BIEXP_PARAMS_INPUT.iter().zip(expected) {
+                let actual = biexp.scale(*value);
+                assert!(
+                    (actual - expected).abs() <= 1e-9 * expected.abs().max(1.0),
+                    "x = {value}: {actual} vs {expected}"
+                );
+            }
         }
     }
 
