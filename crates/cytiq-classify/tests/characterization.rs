@@ -124,10 +124,14 @@ fn predictions_match_characterization() {
 
     let golden = fixtures().join("../characterization/classify.json");
     if std::env::var_os("CYTIQ_BLESS").is_some() {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "CYTIQ_BLESS rewrites a reviewed golden; CI never regenerates goldens"
+        );
         let mut json = serde_json::to_string(&actual).unwrap();
         json.push('\n');
         fs::write(&golden, json).unwrap();
-        return;
+        eprintln!("rewrote {golden:?}; review `git diff` before committing it");
     }
     let expected: BTreeMap<String, Outputs> = serde_json::from_str(
         &fs::read_to_string(&golden)
