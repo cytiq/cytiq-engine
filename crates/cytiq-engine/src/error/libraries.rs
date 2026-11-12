@@ -344,6 +344,7 @@ fn peacoqc(error: &cytiq_peacoqc::PeacoQcError) -> OutcomeReason {
         | E::DuplicateChannel { .. }
         | E::MissingChannel { .. }
         | E::NonFiniteChannel { .. }
+        | E::AllZeroChannel { .. }
         | E::UnknownMargins { .. }
         | E::AllEventsRemoved { .. }
         | E::NoPeakFeatures { .. }

@@ -35,6 +35,10 @@ pub enum PeacoQcError {
     #[error("channel `{channel}` in `{path}` contains non-finite values")]
     NonFiniteChannel { path: PathBuf, channel: String },
     #[error(
+        "channel `{channel}` in `{path}` has no non-zero events, so `--remove-zeros` leaves nothing to bin; drop the channel or run without `--remove-zeros`"
+    )]
+    AllZeroChannel { path: PathBuf, channel: String },
+    #[error(
         "margin bounds of channel `{channel}` in `{path}` are unknown: it was transformed or compensated without recorded `CYTIQ_MARGINS`; remove margins on the raw file, or use `margin_pass` from the masks `cytiq compensate` writes"
     )]
     UnknownMargins { path: PathBuf, channel: String },

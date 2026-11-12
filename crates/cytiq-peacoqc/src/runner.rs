@@ -464,6 +464,19 @@ fn compute_mask(
             path: input.to_path_buf(),
         });
     }
+    // Upstream divides the event count by the fewest non-zero events of any
+    // channel; with none the bin size is infinite (R yields `Inf`).
+    if config.remove_zeros
+        && let Some(index) = working
+            .channel_values
+            .iter()
+            .position(|values| values.iter().all(|value| *value == 0.0))
+    {
+        return Err(PeacoQcError::AllZeroChannel {
+            path: input.to_path_buf(),
+            channel: channels[index].name.to_owned(),
+        });
+    }
 
     let events_per_bin = find_events_per_bin(
         config.remove_zeros,
@@ -827,6 +840,10 @@ fn find_events_per_bin(
             .unwrap_or(event_count);
         max_bins = max_bins.min(min_non_zero as f64 / DEFAULT_MIN_CELLS as f64);
     }
+    debug_assert!(
+        max_bins > 0.0 && max_bins.is_finite(),
+        "callers reject channels without non-zero events"
+    );
 
     let raw_max_cells = ((event_count as f64 / max_bins) * 2.0).ceil() as usize;
     let rounded_max_cells = ((raw_max_cells / DEFAULT_STEP) * DEFAULT_STEP) + DEFAULT_STEP;
@@ -1866,6 +1883,27 @@ mod tests {
         assert_eq!(
             isolation_tree_good_bins(&right, 0.0),
             [true, true, false, true]
+        );
+    }
+
+    #[test]
+    fn remove_zeros_with_an_all_zero_channel_is_a_typed_error() {
+        let signal = (0..2_000).map(f64::from).collect::<Vec<_>>();
+        let zeros = vec![0.0; signal.len()];
+        let mut config = super::PeacoQcConfig::new(vec!["FL1-A".into(), "FL2-A".into()]);
+        config.remove_zeros = true;
+        let error = super::peacoqc_mask(
+            std::path::Path::new("memory"),
+            &[("FL1-A", &signal), ("FL2-A", &zeros)],
+            &config,
+        )
+        .expect_err("an all-zero channel leaves no events to bin under remove_zeros");
+        assert!(
+            matches!(
+                &error,
+                super::PeacoQcError::AllZeroChannel { channel, .. } if channel == "FL2-A"
+            ),
+            "{error}"
         );
     }
 }
