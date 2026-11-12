@@ -150,7 +150,8 @@ $PY performance/scientific.py --manifest target/scientific/workloads/cases.json 
 ```
 
 Use an isolated clean-main baseline and the same toolchain/profile/build flags.
-The 100k/1M workloads cover FlowSOM, CytoNorm, AutoSpectral and PeacoQC; each pair
+The 100k/1M workloads cover FlowSOM, CytoNorm training and apply (to a model
+trained during preparation), AutoSpectral and PeacoQC; each pair
 uses the same paths and arguments and alternates order, with two warmups and 20
 measured pairs. Run sequentially on an idle host. Shortened runs are diagnostic.
 Outputs must match exactly (logical Parquet equality); only documented additive

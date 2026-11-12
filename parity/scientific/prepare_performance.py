@@ -31,8 +31,13 @@ def prepare(output,helper,binary,events,aurora=None):
             samples.append({"id":f"s{i}","batch":f"b{i}","file":str(transformed),"role":"train"})
         manifest={"schema_version":1,"panel":{"id":"performance26","markers":[{"marker":c,"channel":c} for c in channels]},"mode":"aggregate","clustering_markers":channels,"normalization_markers":channels,"samples":samples,"som":{"xdim":5,"ydim":5,"metaclusters":5,"scale":False,"seed":42},"training_events":3000,"min_cluster_events":100,"sparse_policy":"identity"}
         manifest_path=root/"cytonorm.json"; manifest_path.write_text(json.dumps(manifest,indent=2)+"\n")
+        # A fixed model, trained outside the timed children, for the apply case.
+        model=root/"cytonorm-model"
+        run(binary,"cytonorm","train","--manifest",manifest_path,"--output",model)
+        model_inputs=[str(p) for p in sorted(model.rglob("*")) if p.is_file() and not p.name.endswith(".lock")]
         cases += [{"name":f"flowsom_{n}","inputs":[str(root/"control0.fcs")],"arguments":["flowsom","--input",str(root/"control0.fcs"),"--output","{output}/assignments.csv","--channels",",".join(channels),"--training-events","10000","--xdim","5","--ydim","5"],"acceptance":n==1000000},
-                  {"name":f"peacoqc_{n}","inputs":[str(root/"control0.fcs")],"arguments":["peacoqc","--input",str(root/"control0.fcs"),"--output","{output}/cleaned.fcs","--channels",",".join(channels)],"acceptance":False},
+                  {"name":f"peacoqc_{n}","inputs":[str(root/"control0.fcs")],"arguments":["peacoqc","--input",str(root/"control0.fcs"),"--output","{output}/cleaned.fcs","--channels",",".join(channels)],"acceptance":n==1000000},
+                  {"name":f"cytonorm_apply_{n}","inputs":[samples[1]["file"],*model_inputs],"arguments":["cytonorm","apply","--input",samples[1]["file"],"--model",str(model),"--batch","b1","--output","{output}/normalized.fcs"],"acceptance":n==1000000},
                   {"name":f"cytonorm_{n}","inputs":[str(manifest_path),*[s["file"] for s in samples]],"arguments":["cytonorm","train","--manifest",str(manifest_path),"--output","{output}/model"],"acceptance":n==1000000}]
         spectral=root/"spectral"; spectral.mkdir()
         gen_autospectral(spectral,n_events=5000,n_sample=n)
