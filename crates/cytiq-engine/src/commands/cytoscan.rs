@@ -44,6 +44,12 @@ pub(crate) struct CytoscanArgs {
     /// the outputs of an earlier run.
     #[arg(long)]
     overwrite: bool,
+    /// Seed of the per-file event subsample and the isolation trees
+    /// (upstream's 42 by default). Recorded under provenance `constants`;
+    /// vary it to measure how much scores depend on it.
+    #[arg(long, default_value_t = cytiq_cytoscan::DEFAULT_RANDOM_SEED)]
+    #[serde(skip)]
+    seed: u64,
 }
 
 pub(crate) fn run(
@@ -62,6 +68,7 @@ pub(crate) fn run(
         threads: _,
         strict,
         overwrite,
+        seed,
     } = args;
     info!(
         "starting cytoscan: inputs={}, references={}, output={}, method={:?}, flag_method={:?}",
@@ -82,11 +89,12 @@ pub(crate) fn run(
         debug_dir,
         strict,
         overwrite,
+        random_seed: seed,
     };
     let (test, reference) = CytoScanRunner::input_files(&config)?;
     recorder.snapshot_inputs("input", &test)?;
     recorder.snapshot_inputs("reference", &reference)?;
-    recorder.set_constants(&CytoScanConstants::default());
+    recorder.set_constants(&CytoScanConstants::for_config(&config));
     recorder.set_algorithms(cytiq_cytoscan::UPSTREAM);
     let recorder = crate::provenance::begin!(
         recorder,

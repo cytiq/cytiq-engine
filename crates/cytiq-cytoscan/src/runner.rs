@@ -109,6 +109,10 @@ pub struct CytoScanConfig {
     /// Publish into an `output_dir` that already holds files, replacing them;
     /// otherwise a non-empty `output_dir` is refused before any input is read.
     pub overwrite: bool,
+    /// Seeds the per-file event subsample and the isolation trees
+    /// ([`DEFAULT_RANDOM_SEED`], as upstream). Results depend on it; vary it
+    /// to measure how much.
+    pub random_seed: u64,
 }
 
 impl CytoScanConfig {
@@ -124,6 +128,7 @@ impl CytoScanConfig {
             debug_dir: None,
             strict: false,
             overwrite: false,
+            random_seed: DEFAULT_RANDOM_SEED,
         }
     }
 }
@@ -163,6 +168,17 @@ pub struct CytoScanConstants {
     pub isolation_trees: usize,
     pub fingerprint_recursions: usize,
     pub arcsinh_cofactor: f64,
+}
+
+impl CytoScanConstants {
+    /// The constants of a run with `config`: the defaults with its seed.
+    #[must_use]
+    pub fn for_config(config: &CytoScanConfig) -> Self {
+        Self {
+            random_seed: config.random_seed,
+            ..Self::default()
+        }
+    }
 }
 
 impl Default for CytoScanConstants {
@@ -359,20 +375,22 @@ impl CytoScanRunner {
         } else {
             "test"
         };
-        let feature_model = build_feature_model(config.feature_method, aggregate_files)?;
+        let seed = config.random_seed;
+        let feature_model = build_feature_model(config.feature_method, aggregate_files, seed)?;
         let test_features =
-            build_feature_matrix(&test_files, config.feature_method, &feature_model)?;
+            build_feature_matrix(&test_files, config.feature_method, &feature_model, seed)?;
         let reference_features = if config.flag_method.includes_novelty() {
             Some(build_feature_matrix(
                 &reference_files,
                 config.feature_method,
                 &feature_model,
+                seed,
             )?)
         } else {
             None
         };
         let outlier_scores = if config.flag_method.includes_outlier() {
-            Some(score_outliers(&test_features.values()))
+            Some(score_outliers(&test_features.values(), seed))
         } else {
             None
         };
@@ -523,7 +541,7 @@ fn build_parameters(
         resolved_reference_inputs: reference_paths.to_vec(),
         output_dir: config.output_dir.clone(),
         debug_dir: config.debug_dir.clone(),
-        constants: CytoScanConstants::default(),
+        constants: CytoScanConstants::for_config(config),
     }
 }
 
@@ -957,11 +975,12 @@ where
 fn build_feature_model(
     method: FeatureMethod,
     aggregate_files: &[LoadedFile],
+    seed: u64,
 ) -> Result<FeatureModel, CytoScanError> {
     if !method.uses_aggregate() {
         return Ok(FeatureModel::None);
     }
-    let aggregate = aggregate_matrix(aggregate_files)?;
+    let aggregate = aggregate_matrix(aggregate_files, seed)?;
     if aggregate.is_empty() {
         return Err(CytoScanError::EmptyAggregate {
             method: method.as_str(),
@@ -986,6 +1005,7 @@ fn build_feature_matrix(
     files: &[LoadedFile],
     method: FeatureMethod,
     model: &FeatureModel,
+    seed: u64,
 ) -> Result<CytoScanFeatureMatrix, CytoScanError> {
     if files.is_empty() {
         return Err(CytoScanError::EmptyFeatureMatrix);
@@ -994,7 +1014,7 @@ fn build_feature_matrix(
     let rows = files
         .iter()
         .map(|file| {
-            let values = file_features(file, method, model)?;
+            let values = file_features(file, method, model, seed)?;
             Ok(CytoScanFeatureRow {
                 path: file.path.clone(),
                 filename: file.filename.clone(),
@@ -1012,8 +1032,9 @@ fn file_features(
     file: &LoadedFile,
     method: FeatureMethod,
     model: &FeatureModel,
+    seed: u64,
 ) -> Result<Vec<f64>, CytoScanError> {
-    let sample = sampled_matrix(file, DEFAULT_EVENTS_PER_FILE);
+    let sample = sampled_matrix(file, DEFAULT_EVENTS_PER_FILE, seed);
     let features = match method {
         FeatureMethod::Summary => summary_features(&sample),
         FeatureMethod::Quantiles => quantile_features(&sample),
@@ -1079,10 +1100,11 @@ fn feature_names(method: FeatureMethod, channels: &[String], model: &FeatureMode
 }
 
 /// Per-file subsample as `CytoScan::readInput`: the generator is reseeded with
-/// the fixed seed for every file (`set.seed(42)` before
-/// `read.FCS(which.lines = n)`), so the sample does not depend on the path.
-pub(crate) fn sampled_matrix(file: &LoadedFile, limit: usize) -> Vec<Vec<f64>> {
-    sample_indices(file.matrix.len(), limit, DEFAULT_RANDOM_SEED)
+/// the run's seed for every file (`set.seed(42)` before
+/// `read.FCS(which.lines = n)` upstream), so the sample does not depend on the
+/// path or on the other files.
+pub(crate) fn sampled_matrix(file: &LoadedFile, limit: usize, seed: u64) -> Vec<Vec<f64>> {
+    sample_indices(file.matrix.len(), limit, seed)
         .into_iter()
         .map(|index| file.matrix[index].clone())
         .collect()
@@ -1090,7 +1112,7 @@ pub(crate) fn sampled_matrix(file: &LoadedFile, limit: usize) -> Vec<Vec<f64>> {
 
 /// `getAggregate`: `ceiling(aggSize / n_files)` events from every file,
 /// concatenated in file order without further resampling.
-fn aggregate_matrix(files: &[LoadedFile]) -> Result<Vec<Vec<f64>>, CytoScanError> {
+fn aggregate_matrix(files: &[LoadedFile], seed: u64) -> Result<Vec<Vec<f64>>, CytoScanError> {
     if files.is_empty() {
         return Err(CytoScanError::EmptyAggregate {
             method: "aggregate",
@@ -1099,7 +1121,7 @@ fn aggregate_matrix(files: &[LoadedFile]) -> Result<Vec<Vec<f64>>, CytoScanError
     let per_file = DEFAULT_AGGREGATE_EVENTS.div_ceil(files.len());
     Ok(files
         .iter()
-        .flat_map(|file| sampled_matrix(file, per_file))
+        .flat_map(|file| sampled_matrix(file, per_file, seed))
         .collect())
 }
 
@@ -1464,7 +1486,8 @@ fn build_summary_rows(
 /// `ceiling(log2(n))`, each split picks a non-constant column uniformly and a
 /// threshold uniformly between that column's node minimum and maximum, and the
 /// standardized score is `2^(-mean depth / c(n))` with `c(n) = 2 (H_n - 1)`.
-fn score_outliers(features: &[Vec<f64>]) -> Vec<f64> {
+/// Tree `t` uses `seed + t` (wrapping), as the upstream default seed 42 does.
+fn score_outliers(features: &[Vec<f64>], seed: u64) -> Vec<f64> {
     if features.len() < 2 || features.first().is_none_or(Vec::is_empty) {
         return vec![0.0; features.len()];
     }
@@ -1474,7 +1497,7 @@ fn score_outliers(features: &[Vec<f64>]) -> Vec<f64> {
     let depth_sums = (0..DEFAULT_ISOLATION_TREES)
         .into_par_iter()
         .map(|tree_index| {
-            let mut rng = StdRng::seed_from_u64(DEFAULT_RANDOM_SEED + tree_index as u64);
+            let mut rng = StdRng::seed_from_u64(seed.wrapping_add(tree_index as u64));
             let tree = build_isolation_tree(features, &indexes, 0, max_depth, &mut rng);
             features
                 .iter()
@@ -1670,7 +1693,7 @@ mod tests {
     #[test]
     fn outlier_scores_match_isotree_within_monte_carlo_noise() {
         // 1000-tree isotree scores vary by ~0.014 between independent seeds
-        let scores = score_outliers(&rows(&ISOTREE_POINTS));
+        let scores = score_outliers(&rows(&ISOTREE_POINTS), DEFAULT_RANDOM_SEED);
         for (actual, expected) in scores.iter().zip(ISOTREE_SCORES) {
             assert!((actual - expected).abs() < 0.03, "{actual} vs {expected}");
             assert_eq!(
@@ -1678,7 +1701,10 @@ mod tests {
                 expected >= DEFAULT_OUTLIER_THRESHOLD
             );
         }
-        assert_eq!(scores, score_outliers(&rows(&ISOTREE_POINTS)));
+        assert_eq!(
+            scores,
+            score_outliers(&rows(&ISOTREE_POINTS), DEFAULT_RANDOM_SEED)
+        );
     }
 
     #[test]
@@ -1694,11 +1720,36 @@ mod tests {
             warnings: Vec::new(),
             preprocessing: Vec::new(),
         };
-        let relative = sampled_matrix(&file("data/a.fcs"), DEFAULT_EVENTS_PER_FILE);
-        let absolute = sampled_matrix(&file("/tmp/x/data/a.fcs"), DEFAULT_EVENTS_PER_FILE);
+        let relative = sampled_matrix(&file("data/a.fcs"), DEFAULT_EVENTS_PER_FILE, 42);
+        let absolute = sampled_matrix(&file("/tmp/x/data/a.fcs"), DEFAULT_EVENTS_PER_FILE, 42);
         assert_eq!(relative.len(), DEFAULT_EVENTS_PER_FILE);
         assert_eq!(relative, absolute);
         assert!(relative.windows(2).all(|pair| pair[0][0] < pair[1][0]));
+    }
+
+    #[test]
+    fn seed_changes_the_per_file_subsample_and_the_trees() {
+        let file = LoadedFile {
+            path: PathBuf::from("a.fcs"),
+            filename: "a.fcs".to_owned(),
+            channel_names: vec!["X".to_owned()],
+            matrix: (0..5_000).map(|index| vec![f64::from(index)]).collect(),
+            warnings: Vec::new(),
+            preprocessing: Vec::new(),
+        };
+        let default = sampled_matrix(&file, DEFAULT_EVENTS_PER_FILE, DEFAULT_RANDOM_SEED);
+        assert_ne!(sampled_matrix(&file, DEFAULT_EVENTS_PER_FILE, 7), default);
+        assert_eq!(
+            sampled_matrix(&file, DEFAULT_EVENTS_PER_FILE, DEFAULT_RANDOM_SEED),
+            default
+        );
+        let points = rows(&ISOTREE_POINTS);
+        assert_ne!(
+            score_outliers(&points, 7),
+            score_outliers(&points, DEFAULT_RANDOM_SEED)
+        );
+        // Tree seeds wrap instead of overflowing.
+        assert_eq!(score_outliers(&points, u64::MAX).len(), points.len());
     }
 
     #[test]
@@ -1713,7 +1764,12 @@ mod tests {
         };
         // ceiling(10000 / 3) = 3334 per file -> 10002 events, as CytoScan
         let files = vec![file(5_000), file(5_000), file(5_000)];
-        assert_eq!(aggregate_matrix(&files).expect("aggregate").len(), 10_002);
+        assert_eq!(
+            aggregate_matrix(&files, DEFAULT_RANDOM_SEED)
+                .expect("aggregate")
+                .len(),
+            10_002
+        );
         assert_eq!(aggregate_event_count(&files), 10_002);
     }
 }

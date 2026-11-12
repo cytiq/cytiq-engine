@@ -29,12 +29,16 @@ this crate.
   `parity/REPORT.md` §2.7 when numbers move. Comments explain which upstream
   call a piece of code mirrors (`readInput`, `cut()`, `flowFP`, `isotree`,
   `mclust`); keep them accurate.
-- Determinism: all randomness is seeded from `DEFAULT_RANDOM_SEED` (42).
-  Per-file subsamples reseed for every file and must not depend on the path or
-  on processing order (`subsample_does_not_depend_on_path`). Isolation trees
-  seed per tree index, so results are stable under `rayon` parallelism.
-- Algorithm settings are fixed `DEFAULT_*` constants, not CLI flags. Exposing
-  one is a deliberate API change: document it in this crate's [README](README.md).
+- Determinism: all randomness is seeded from `CytoScanConfig::random_seed`
+  (`DEFAULT_RANDOM_SEED`, 42, unless `--seed` says otherwise). Per-file
+  subsamples reseed for every file and must not depend on the path or on
+  processing order (`subsample_does_not_depend_on_path`). Isolation trees
+  seed per tree index (`seed.wrapping_add(t)`), so results are stable under
+  `rayon` parallelism. The seed is the only algorithm setting exposed as a
+  flag; it is recorded in `constants`.
+- Algorithm settings are fixed `DEFAULT_*` constants, not CLI flags, except
+  the seed. Exposing another is a deliberate API change: document it in this
+  crate's [README](README.md).
 - Preprocessing order is truncate at `$PnR`, compensate, then
   `asinh(x / 150)`. Missing spillover is a warning, not an error.
 - The aggregate takes `ceil(10000 / n_files)` events from every file without

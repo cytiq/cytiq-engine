@@ -746,15 +746,16 @@ fn collect_boxplot_samples(
     reference_files: &[LoadedFile],
 ) -> Vec<BoxplotSample> {
     let mut samples = Vec::new();
+    let seed = result.parameters.constants.random_seed;
     for file in reference_files {
-        append_boxplot_samples(&mut samples, "reference", "reference", file);
+        append_boxplot_samples(&mut samples, "reference", "reference", file, seed);
     }
     for (index, file) in test_files.iter().enumerate() {
         let status = result
             .summary_rows
             .get(index)
             .map_or_else(|| "test".to_owned(), test_status);
-        append_boxplot_samples(&mut samples, "test", &status, file);
+        append_boxplot_samples(&mut samples, "test", &status, file, seed);
     }
     samples
 }
@@ -764,8 +765,9 @@ fn append_boxplot_samples(
     source: &str,
     status: &str,
     file: &LoadedFile,
+    seed: u64,
 ) {
-    for row in sampled_matrix(file, DEFAULT_EVENTS_PER_FILE) {
+    for row in sampled_matrix(file, DEFAULT_EVENTS_PER_FILE, seed) {
         for (channel_index, channel) in file.channel_names.iter().enumerate() {
             if let Some(value) = row.get(channel_index) {
                 samples.push(BoxplotSample {
