@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT / "parity/gen"))
 from fcsio import read_fcs, write_fcs
 from generate import gen_autospectral, gen_autospill
 from cytoscan import write_cohort, CHANNELS
-from metrics import empirical_spreading, retention, spectral_metrics, wilson_interval, solver_study, gaussian_reduction_study, unmixing_spreading
+from metrics import coefficient_perturbations, empirical_spreading, retention, spectral_metrics, wilson_interval, solver_study, gaussian_reduction_study, unmixing_spreading
 from datasets import sha256
 
 
@@ -132,6 +132,13 @@ def control_sensitivity(binary, root, spectral, repetitions, events):
             perturbed[0, 1] += delta
             residual = observed @ np.linalg.inv(perturbed) - latent
             result["coefficient_perturbation"][str(delta)] = {"rmse": float(np.sqrt(np.mean(residual**2))), "max_abs": float(np.abs(residual).max())}
+        # Every off-diagonal coefficient, with the exact first-order bound.
+        perturbations = coefficient_perturbations(truth, latent)
+        for cell, by_delta in perturbations.items():
+            for delta, entry in by_delta.items():
+                if entry["first_order_relative_error"] > entry["bound"] + 1e-12:
+                    raise AssertionError(f"first-order bound violated at {cell} delta {delta}")
+        result["coefficient_perturbation_all"] = perturbations
     return result
 
 

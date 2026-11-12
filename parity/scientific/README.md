@@ -74,6 +74,11 @@ asymptotically. `spread_units.py` checks both-detector rescaling at 0.01/1/100.
 It compares the raw-detector surrogate with variance excess after compensation,
 keeps negative variance differences visible and excludes the structural diagonal.
 SSI is never an independent matrix correctness oracle.
+`coefficient_perturbation_all` perturbs every off-diagonal spillover coefficient
+by 1e-4/1e-3/1e-2 and reports RMSE, RMSE per unit coefficient error, maximum and
+per-detector error of the compensated events. With A = E·S⁻¹ the exact error r
+and the first-order term f = −latent·A satisfy f − r = r·A, so f is within
+‖A‖₂ of r; the run fails if any cell violates that bound.
 
 `metrics.py` computes spectral cosine, SVD conditioning and OLS unit-noise
 covariance independently with NumPy QR. Independent synthetic positive/negative
