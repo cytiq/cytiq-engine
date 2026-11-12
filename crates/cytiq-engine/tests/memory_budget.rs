@@ -197,13 +197,14 @@ fn check(name: &str, peak: usize, input_bytes: usize, budget_mib: usize) {
     );
 }
 
-// Peaks measured on macOS arm64 (debug test profile, one rayon thread) at
-// 0e04d8d, identical across runs: PeacoQC 72,150,023 B, FlowSOM 33,611,512 B,
-// CytoNorm apply 35,269,712 B.
+// Peaks measured on macOS arm64 (debug test profile, one rayon thread),
+// identical across runs. At 0e04d8d: PeacoQC 72,150,023 B, FlowSOM
+// 33,611,512 B, CytoNorm apply 35,269,712 B. PeacoQC without the channel
+// copies: 46,549,575 B.
 
 /// `PeacoQC` on 200k events and 8 channels (all methods, cleaned FCS, masks and
 /// summary).
-const PEACOQC_BUDGET_MIB: usize = 76;
+const PEACOQC_BUDGET_MIB: usize = 49;
 /// `FlowSOM` assignment of 200k events on 8 channels, 10k training events.
 const FLOWSOM_BUDGET_MIB: usize = 36;
 /// `CytoNorm` apply to 200k events, after a two-batch training on small files.

@@ -5,6 +5,7 @@
     clippy::too_many_lines
 )]
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -242,7 +243,6 @@ struct MaskComputation {
 #[derive(Clone, Debug)]
 struct WorkingData {
     original_indices: Vec<usize>,
-    channel_values: Vec<Vec<f64>>,
     margin_removed: Vec<bool>,
     lower_margin_removed: Vec<bool>,
     upper_margin_removed: Vec<bool>,
@@ -302,7 +302,7 @@ impl PeacoQcRunner {
         }
         let dataset = load_dataset(input)?;
         let events_before = dataset.event_count();
-        let channels = resolve_channels(input, &dataset, &config.channels)?;
+        let mut channels = resolve_channels(input, &dataset, &config.channels)?;
         let mut warnings = input_warnings(input, &channels, &dataset)?;
         for warning in &warnings {
             warn!("peacoqc: {warning}");
@@ -344,6 +344,12 @@ impl PeacoQcRunner {
             config,
             &mut warnings,
         )?;
+        // Past the mask only channel names are read: release the f64 copies
+        // before the cleaned FCS is built.
+        drop(channel_data);
+        for channel in &mut channels {
+            channel.values = Vec::new();
+        }
         let read_error = |source| PeacoQcError::FcsRead {
             path: input.to_path_buf(),
             source,
@@ -464,27 +470,44 @@ fn compute_mask(
             path: input.to_path_buf(),
         });
     }
-    // Upstream divides the event count by the fewest non-zero events of any
-    // channel; with none the bin size is infinite (R yields `Inf`).
-    if config.remove_zeros
-        && let Some(index) = working
-            .channel_values
+    let (events_per_bin, bins, peak_matrix) = {
+        // The events margins kept, in order: the channels themselves when
+        // nothing was removed (the default), a copy otherwise. Only binning
+        // and the peak features read them, so they are released here.
+        let values = channels
             .iter()
-            .position(|values| values.iter().all(|value| *value == 0.0))
-    {
-        return Err(PeacoQcError::AllZeroChannel {
-            path: input.to_path_buf(),
-            channel: channels[index].name.to_owned(),
-        });
-    }
-
-    let events_per_bin = find_events_per_bin(
-        config.remove_zeros,
-        &working.channel_values,
-        working.original_indices.len(),
-    );
-    let bins = make_bins(events_per_bin, working.original_indices.len());
-    let peak_matrix = build_peak_matrix(input, channels, &working, &bins, config.remove_zeros)?;
+            .map(|channel| {
+                if working.original_indices.len() == channel.values.len() {
+                    Cow::Borrowed(channel.values)
+                } else {
+                    Cow::Owned(
+                        working
+                            .original_indices
+                            .iter()
+                            .map(|&index| channel.values[index])
+                            .collect(),
+                    )
+                }
+            })
+            .collect::<Vec<_>>();
+        // Upstream divides the event count by the fewest non-zero events of
+        // any channel; with none the bin size is infinite (R yields `Inf`).
+        if config.remove_zeros
+            && let Some(index) = values
+                .iter()
+                .position(|values| values.iter().all(|value| *value == 0.0))
+        {
+            return Err(PeacoQcError::AllZeroChannel {
+                path: input.to_path_buf(),
+                channel: channels[index].name.to_owned(),
+            });
+        }
+        let events_per_bin =
+            find_events_per_bin(config.remove_zeros, &values, working.original_indices.len());
+        let bins = make_bins(events_per_bin, working.original_indices.len());
+        let peak_matrix = build_peak_matrix(input, channels, &values, &bins, config.remove_zeros)?;
+        (events_per_bin, bins, peak_matrix)
+    };
     info!(
         "peacoqc pipeline: built {} bins and {} peak features",
         bins.len(),
@@ -764,19 +787,9 @@ fn prepare_working_data(
         .enumerate()
         .filter_map(|(index, removed)| (!removed).then_some(index))
         .collect::<Vec<_>>();
-    let channel_values = channels
-        .iter()
-        .map(|channel| {
-            original_indices
-                .iter()
-                .map(|&index| channel.values[index])
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
 
     WorkingData {
         original_indices,
-        channel_values,
         margin_removed,
         lower_margin_removed,
         upper_margin_removed,
@@ -828,7 +841,7 @@ fn margin_events_for_channel(
 
 fn find_events_per_bin(
     remove_zeros: bool,
-    channel_values: &[Vec<f64>],
+    channel_values: &[Cow<'_, [f64]>],
     event_count: usize,
 ) -> usize {
     let mut max_bins = DEFAULT_MAX_BINS.max(1) as f64;
@@ -870,7 +883,7 @@ fn make_bins(events_per_bin: usize, event_count: usize) -> Vec<Vec<usize>> {
 fn build_peak_matrix(
     input: &Path,
     channels: &[ChannelData<'_>],
-    working: &WorkingData,
+    values: &[Cow<'_, [f64]>],
     bins: &[Vec<usize>],
     remove_zeros: bool,
 ) -> Result<PeakMatrix, PeacoQcError> {
@@ -878,12 +891,7 @@ fn build_peak_matrix(
         .par_iter()
         .enumerate()
         .filter_map(|(index, channel)| {
-            build_channel_peak_features(
-                channel.name,
-                &working.channel_values[index],
-                bins,
-                remove_zeros,
-            )
+            build_channel_peak_features(channel.name, &values[index], bins, remove_zeros)
         })
         .collect::<Vec<_>>();
 
