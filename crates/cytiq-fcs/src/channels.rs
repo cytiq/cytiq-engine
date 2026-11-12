@@ -45,6 +45,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parses_comma_separated_channels() {
+        let channels = parse_channel_list("CD3, CD4,,CD8").expect("channels should parse");
+        assert_eq!(channels, vec!["CD3", "CD4", "CD8"]);
+    }
+
+    #[test]
+    fn rejects_empty_comma_separated_channels() {
+        let error = parse_channel_list(" , ,, ").expect_err("empty list should fail");
+        assert!(error.contains("at least one channel"));
+    }
+
+    #[test]
     fn recognises_scatter_channels_of_every_naming() {
         for name in [
             "FSC-A",

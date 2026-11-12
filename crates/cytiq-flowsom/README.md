@@ -71,7 +71,8 @@ cytiq flowsom --input big.fcs --output big.flowsom.csv --channels CD3,CD4,CD8 \
 From Rust:
 
 ```rust
-use cytiq_flowsom::{FlowSomConfig, FlowSomRunner, parse_channel_list};
+use cytiq_fcs::parse_channel_list;
+use cytiq_flowsom::{FlowSomConfig, FlowSomRunner};
 
 let mut config = FlowSomConfig::new(parse_channel_list("CD3,CD4,CD8")?);
 config.debug_dir = Some("./flowsom-debug".into());
@@ -98,7 +99,6 @@ learning rate and radius schedules remain fixed constants.
 | `FlowSomSummary`, `FlowSomParameters`, `FlowSomMetrics`, `FlowSomScaleSummary` | Run summary, written as `summary.json` |
 | `FlowSomAssignment`, `FlowSomNode`, `FlowSomMetacluster` | Output rows |
 | `FLOWSOM_*` constants | Defaults for grid size, metaclusters, seed (1) and scaling; fixed iterations, learning rate and radius schedule |
-| `parse_channel_list` | Parse a comma-separated `--channels` value |
 | `FlowSomError` | Error type for every failure mode |
 
 ## Output rules

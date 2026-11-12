@@ -64,7 +64,10 @@ fn outputs(directory: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
                 continue;
             }
             let mut bytes = fs::read(&path).expect("output should be readable");
-            if name.ends_with(".json") {
+            if path
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+            {
                 bytes = without_varying_fields(&bytes);
             }
             files.insert(
@@ -79,8 +82,8 @@ fn outputs(directory: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
 }
 
 /// JSON outputs without the fields that legitimately vary: the requested
-/// thread count that CytoScan echoes in `cytoscan_config.json`, and the
-/// wall-clock `run_id` (`autospectral-<unix seconds>`) of AutoSpectral's
+/// thread count that `CytoScan` echoes in `cytoscan_config.json`, and the
+/// wall-clock `run_id` (`autospectral-<unix seconds>`) of `AutoSpectral`'s
 /// `diagnostics/run.json`.
 fn without_varying_fields(bytes: &[u8]) -> Vec<u8> {
     fn strip(value: &mut serde_json::Value) {
@@ -138,6 +141,7 @@ fn step(args: &[&str]) -> Vec<String> {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // one literal argument list per stage
 fn pipeline_stages_do_not_depend_on_the_thread_count() {
     let pipeline = fixtures().join("pipeline");
     let sample = utf8(&pipeline.join("sample.fcs"));

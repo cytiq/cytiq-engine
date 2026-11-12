@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{
-    ColumnData, Error as FcsError, FcsDataset, FcsReader, Parameter, Spillover, compensate,
+    Error as FcsError, FcsDataset, FcsReader, Parameter, Spillover, compensate,
     find_parameter_index,
 };
 use log::{debug, info};
@@ -488,9 +488,6 @@ impl CytoScanRunner {
     }
 }
 
-/// Shared with every command: see `cytiq_fcs::parse_channel_list`.
-pub use cytiq_fcs::parse_channel_list;
-
 fn validate_config(config: &CytoScanConfig) -> Result<(), CytoScanError> {
     if config.inputs.is_empty() {
         return Err(CytoScanError::EmptyInputs);
@@ -596,7 +593,7 @@ fn load_processed_file(
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(CytoScanError::EmptyFcs {
             path: path.to_path_buf(),
         });
@@ -669,7 +666,7 @@ fn resolve_channels(
                 available_channels: dataset
                     .parameters
                     .iter()
-                    .map(display_parameter_identifier)
+                    .map(Parameter::display_identifier)
                     .collect(),
             });
         };
@@ -677,7 +674,7 @@ fn resolve_channels(
         channels.push(ResolvedChannel {
             requested_name: channel.clone(),
             parameter_name: parameter.name.clone(),
-            display_name: display_parameter_identifier(parameter),
+            display_name: parameter.display_identifier(),
             parameter_index,
             max_range: parameter_max_range(parameter),
         });
@@ -706,7 +703,7 @@ fn preprocess_matrix(
     spillover: Option<&SpilloverMatrix>,
     strict: bool,
 ) -> Result<(Vec<Vec<f64>>, Vec<String>), CytoScanError> {
-    let event_count = event_count(dataset);
+    let event_count = dataset.event_count();
     let mut warnings = Vec::new();
     let mut output_columns = selected_raw_columns(path, dataset, channels)?;
     truncate_columns(channels, &mut output_columns);
@@ -759,12 +756,11 @@ fn selected_raw_columns(
     channels
         .iter()
         .map(|channel| {
-            let values = column_to_f64(
-                dataset
-                    .data
-                    .column(channel.parameter_index)
-                    .expect("parameter index should have a data column"),
-            );
+            let values = dataset
+                .data
+                .column(channel.parameter_index)
+                .expect("parameter index should have a data column")
+                .to_f64_vec();
             if values.iter().any(|value| !value.is_finite()) {
                 return Err(CytoScanError::NonFiniteChannel {
                     path: path.to_path_buf(),
@@ -811,12 +807,11 @@ fn compensate_selected_columns(
     let mut spill_columns = spill_indexes
         .iter()
         .map(|index| {
-            column_to_f64(
-                dataset
-                    .data
-                    .column(*index)
-                    .expect("spillover parameter index should have a data column"),
-            )
+            dataset
+                .data
+                .column(*index)
+                .expect("spillover parameter index should have a data column")
+                .to_f64_vec()
         })
         .collect::<Vec<_>>();
     let spill_channels = spill_indexes
@@ -824,7 +819,7 @@ fn compensate_selected_columns(
         .map(|index| ResolvedChannel {
             requested_name: dataset.parameters[*index].name.clone(),
             parameter_name: dataset.parameters[*index].name.clone(),
-            display_name: display_parameter_identifier(&dataset.parameters[*index]),
+            display_name: dataset.parameters[*index].display_identifier(),
             parameter_index: *index,
             max_range: parameter_max_range(&dataset.parameters[*index]),
         })
@@ -881,18 +876,6 @@ fn invalid_spillover(path: &Path, error: &FcsError) -> CytoScanError {
         path: path.to_path_buf(),
         reason,
     }
-}
-
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.event_count()
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    column.to_f64_vec()
-}
-
-fn display_parameter_identifier(parameter: &Parameter) -> String {
-    parameter.display_identifier()
 }
 
 fn parameter_max_range(parameter: &Parameter) -> Option<f64> {

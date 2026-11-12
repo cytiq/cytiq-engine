@@ -355,9 +355,6 @@ impl FlowSomRunner {
     }
 }
 
-/// Shared with every command: see `cytiq_fcs::parse_channel_list`.
-pub use cytiq_fcs::parse_channel_list;
-
 fn with_thread_pool<T: Send>(
     threads: Option<usize>,
     operation: impl FnOnce() -> Result<T, FlowSomError> + Send,
@@ -393,7 +390,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, FlowSomError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(FlowSomError::EmptyInput {
             path: path.to_path_buf(),
         });
@@ -472,7 +469,7 @@ fn selected_rows(
     masks: &[PathBuf],
 ) -> Result<Vec<usize>, FlowSomError> {
     let Some(mask) = cytiq_mask::read_combined(masks)? else {
-        return Ok((0..event_count(dataset)).collect());
+        return Ok((0..dataset.event_count()).collect());
     };
     let acquisition =
         cytiq_fcs::acquisition_id(path, &dataset.text).map_err(|source| FlowSomError::FcsRead {
@@ -488,7 +485,7 @@ fn selected_rows(
     info!(
         "flowsom: event mask keeps {} of {} event(s)",
         rows.len(),
-        event_count(dataset)
+        dataset.event_count()
     );
     if rows.is_empty() {
         return Err(FlowSomError::NoMaskedEvents {
@@ -512,7 +509,9 @@ fn resolve_channels(
         requested_channels,
         "FlowSOM channel extraction",
         |_, channel| {
-            let Some(parameter_index) = find_parameter_index(&dataset.parameters, channel) else {
+            let Some(parameter_index) =
+                cytiq_fcs::find_parameter_index(&dataset.parameters, channel)
+            else {
                 return Err(FlowSomError::MissingChannel {
                     path: path.to_path_buf(),
                     channel: channel.clone(),
@@ -997,25 +996,6 @@ fn grid_distance_chebyshev(left: usize, right: usize, xdim: usize) -> f64 {
     dx.max(dy) as f64
 }
 
-fn find_parameter_index(parameters: &[Parameter], channel: &str) -> Option<usize> {
-    parameters
-        .iter()
-        .position(|parameter| parameter.name == channel)
-        .or_else(|| {
-            parameters.iter().position(|parameter| {
-                parameter
-                    .label
-                    .as_deref()
-                    .is_some_and(|label| label == channel)
-            })
-        })
-        .or_else(|| {
-            parameters
-                .iter()
-                .position(|parameter| display_parameter_identifier(parameter) == channel)
-        })
-}
-
 fn display_parameter_identifier(parameter: &Parameter) -> String {
     match parameter.label.as_deref() {
         Some(label) if label != parameter.name => format!("{} [{}]", parameter.name, label),
@@ -1023,25 +1003,9 @@ fn display_parameter_identifier(parameter: &Parameter) -> String {
     }
 }
 
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parses_comma_separated_channels() {
-        let channels = parse_channel_list("CD3, CD4,,CD8").expect("channels should parse");
-        assert_eq!(channels, vec!["CD3", "CD4", "CD8"]);
-    }
-
-    #[test]
-    fn rejects_empty_comma_separated_channels() {
-        let error = parse_channel_list(" , ,, ").expect_err("empty list should fail");
-        assert!(error.contains("at least one channel"));
-    }
 
     #[test]
     fn trains_som_deterministically() {

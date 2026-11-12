@@ -25,8 +25,8 @@ pub use crate::degate::{DEFAULT_TINYPEAK_REMOVAL, DeGate, degate_upper_cuts};
 pub use crate::kde::{Density, bandwidth_nrd0, density, quantile_type7};
 pub use crate::sampling::sample_indices;
 pub use crate::scatter_gate::{
-    GateComputation, SpreadSource, convex_hull, gate_events, mad, median, point_in_polygon,
-    robust_spread,
+    GateComputation, SpreadSource, convex_hull, gate_events, mad, median, median_mut,
+    point_in_polygon, robust_spread,
 };
 pub use crate::smooth_spline::{smooth_spline_fitted, smooth_spline_fitted_xy};
 pub use crate::valley::{

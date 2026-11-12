@@ -1381,12 +1381,11 @@ fn parameter_range(parameter: &Parameter) -> Option<f64> {
 /// default `truncate_max_range = TRUE`, which caps values above `$PnR` at
 /// `$PnR` (float data can exceed it).
 fn control_column(dataset: &FcsDataset, index: usize) -> Vec<f64> {
-    let mut values = column_to_f64(
-        dataset
-            .data
-            .column(index)
-            .expect("validated parameter index"),
-    );
+    let mut values = dataset
+        .data
+        .column(index)
+        .expect("validated parameter index")
+        .to_f64_vec();
     if let Some(range) = parameter_range(&dataset.parameters[index]) {
         for value in &mut values {
             if *value > range {
@@ -1395,14 +1394,6 @@ fn control_column(dataset: &FcsDataset, index: usize) -> Vec<f64> {
         }
     }
     values
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    match column {
-        ColumnData::UInt(values) => values.iter().map(|value| *value as f64).collect(),
-        ColumnData::F32(values) => values.iter().map(|value| f64::from(*value)).collect(),
-        ColumnData::F64(values) => values.clone(),
-    }
 }
 
 fn find_parameter_index(parameters: &[Parameter], channel: &str) -> Option<usize> {

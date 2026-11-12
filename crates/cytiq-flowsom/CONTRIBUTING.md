@@ -49,9 +49,9 @@ this crate.
 
 ## Where changes belong
 
-- FCS parsing belongs in `cytiq-fcs`. `runner.rs` carries its own
-  `find_parameter_index`; prefer `cytiq_fcs::find_parameter_index`, which has
-  the same matching order, when touching that code.
+- FCS parsing belongs in `cytiq-fcs`, including channel lookup
+  (`cytiq_fcs::find_parameter_index`) and `--channels` parsing
+  (`cytiq_fcs::parse_channel_list`).
 - Transformations belong in `cytiq-transform`; this crate clusters values as
   given.
 - CLI flags belong in `crates/cytiq-engine/src/commands/flowsom.rs`.
@@ -63,8 +63,7 @@ cargo test -p cytiq-flowsom
 cargo test -p cytiq-engine --test flowsom_cli
 ```
 
-- `src/runner.rs` `#[cfg(test)]` — channel-list parsing, deterministic
-  training, radius quantile, Chebyshev distance, distinct-event
+- `src/runner.rs` `#[cfg(test)]` — deterministic training, radius quantile, Chebyshev distance, distinct-event
   initialisation, metacluster count.
 - `tests/populations.rs` — `FlowSomModel::populations` signal means, empty
   metaclusters and input validation.

@@ -629,15 +629,28 @@ fn locate_segment(axis: &[f64], value: f64) -> usize {
 }
 
 /// Median of unsorted values.
+///
+/// # Panics
+///
+/// When `values` is empty; callers choose what an empty input means.
 #[must_use]
 pub fn median(values: &[f64]) -> f64 {
-    let mut sorted = values.to_vec();
-    sorted.sort_by(f64::total_cmp);
-    let middle = sorted.len() / 2;
-    if sorted.len().is_multiple_of(2) {
-        f64::midpoint(sorted[middle - 1], sorted[middle])
+    median_mut(&mut values.to_vec())
+}
+
+/// [`median`] of values the caller no longer needs in order: sorts them in
+/// place instead of copying.
+///
+/// # Panics
+///
+/// When `values` is empty.
+pub fn median_mut(values: &mut [f64]) -> f64 {
+    values.sort_by(f64::total_cmp);
+    let middle = values.len() / 2;
+    if values.len().is_multiple_of(2) {
+        f64::midpoint(values[middle - 1], values[middle])
     } else {
-        sorted[middle]
+        values[middle]
     }
 }
 

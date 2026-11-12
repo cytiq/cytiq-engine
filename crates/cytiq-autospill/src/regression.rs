@@ -257,17 +257,12 @@ pub(crate) fn skewness(values: &[f64]) -> f64 {
     third_moment / standard_deviation.powi(3)
 }
 
+/// R's `median`, with `0` for no values.
 pub(crate) fn median(values: &[f64]) -> f64 {
     if values.is_empty() {
-        return 0.0;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_by(f64::total_cmp);
-    let middle = sorted.len() / 2;
-    if sorted.len().is_multiple_of(2) {
-        f64::midpoint(sorted[middle - 1], sorted[middle])
+        0.0
     } else {
-        sorted[middle]
+        cytiq_density::median(values)
     }
 }
 

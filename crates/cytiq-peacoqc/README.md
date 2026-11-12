@@ -36,7 +36,8 @@ cytiq peacoqc --input sample.fcs --output sample.peacoqc.fcs \
 From Rust:
 
 ```rust
-use cytiq_peacoqc::{PeacoQcConfig, PeacoQcMethod, PeacoQcRunner, parse_channel_list};
+use cytiq_fcs::parse_channel_list;
+use cytiq_peacoqc::{PeacoQcConfig, PeacoQcMethod, PeacoQcRunner};
 
 let mut config = PeacoQcConfig::new(parse_channel_list("CD3 BUV395,CD4 BV750")?);
 config.method = PeacoQcMethod::Mad;
@@ -54,7 +55,6 @@ println!("kept {}", result.summary.metrics.events_after);
 | `PeacoQcMethod` | `All`, `Mad`, `It`, `PeaksOnly` |
 | `PeacoQcSummary`, `PeacoQcParameters`, `PeacoQcMetrics` | `summary.json` contents |
 | `EventMaskRecord` | Per-event result (`mask.csv` row) |
-| `parse_channel_list` | Split a comma-separated `--channels` value |
 | `peacoqc_mask` | The good-event mask of compensated, transformed channels held in memory (margins are the caller's), as `run` computes it; used by `cytiq spillqc` |
 | `DEFAULT_*` | Fixed algorithm constants |
 | `PeacoQcError` | Error type for every failure mode |

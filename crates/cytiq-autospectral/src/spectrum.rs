@@ -50,7 +50,12 @@ pub(crate) fn robust_slope(x: &[f64], y: &[f64]) -> f64 {
     let mut residuals = residuals(x, y, intercept, slope);
     for _ in 0..RLM_MAX_ITERATIONS {
         let previous = residuals.clone();
-        let scale = median(residuals.iter().map(|value| value.abs()).collect()) / 0.6745;
+        let scale = cytiq_density::median_mut(
+            &mut residuals
+                .iter()
+                .map(|value| value.abs())
+                .collect::<Vec<_>>(),
+        ) / 0.6745;
         if scale == 0.0 {
             return slope;
         }
@@ -97,16 +102,6 @@ fn residuals(x: &[f64], y: &[f64], intercept: f64, slope: f64) -> Vec<f64> {
         .zip(y)
         .map(|(x, y)| y - intercept - slope * x)
         .collect()
-}
-
-fn median(mut values: Vec<f64>) -> f64 {
-    values.sort_by(f64::total_cmp);
-    let middle = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        f64::midpoint(values[middle - 1], values[middle])
-    } else {
-        values[middle]
-    }
 }
 
 /// `unique(as.vector(FNN::knnx.index(negative, positive, k)))`: the

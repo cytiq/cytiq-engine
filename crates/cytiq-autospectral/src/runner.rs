@@ -458,7 +458,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, AutoSpectralError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(AutoSpectralError::EmptyFcs {
             path: path.to_path_buf(),
         });
@@ -633,7 +633,7 @@ fn build_references(
         dye: autofluorescence.row.dye.clone(),
         filename: autofluorescence.row.filename.clone(),
         primary_channel: None,
-        total_events: event_count(&autofluorescence.dataset),
+        total_events: autofluorescence.dataset.event_count(),
         retained_events: af_gate.len(),
         positive_events: None,
         negative_events: None,
@@ -756,7 +756,7 @@ fn build_single_stain_reference(
             dye: control.row.dye.clone(),
             filename: control.row.filename.clone(),
             primary_channel: Some(primary_channel.to_owned()),
-            total_events: event_count(&control.dataset),
+            total_events: control.dataset.event_count(),
             retained_events: retained.len(),
             positive_events: Some(positive.len()),
             negative_events: Some(matched.len()),
@@ -773,7 +773,7 @@ fn retained_indices(
 ) -> Result<Vec<usize>, AutoSpectralError> {
     let fsc = channel_column(path, dataset, &config.fsc)?;
     let ssc = channel_column(path, dataset, &config.ssc)?;
-    let mut valid = (0..event_count(dataset))
+    let mut valid = (0..dataset.event_count())
         .filter(|&index| {
             fsc[index].is_finite()
                 && ssc[index].is_finite()
@@ -949,7 +949,7 @@ fn unmix_sample(
 ) -> Result<WorkingUnmixedSample, AutoSpectralError> {
     let detector_columns = sample_detector_columns(sample, detectors)?;
 
-    let event_total = event_count(&sample.dataset);
+    let event_total = sample.dataset.event_count();
     let ranges = event_ranges(event_total);
     let chunks = ranges
         .par_iter()
@@ -1214,12 +1214,13 @@ fn preserved_columns(
             continue;
         }
         parameters.push(FcsWriteParameter::from_source(parameter));
-        columns.push(column_to_f64(
+        columns.push(
             dataset
                 .data
                 .column(index)
-                .expect("parameter index should have data column"),
-        ));
+                .expect("parameter index should have data column")
+                .to_f64_vec(),
+        );
     }
 
     (parameters, columns)
@@ -1307,12 +1308,11 @@ fn detector_columns(
                     channel: detector.clone(),
                 }
             })?;
-            Ok(column_to_f64(
-                dataset
-                    .data
-                    .column(index)
-                    .expect("parameter index should have data column"),
-            ))
+            Ok(dataset
+                .data
+                .column(index)
+                .expect("parameter index should have data column")
+                .to_f64_vec())
         })
         .collect()
 }
@@ -1328,12 +1328,11 @@ fn channel_column(
             channel: channel.to_owned(),
         }
     })?;
-    Ok(column_to_f64(
-        dataset
-            .data
-            .column(index)
-            .expect("parameter index should have data column"),
-    ))
+    Ok(dataset
+        .data
+        .column(index)
+        .expect("parameter index should have data column")
+        .to_f64_vec())
 }
 
 fn mean_spectrum(columns: &[Vec<f64>], indices: &[usize]) -> Vec<f64> {
@@ -1506,18 +1505,6 @@ where
         .build()
         .map_err(|source| AutoSpectralError::ThreadPoolBuild { threads, source })?
         .install(operation)
-}
-
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    match column {
-        ColumnData::UInt(values) => values.iter().map(|value| *value as f64).collect(),
-        ColumnData::F32(values) => values.iter().map(|value| f64::from(*value)).collect(),
-        ColumnData::F64(values) => values.clone(),
-    }
 }
 
 /// R's default (type 7) quantile.

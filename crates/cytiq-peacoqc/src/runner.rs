@@ -293,7 +293,7 @@ impl PeacoQcRunner {
     ) -> Result<PeacoQcResult, PeacoQcError> {
         validate_output_path(output)?;
         let dataset = load_dataset(input)?;
-        let events_before = event_count(&dataset);
+        let events_before = dataset.event_count();
         let channels = resolve_channels(input, &dataset, &config.channels)?;
         let mut warnings = input_warnings(input, &channels, &dataset)?;
         for warning in &warnings {
@@ -553,9 +553,6 @@ fn compute_mask(
     })
 }
 
-/// Shared with every command: see `cytiq_fcs::parse_channel_list`.
-pub use cytiq_fcs::parse_channel_list;
-
 fn validate_output_path(output: &Path) -> Result<(), PeacoQcError> {
     let is_fcs = output
         .extension()
@@ -584,7 +581,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, PeacoQcError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(PeacoQcError::EmptyInput {
             path: path.to_path_buf(),
         });
@@ -605,7 +602,8 @@ fn resolve_channels(
     let mut seen = HashSet::new();
     let mut channels = Vec::with_capacity(requested_channels.len());
     for channel in requested_channels {
-        let Some(parameter_index) = find_parameter_index(&dataset.parameters, channel) else {
+        let Some(parameter_index) = cytiq_fcs::find_parameter_index(&dataset.parameters, channel)
+        else {
             return Err(PeacoQcError::MissingChannel {
                 path: path.to_path_buf(),
                 channel: channel.clone(),
@@ -622,12 +620,11 @@ fn resolve_channels(
                 channel: parameter.name,
             });
         }
-        let values = column_to_f64(
-            dataset
-                .data
-                .column(parameter_index)
-                .expect("parameter index should have a data column"),
-        );
+        let values = dataset
+            .data
+            .column(parameter_index)
+            .expect("parameter index should have a data column")
+            .to_f64_vec();
         if values.iter().any(|value| !value.is_finite()) {
             return Err(PeacoQcError::NonFiniteChannel {
                 path: path.to_path_buf(),
@@ -1605,41 +1602,10 @@ fn count_working_events_from_bins(
         .count()
 }
 
-fn find_parameter_index(parameters: &[Parameter], channel: &str) -> Option<usize> {
-    parameters
-        .iter()
-        .position(|parameter| parameter.name == channel)
-        .or_else(|| {
-            parameters.iter().position(|parameter| {
-                parameter
-                    .label
-                    .as_deref()
-                    .is_some_and(|label| label == channel)
-            })
-        })
-        .or_else(|| {
-            parameters
-                .iter()
-                .position(|parameter| display_parameter_identifier(parameter) == channel)
-        })
-}
-
 fn display_parameter_identifier(parameter: &Parameter) -> String {
     match parameter.label.as_deref() {
         Some(label) if label != parameter.name => format!("{} [{}]", parameter.name, label),
         _ => parameter.name.clone(),
-    }
-}
-
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
-}
-
-fn column_to_f64(column: &ColumnData) -> Vec<f64> {
-    match column {
-        ColumnData::UInt(values) => values.iter().map(|value| *value as f64).collect(),
-        ColumnData::F32(values) => values.iter().map(|value| f64::from(*value)).collect(),
-        ColumnData::F64(values) => values.clone(),
     }
 }
 
@@ -1675,16 +1641,12 @@ fn mean(values: &[f64]) -> f64 {
     }
 }
 
+/// R's `median`, with `0` for no values.
 fn median(mut values: Vec<f64>) -> f64 {
     if values.is_empty() {
-        return 0.0;
-    }
-    values.sort_by(f64::total_cmp);
-    let middle = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        f64::midpoint(values[middle - 1], values[middle])
+        0.0
     } else {
-        values[middle]
+        cytiq_density::median_mut(&mut values)
     }
 }
 
@@ -1750,12 +1712,6 @@ mod tests {
         assert_eq!(counts.removed_count, 3); // Observed extrema, not physical saturation.
     }
     use super::*;
-
-    #[test]
-    fn parses_comma_separated_channels() {
-        let channels = parse_channel_list("CD3, CD4,,CD8").expect("channels should parse");
-        assert_eq!(channels, vec!["CD3", "CD4", "CD8"]);
-    }
 
     #[test]
     fn computes_overlapping_bins() {

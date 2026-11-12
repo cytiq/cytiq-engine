@@ -89,7 +89,8 @@ cytiq cytoscan --input ./test_fcs --reference ./reference_fcs \
 From Rust:
 
 ```rust
-use cytiq_cytoscan::{CytoScanConfig, CytoScanRunner, FeatureMethod, FlagMethod, parse_channel_list};
+use cytiq_cytoscan::{CytoScanConfig, CytoScanRunner, FeatureMethod, FlagMethod};
+use cytiq_fcs::parse_channel_list;
 
 let mut config = CytoScanConfig::new(
     vec!["./test_fcs".into()],
@@ -116,7 +117,6 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 | `CytoScanFeatureMatrix`, `CytoScanFeatureRow`, `CytoScanSummaryRow`, `CytoScanDiagnostics` | Result rows and model diagnostics |
 | `MclustModel` | mclust's name of the fitted novelty structure (`VVI`, `XXX`, ...) |
 | `DEFAULT_*` constants | Fixed algorithm settings (seed 42, 1,000 events, 10,000 aggregate, 1,000 trees, 0.5 / 0.05 thresholds, cofactor 150, 4 recursions) |
-| `parse_channel_list` | Parse a comma-separated `--channels` value |
 | `CytoScanError` | Error type for every failure mode |
 
 ## Output rules

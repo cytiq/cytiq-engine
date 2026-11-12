@@ -462,7 +462,7 @@ fn transform_one(
 ) -> Result<TransformFileResult, TransformError> {
     let dataset = load_dataset(&plan.input)?;
     ensure_not_transformed(&plan.input, &dataset, config)?;
-    let events = event_count(&dataset);
+    let events = dataset.event_count();
     let selection = resolve_channel_selection(&plan.input, &dataset, config)?;
     ensure_compensated(&plan.input, &dataset, &selection.channels, config)?;
     let mut result = TransformFileResult {
@@ -647,7 +647,7 @@ fn load_dataset(path: &Path) -> Result<FcsDataset, TransformError> {
             path: path.to_path_buf(),
             source,
         })?;
-    if event_count(&dataset) == 0 {
+    if dataset.event_count() == 0 {
         return Err(TransformError::EmptyFcs {
             path: path.to_path_buf(),
         });
@@ -1318,10 +1318,6 @@ fn method_parameters(config: &TransformConfig) -> TransformParameters {
         },
         TransformMethod::None => TransformParameters::default(),
     }
-}
-
-fn event_count(dataset: &FcsDataset) -> usize {
-    dataset.data.columns.first().map_or(0, ColumnData::len)
 }
 
 #[cfg(test)]
