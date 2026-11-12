@@ -5,24 +5,47 @@ Evaluates Gating-ML 2.0 gating strategies on FCS events. Backs the
 
 The crate applies gate boundaries that are already defined; it does not
 estimate gates from the data. Results are checked against
-[FlowKit](https://github.com/whitews/FlowKit) (`GatingStrategy.gate_sample`).
+[FlowKit](https://github.com/whitews/FlowKit) (`GatingStrategy.gate_sample`)
+on `data/fixtures/gating/` and `data/fixtures/gating/quadrant/`, and FlowKit
+reads the documents `to_gatingml` writes back to the same membership.
 Specification: <http://flowcyt.sourceforge.net/gating/latest.pdf>.
 
 ## What is supported
 
 - gates: `RectangleGate` (range, rectangle, hyper-rectangle), `PolygonGate`,
   `EllipsoidGate`, `BooleanGate` (`and`, `or`, `not`, `use-as-complement`),
-  nested through `parent_id`
+  `QuadrantGate` (one or more dividers, each with one or more values), nested
+  through `parent_id`
 - transformations: `flin`, `flog`, `fasinh`, `logicle`, `hyperlog`
   (`logicle`/`hyperlog` come from `cytiq-transform::scales`)
 - compensation: `uncompensated`, `FCS` (`$SPILLOVER`/`$SPILL`), or a square
   `transforms:spectrumMatrix`
-- rejected with an error: quadrant gates, `fratio`, `new-dimension`
+- rejected with `UnsupportedElement`: `fratio`, `ratio-dimension`,
+  `new-dimension`. No real export seen so far uses them: FlowJo's Gating-ML
+  exports hold rectangles and polygons only (a FlowJo quadrant is four
+  rectangles).
+- deliberately lenient, as FlowKit and FlowJo exports need: elements at the
+  top level that are not transformations, matrices or gates (for example
+  `data-type:custom_info`) are ignored, and a dimension without
+  `compensation-ref` is read as `uncompensated` (FlowJo omits it; FlowKit
+  rejects it).
 
 Membership semantics follow FlowKit/flowutils exactly: rectangles use
-`min <= x < max`, polygons use the winding number with odd-winding interiors,
+`min <= x < max`, polygons use the winding number with odd-winding interiors
+(points on left and bottom edges are inside, on right and top edges outside),
 ellipsoids include their boundary, and every gate is intersected with its
-parent. Events are pre-processed as FlowKit "raw" events (`$PnE`, `$PnG`,
+parent.
+
+A `QuadrantGate` defines one gate per `gating:Quadrant`, evaluated as a
+rectangle: for each of its positions, `min` is the last divider value at or
+below the location and `max` the first value above it (FlowKit's rule; a
+location equal to a value selects the interval that starts there). Only the
+quadrants are gates: they take the QuadrantGate's parent, can be parents and
+Boolean operands, and their `gate_path` includes the QuadrantGate id
+(`Cells/Quad/Q1`), as in FlowKit. Referring to the QuadrantGate id itself is
+an error. A non-finite value or location, two dividers on one channel, or a
+position on an unknown divider are rejected; FlowKit treats a NaN location as
+unbounded instead. Events are pre-processed as FlowKit "raw" events (`$PnE`, `$PnG`,
 `$TIMESTEP`) before compensation.
 
 Dimension names match `$PnN`, then `$PnS`, then the FlowJo spelling of `$PnN`
@@ -59,10 +82,11 @@ let xml = to_gatingml(&strategy)?;
 | --- | --- |
 | `UPSTREAM` | Upstream implementations and versions the crate is validated against (`parity/versions.txt`), recorded in provenance `algorithms` |
 | `parse_gatingml` | Parse a Gating-ML 2.0 document into a `GatingStrategy` |
-| `to_gatingml` | Serialize a strategy back to Gating-ML (deterministic, round-trips) |
+| `to_gatingml` | Serialize a strategy back to Gating-ML (deterministic, lossless: every parsed element, `logicle`/`hyperlog` parameters and `QuadrantGate`s included) |
 | `GatingStrategy` | Gates in evaluation order; `new`, `gate_sample`, `gate_sample_masked`, `dimension_values`, `gate_path` |
 | `GatingResults` / `GateCount` | Per-gate membership masks, counts and percentages; `event_mask` |
 | `Gate`, `GateKind`, `GateRef`, `BooleanOp`, `Dimension`, `CompensationRef`, `SpectrumMatrix` | Strategy model |
+| `QuadrantGate`, `QuadrantDivider`, `Quadrant` | A `QuadrantGate` as written; `QuadrantGate::gates` builds its quadrant gates |
 | `Transform` | Gating-ML parametrized transformations |
 | `GatingRunner::run` / `GatingConfig` / `GatingRunResult` / `OutputFormat` | The `cytiq gate` command |
 | `GatingError` | Error type for every failure mode |
@@ -85,8 +109,8 @@ let xml = to_gatingml(&strategy)?;
   are refused when a dimension would transform or compensate an already
   processed channel.
 - Gates are evaluated on the caller's rayon pool; `cytiq gate --threads` sizes it.
-- `to_gatingml` cannot write `logicle` or `hyperlog` transformations, because
-  their original parameters are not kept in memory.
+- `gate_type` is the Gating-ML element: `RectangleGate`, `PolygonGate`,
+  `EllipsoidGate`, `BooleanGate`, or `Quadrant` for a quadrant.
 
 ## Dependencies
 

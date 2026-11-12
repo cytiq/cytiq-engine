@@ -98,6 +98,9 @@ pub fn estimate_logicle_width(
 /// Moore & Parks logicle with output on the `[0, 1]` Gating-ML scale.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Logicle {
+    /// `[T, W, M, A]` as given to [`Logicle::new`]; they determine every
+    /// coefficient below and let the scale be written back losslessly.
+    parameters: [f64; 4],
     a: f64,
     b: f64,
     c: f64,
@@ -138,6 +141,7 @@ impl Logicle {
         taylor[1] = 0.0;
 
         Ok(Self {
+            parameters: [t, w, m, a],
             a: a_coef,
             b,
             c,
@@ -147,6 +151,12 @@ impl Logicle {
             x_taylor: x1 + w_n / 4.0,
             taylor,
         })
+    }
+
+    /// `[T, W, M, A]` as given to [`Self::new`].
+    #[must_use]
+    pub const fn parameters(&self) -> [f64; 4] {
+        self.parameters
     }
 
     fn series(&self, scale: f64) -> f64 {
@@ -268,6 +278,8 @@ fn solve_logicle_d(b: f64, w: f64) -> Result<f64, ScaleParameterError> {
 /// Gating-ML 2.0 hyperlog with output on the `[0, 1]` scale.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Hyperlog {
+    /// `[T, W, M, A]` as given to [`Hyperlog::new`].
+    parameters: [f64; 4],
     a: f64,
     b: f64,
     c: f64,
@@ -310,6 +322,7 @@ impl Hyperlog {
         taylor[0] += c;
 
         let mut hyperlog = Self {
+            parameters: [t, w, m, a],
             a: a_coef,
             b,
             c,
@@ -323,6 +336,12 @@ impl Hyperlog {
         };
         hyperlog.inverse_x0 = hyperlog.inverse(x0);
         Ok(hyperlog)
+    }
+
+    /// `[T, W, M, A]` as given to [`Self::new`].
+    #[must_use]
+    pub const fn parameters(&self) -> [f64; 4] {
+        self.parameters
     }
 
     fn series(&self, scale: f64) -> f64 {

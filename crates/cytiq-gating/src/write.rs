@@ -1,9 +1,12 @@
 //! `GatingML` 2.0 XML writer, the inverse of [`crate::parse_gatingml`].
 
+use std::collections::HashSet;
 use std::fmt::Write as _;
 
 use crate::error::GatingError;
-use crate::model::{BooleanOp, CompensationRef, Dimension, Gate, GateKind, GatingStrategy};
+use crate::model::{
+    BooleanOp, CompensationRef, Dimension, Gate, GateKind, GatingStrategy, QuadrantGate,
+};
 use crate::transforms::Transform;
 
 const GATING_NS: &str = "http://www.isac-net.org/std/Gating-ML/v2.0/gating";
@@ -19,8 +22,8 @@ const DATA_TYPE_NS: &str = "http://www.isac-net.org/std/Gating-ML/v2.0/datatypes
 ///
 /// # Errors
 ///
-/// Returns [`GatingError::UnsupportedElement`] for `logicle` and `hyperlog`
-/// transformations, whose original parameters are not retained in memory.
+/// Every element the parser accepts can be written; the `Result` is kept so
+/// that a future element that cannot be written fails explicitly.
 pub fn to_gatingml(strategy: &GatingStrategy) -> Result<String, GatingError> {
     let mut xml = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gating:Gating-ML\n    \
@@ -28,16 +31,26 @@ pub fn to_gatingml(strategy: &GatingStrategy) -> Result<String, GatingError> {
          xmlns:data-type=\"{DATA_TYPE_NS}\">\n"
     );
 
-    write_transforms(&mut xml, strategy)?;
+    write_transforms(&mut xml, strategy);
     write_matrices(&mut xml, strategy);
+    // A QuadrantGate is written once, where its first quadrant is evaluated.
+    let mut quadrant_gates = HashSet::new();
     for gate in strategy.gates() {
-        write_gate(&mut xml, gate);
+        match &gate.kind {
+            GateKind::Quadrant { definition, .. } => {
+                if quadrant_gates.insert(definition.id.as_str()) {
+                    write_quadrant_gate(&mut xml, definition);
+                }
+            }
+            _ => write_gate(&mut xml, gate),
+        }
     }
     xml.push_str("</gating:Gating-ML>\n");
     Ok(xml)
 }
 
-fn write_dimension(xml: &mut String, dimension: &Dimension) {
+/// `compensation-ref` and `transformation-ref` of a dimension or divider.
+fn reference_attributes(dimension: &Dimension) -> String {
     let compensation = match &dimension.compensation {
         CompensationRef::Uncompensated => "uncompensated".to_owned(),
         CompensationRef::Fcs => "FCS".to_owned(),
@@ -51,6 +64,11 @@ fn write_dimension(xml: &mut String, dimension: &Dimension) {
             escape(transform)
         );
     }
+    attributes
+}
+
+fn write_dimension(xml: &mut String, dimension: &Dimension) {
+    let mut attributes = reference_attributes(dimension);
     if let Some(min) = dimension.min {
         let _ = write!(attributes, " gating:min=\"{min}\"");
     }
@@ -80,7 +98,7 @@ fn escape(value: &str) -> String {
     escaped
 }
 
-fn write_transforms(xml: &mut String, strategy: &GatingStrategy) -> Result<(), GatingError> {
+fn write_transforms(xml: &mut String, strategy: &GatingStrategy) {
     let mut transform_ids = strategy.transforms().keys().collect::<Vec<_>>();
     transform_ids.sort();
     for id in transform_ids {
@@ -94,10 +112,17 @@ fn write_transforms(xml: &mut String, strategy: &GatingStrategy) -> Result<(), G
             Transform::Asinh { t, m, a } => format!(
                 r#"<transforms:fasinh transforms:T="{t}" transforms:M="{m}" transforms:A="{a}"/>"#
             ),
-            Transform::Logicle(_) | Transform::Hyperlog(_) => {
-                return Err(GatingError::UnsupportedElement {
-                    element: format!("writing transforms:transformation `{id}`"),
-                });
+            Transform::Logicle(logicle) => {
+                let [t, w, m, a] = logicle.parameters();
+                format!(
+                    r#"<transforms:logicle transforms:T="{t}" transforms:W="{w}" transforms:M="{m}" transforms:A="{a}"/>"#
+                )
+            }
+            Transform::Hyperlog(hyperlog) => {
+                let [t, w, m, a] = hyperlog.parameters();
+                format!(
+                    r#"<transforms:hyperlog transforms:T="{t}" transforms:W="{w}" transforms:M="{m}" transforms:A="{a}"/>"#
+                )
             }
         };
         let _ = write!(
@@ -107,8 +132,6 @@ fn write_transforms(xml: &mut String, strategy: &GatingStrategy) -> Result<(), G
             escape(id)
         );
     }
-
-    Ok(())
 }
 
 fn write_matrices(xml: &mut String, strategy: &GatingStrategy) {
@@ -149,6 +172,50 @@ fn write_matrices(xml: &mut String, strategy: &GatingStrategy) {
     }
 }
 
+fn write_quadrant_gate(xml: &mut String, definition: &QuadrantGate) {
+    let parent = definition
+        .parent_id
+        .as_ref()
+        .map_or(String::new(), |parent| {
+            format!(" gating:parent_id=\"{}\"", escape(parent))
+        });
+    let _ = writeln!(
+        xml,
+        "  <gating:QuadrantGate gating:id=\"{}\"{parent}>",
+        escape(&definition.id)
+    );
+    for divider in &definition.dividers {
+        let _ = writeln!(
+            xml,
+            "    <gating:divider gating:id=\"{}\"{}>\n      \
+             <data-type:fcs-dimension data-type:name=\"{}\"/>",
+            escape(&divider.id),
+            reference_attributes(&divider.dimension),
+            escape(&divider.dimension.name)
+        );
+        for value in &divider.values {
+            let _ = writeln!(xml, "      <gating:value>{value}</gating:value>");
+        }
+        xml.push_str("    </gating:divider>\n");
+    }
+    for quadrant in &definition.quadrants {
+        let _ = writeln!(
+            xml,
+            "    <gating:Quadrant gating:id=\"{}\">",
+            escape(&quadrant.id)
+        );
+        for (divider, location) in &quadrant.positions {
+            let _ = writeln!(
+                xml,
+                "      <gating:position gating:divider_ref=\"{}\" gating:location=\"{location}\"/>",
+                escape(divider)
+            );
+        }
+        xml.push_str("    </gating:Quadrant>\n");
+    }
+    xml.push_str("  </gating:QuadrantGate>\n");
+}
+
 fn write_gate(xml: &mut String, gate: &Gate) {
     let parent = gate.parent_id.as_ref().map_or(String::new(), |parent| {
         format!(" gating:parent_id=\"{}\"", escape(parent))
@@ -164,6 +231,7 @@ fn write_gate(xml: &mut String, gate: &Gate) {
     }
     match &gate.kind {
         GateKind::Rectangle { .. } => {}
+        GateKind::Quadrant { .. } => unreachable!("quadrants are written by write_quadrant_gate"),
         GateKind::Polygon { vertices, .. } => {
             for [x, y] in vertices {
                 let _ = writeln!(
@@ -323,17 +391,27 @@ mod tests {
     }
 
     #[test]
-    fn refuses_to_write_logicle_without_its_parameters() {
-        let logicle = cytiq_transform::scales::Logicle::new(262_144.0, 0.5, 4.5, 0.0).unwrap();
+    fn logicle_and_hyperlog_round_trip_with_their_parameters() {
+        let logicle = cytiq_transform::scales::Logicle::new(10_000.0, 0.7, 4.0, 0.25).unwrap();
+        let hyperlog = cytiq_transform::scales::Hyperlog::new(262_144.0, 0.3, 5.0, 0.1).unwrap();
         let strategy = GatingStrategy::new(
             Vec::new(),
-            HashMap::from([("l".to_owned(), Transform::Logicle(logicle))]),
+            HashMap::from([
+                ("l".to_owned(), Transform::Logicle(logicle)),
+                ("h".to_owned(), Transform::Hyperlog(hyperlog)),
+            ]),
             HashMap::new(),
         )
         .unwrap();
-        assert!(matches!(
-            to_gatingml(&strategy),
-            Err(GatingError::UnsupportedElement { .. })
+        let xml = to_gatingml(&strategy).unwrap();
+        assert!(xml.contains(
+            r#"<transforms:logicle transforms:T="10000" transforms:W="0.7" transforms:M="4" transforms:A="0.25"/>"#
         ));
+        assert!(xml.contains(
+            r#"<transforms:hyperlog transforms:T="262144" transforms:W="0.3" transforms:M="5" transforms:A="0.1"/>"#
+        ));
+        let parsed = parse_gatingml(&xml).unwrap();
+        assert_eq!(parsed, strategy);
+        assert_eq!(to_gatingml(&parsed).unwrap(), xml);
     }
 }

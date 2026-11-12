@@ -76,6 +76,9 @@ done
 
 timed gating "$BIN" gate --input "$DATA/gating/sample.fcs" \
   --gating-ml "$DATA/gating/gates.xml" --output "$OUT/gating.json" --format json --overwrite
+QUADRANT="$ROOT/data/fixtures/gating/quadrant"
+timed gating_quadrant "$BIN" gate --input "$QUADRANT/sample.fcs" \
+  --gating-ml "$QUADRANT/gates.xml" --output "$OUT/gating_quadrant.json" --format json --overwrite
 
 # End-to-end golden pipeline (parity/gen/pipeline.py): the documented chain.
 FLUOR=FL1-A,FL2-A,FL3-A,FL4-A,FL5-A

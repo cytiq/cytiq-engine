@@ -94,3 +94,19 @@ Rust API: `FlowSomConfig` gains `cohort_sampling` (default `Pooled`) and
 `FlowSomModel` gains `cohort` (`None` for pooled models; struct literals need
 `cohort: None`). `cytiq_flowsom::{subsample_rows, sample_seed}` is the shared
 sampler; CytoNorm's private copy is gone and its bundles are unchanged.
+
+## Gating-ML (additive, one Rust API break)
+
+- `QuadrantGate` is supported, with FlowKit's semantics (verified on
+  `data/fixtures/gating/quadrant/`). Each quadrant is a gate; the
+  QuadrantGate id is not, and referencing it is an error. Strategies without
+  QuadrantGates evaluate exactly as before.
+- `to_gatingml` writes `logicle` and `hyperlog` transformations instead of
+  failing, and QuadrantGates; every parsed document round-trips.
+- A `ratio-dimension` is reported as `UnsupportedElement` instead of
+  `InvalidGatingMl` (still exit 2).
+
+Rust API: `GateKind` gains `Quadrant { definition, dimensions }`; exhaustive
+matches outside `cytiq-gating` need an arm (treating it like `Rectangle`
+gives the right geometry). `Logicle::parameters` and `Hyperlog::parameters`
+return `[T, W, M, A]`.
