@@ -1552,6 +1552,61 @@ mod tests {
         );
     }
 
+    fn diagnostics_of(rows: usize, columns: usize, values: &[f64]) -> super::ReferenceDiagnostics {
+        let matrix = DMatrix::from_row_slice(rows, columns, values);
+        let unmixing = super::unmixing_matrix(&matrix).unwrap();
+        super::reference_diagnostics(&matrix, &unmixing, "D1".to_owned(), vec![1.0; rows], 1.0)
+    }
+
+    fn assert_close(actual: &[f64], expected: &[f64]) {
+        assert_eq!(actual.len(), expected.len());
+        for (a, e) in actual.iter().zip(expected) {
+            assert!((a - e).abs() <= 1e-12, "{actual:?} != {expected:?}");
+        }
+    }
+
+    fn sorted_descending(values: &[f64]) -> Vec<f64> {
+        let mut values = values.to_vec();
+        values.sort_by(|a, b| b.total_cmp(a));
+        values
+    }
+
+    #[test]
+    fn square_reference_diagnostics_match_closed_form() {
+        // Detectors are rows: components (1, 0) and (0.5, 1).
+        let diagnostics = diagnostics_of(2, 2, &[1.0, 0.5, 0.0, 1.0]);
+        let root17 = 17.0_f64.sqrt();
+        assert_close(
+            &sorted_descending(&diagnostics.singular_values),
+            &[(root17 + 1.0) / 4.0, (root17 - 1.0) / 4.0],
+        );
+        let cosine = 1.0 / 5.0_f64.sqrt();
+        assert_close(&diagnostics.spectral_cosine[0], &[1.0, cosine]);
+        assert_close(&diagnostics.spectral_cosine[1], &[cosine, 1.0]);
+        // A⁻¹ = [[1, -0.5], [0, 1]], so A⁻¹A⁻ᵀ:
+        assert_close(&diagnostics.unit_noise_covariance[0], &[1.25, -0.5]);
+        assert_close(&diagnostics.unit_noise_covariance[1], &[-0.5, 1.0]);
+    }
+
+    #[test]
+    fn tall_reference_noise_covariance_is_the_inverse_gram() {
+        // Components (1, 0, 1) and (0, 1, 1): AᵀA = [[2, 1], [1, 2]].
+        let diagnostics = diagnostics_of(3, 2, &[1.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        assert_close(
+            &sorted_descending(&diagnostics.singular_values),
+            &[3.0_f64.sqrt(), 1.0],
+        );
+        assert_close(&diagnostics.spectral_cosine[0], &[1.0, 0.5]);
+        assert_close(
+            &diagnostics.unit_noise_covariance[0],
+            &[2.0 / 3.0, -1.0 / 3.0],
+        );
+        assert_close(
+            &diagnostics.unit_noise_covariance[1],
+            &[-1.0 / 3.0, 2.0 / 3.0],
+        );
+    }
+
     #[test]
     fn qr_solver_matches_normal_equations_when_well_conditioned() {
         let reference = DMatrix::from_row_slice(
