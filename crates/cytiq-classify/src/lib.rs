@@ -27,6 +27,39 @@ pub use features::{Feature, Profile, feature_columns, feature_columns_with_norma
 
 pub const DEFAULT_BATCH_SIZE: usize = 65_536;
 pub const UPSTREAM: &[(&str, &str)] = &[("ONNX Runtime", "1.31.0")];
+/// Largest ONNX model loaded: a model without external data is one protobuf
+/// message, which cannot exceed 2 GiB. Checked before hashing and loading.
+pub const MODEL_BYTES_MAX: u64 = (2 << 30) - 1;
+
+/// Refuse a model file over [`MODEL_BYTES_MAX`] before ONNX Runtime reads it.
+fn check_model_size(path: &std::path::Path) -> Result<(), ClassifyError> {
+    let bytes = std::fs::metadata(path)?.len();
+    if bytes > MODEL_BYTES_MAX {
+        return Err(ClassifyError::Invalid(format!(
+            "ONNX model `{}` has {bytes} bytes; at most {MODEL_BYTES_MAX} are supported",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod model_size_tests {
+    #[test]
+    fn oversized_model_is_refused_before_loading() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("model.onnx");
+        // Sparse: the size is declared, nothing is written or read.
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(super::MODEL_BYTES_MAX + 1)
+            .unwrap();
+        let error = super::check_model_size(&path).unwrap_err();
+        assert!(matches!(error, super::ClassifyError::Invalid(_)), "{error}");
+        std::fs::File::create(&path).unwrap().set_len(16).unwrap();
+        super::check_model_size(&path).unwrap();
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClassifyError {
@@ -149,6 +182,10 @@ impl ClassifyRunner {
                 .map_err(|e| invalid(&e.to_string()))?;
         }
         let model = config.model.join("model.onnx");
+        check_model_size(&model)?;
+        if let Some(ood) = policy.as_ref().and_then(|p| p.ood.as_ref()) {
+            check_model_size(&ood.model.path)?;
+        }
         if cytiq_provenance::hash_file(&model)?.1 != bundle.model_sha256 {
             return Err(invalid("model checksum mismatch"));
         }
