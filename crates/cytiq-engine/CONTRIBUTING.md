@@ -142,7 +142,11 @@ determinism), `preflight_cli.rs`,
 `orchestration_cli.rs` pins what workflow engines read: outcome artifacts,
 JSON log lines and the conflict reason. `overwrite_cli.rs` pins the output-conflict contract of every result-writing
 command (exit 4, `--overwrite`, `--reuse skip`/`reject`). `threads_cli.rs`
-checks that `--threads` never changes outputs. `src/cli_surface.rs` compares
+checks that `--threads` never changes outputs. `memory_budget.rs` runs the PeacoQC,
+FlowSOM and CytoNorm apply library entry points on fixed 200k-event inputs
+under a counting allocator (its own test binary, one rayon thread) and holds
+each peak heap to a frozen budget; lower a budget with the change that lowers
+its peak, and raise one only with a reviewed reason. `src/cli_surface.rs` compares
 every flag, default and recorded config key with
 `tests/fixtures/cli-surface.json`; update that fixture by hand, in the same
 change, only for an intended CLI change.
