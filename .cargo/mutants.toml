@@ -42,7 +42,7 @@ examine_re = [
     'crates/cytiq-population/src/observation.rs:.*\b(PopulationObservation::validate|is_sha256)\b',
     'crates/cytiq-population/src/artifact.rs:.*\bverify_package\b',
     'crates/cytiq-population/src/serialization.rs:.*\b(parse_document|bounded)\b',
-    'crates/cytiq-specimen/src/reconcile.rs:.*\b(reference_ratio|anchor_checks|measured_count|estimate_precision|check_consistency|validate_quantities|index_sources|SpecimenResult::validate|SpecimenResult::outcome_reason)\b',
+    'crates/cytiq-specimen/src/reconcile.rs:.*\b(reference_ratio|anchor_checks|measured_count|estimate_precision|check_consistency|validate_quantities|index_sources|descriptor_counts_are_consistent|SpecimenResult::validate|SpecimenResult::outcome_reason)\b',
     'crates/cytiq-specimen/src/layout.rs:.*\b(SpecimenLayout::validate|AnchorLimits::validate)\b',
     'crates/cytiq-specimen/src/compare.rs:.*\b(SpecimenComparison::outcome_reason|compare_row|compare_checks)\b',
 ]

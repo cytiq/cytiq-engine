@@ -461,6 +461,33 @@ fn missing_observations(
     Ok(observations)
 }
 
+/// The counts an annotation descriptor declares, with the facts they depend on.
+struct DescriptorCounts {
+    schema_version: u32,
+    decision_policy: bool,
+    raw: u64,
+    assessed: u64,
+    unknown: u64,
+    abstained: Option<u64>,
+    ood: Option<u64>,
+}
+
+/// Schema 1 carries no decision counts; schema 2 has a decision policy and
+/// both counts. Counts nest: unknown and abstained within assessed, OOD within
+/// abstained, assessed within the raw acquisition.
+fn descriptor_counts_are_consistent(counts: &DescriptorCounts) -> bool {
+    let decisions = match counts.schema_version {
+        1 => counts.abstained.is_none() && counts.ood.is_none(),
+        2 => counts.decision_policy && counts.abstained.is_some() && counts.ood.is_some(),
+        _ => false,
+    };
+    decisions
+        && counts.unknown <= counts.assessed
+        && counts.abstained.unwrap_or(0) <= counts.assessed
+        && counts.ood.unwrap_or(0) <= counts.abstained.unwrap_or(0)
+        && counts.assessed <= counts.raw
+}
+
 fn index_sources<'a>(
     plan: &SpecimenPlan,
     sources: &'a [SourceObservations],
@@ -470,17 +497,15 @@ fn index_sources<'a>(
         let descriptor = &source.annotations;
         let context = &descriptor.context;
         require(
-            ((descriptor.schema_version == 1
-                && descriptor.abstained_events.is_none()
-                && descriptor.ood_events.is_none())
-                || (descriptor.schema_version == 2
-                    && descriptor.context.source.decision_policy.is_some()
-                    && descriptor.abstained_events.is_some()
-                    && descriptor.ood_events.is_some()))
-                && descriptor.unknown_events <= descriptor.assessed_events
-                && descriptor.abstained_events.unwrap_or(0) <= descriptor.assessed_events
-                && descriptor.ood_events.unwrap_or(0) <= descriptor.abstained_events.unwrap_or(0)
-                && descriptor.assessed_events <= context.raw_events,
+            descriptor_counts_are_consistent(&DescriptorCounts {
+                schema_version: descriptor.schema_version,
+                decision_policy: context.source.decision_policy.is_some(),
+                raw: context.raw_events,
+                assessed: descriptor.assessed_events,
+                unknown: descriptor.unknown_events,
+                abstained: descriptor.abstained_events,
+                ood: descriptor.ood_events,
+            }),
             "invalid annotation descriptor",
         )?;
         require(
@@ -828,4 +853,120 @@ fn anchor_checks(
         ));
     }
     (checks, rejection)
+}
+
+#[cfg(test)]
+mod descriptor_tests {
+    use super::{DescriptorCounts, descriptor_counts_are_consistent};
+
+    fn schema_two() -> DescriptorCounts {
+        DescriptorCounts {
+            schema_version: 2,
+            decision_policy: true,
+            raw: 100,
+            assessed: 90,
+            unknown: 5,
+            abstained: Some(10),
+            ood: Some(4),
+        }
+    }
+
+    fn schema_one() -> DescriptorCounts {
+        DescriptorCounts {
+            schema_version: 1,
+            decision_policy: false,
+            abstained: None,
+            ood: None,
+            ..schema_two()
+        }
+    }
+
+    #[test]
+    fn schema_two_with_policy_and_decision_counts_is_consistent() {
+        assert!(descriptor_counts_are_consistent(&schema_two()));
+        assert!(descriptor_counts_are_consistent(&schema_one()));
+    }
+
+    #[test]
+    fn schema_two_needs_a_policy_and_both_decision_counts() {
+        for counts in [
+            DescriptorCounts {
+                decision_policy: false,
+                ..schema_two()
+            },
+            DescriptorCounts {
+                abstained: None,
+                ood: Some(0),
+                ..schema_two()
+            },
+            DescriptorCounts {
+                ood: None,
+                ..schema_two()
+            },
+        ] {
+            assert!(!descriptor_counts_are_consistent(&counts));
+        }
+    }
+
+    #[test]
+    fn schema_one_with_decision_counts_or_another_version_is_inconsistent() {
+        for counts in [
+            DescriptorCounts {
+                abstained: Some(0),
+                ..schema_one()
+            },
+            DescriptorCounts {
+                ood: Some(0),
+                ..schema_one()
+            },
+            DescriptorCounts {
+                schema_version: 3,
+                ..schema_two()
+            },
+            DescriptorCounts {
+                schema_version: 1,
+                ..schema_two()
+            },
+        ] {
+            assert!(!descriptor_counts_are_consistent(&counts));
+        }
+    }
+
+    #[test]
+    fn decision_counts_nest_within_assessed_and_raw_events() {
+        for counts in [
+            DescriptorCounts {
+                unknown: 91,
+                ..schema_two()
+            },
+            DescriptorCounts {
+                abstained: Some(91),
+                ..schema_two()
+            },
+            DescriptorCounts {
+                ood: Some(11),
+                ..schema_two()
+            },
+            DescriptorCounts {
+                assessed: 101,
+                ..schema_two()
+            },
+        ] {
+            assert!(!descriptor_counts_are_consistent(&counts));
+        }
+        for counts in [
+            DescriptorCounts {
+                unknown: 90,
+                abstained: Some(90),
+                ood: Some(90),
+                ..schema_two()
+            },
+            DescriptorCounts {
+                assessed: 100,
+                ..schema_two()
+            },
+        ] {
+            assert!(descriptor_counts_are_consistent(&counts));
+        }
+    }
 }
