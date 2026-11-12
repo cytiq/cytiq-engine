@@ -18,7 +18,7 @@ pub use crate::runner::{
     FLOWSOM_RADIUS_END, FLOWSOM_RADIUS_START_QUANTILE, FLOWSOM_RANDOM_SEED, FLOWSOM_SCALE_INPUT,
     FLOWSOM_TRAINING_ITERATIONS, FLOWSOM_XDIM, FLOWSOM_YDIM, FlowSomAssignment, FlowSomConfig,
     FlowSomConstants, FlowSomMetacluster, FlowSomMetrics, FlowSomNode, FlowSomParameters,
-    FlowSomResult, FlowSomRunner, FlowSomScaleSummary, FlowSomSummary,
+    FlowSomResult, FlowSomRunner, FlowSomScaleSummary, FlowSomSummary, sample_seed, subsample_rows,
 };
 
 /// Upstream implementations this crate is validated against

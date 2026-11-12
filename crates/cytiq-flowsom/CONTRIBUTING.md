@@ -46,6 +46,11 @@ this crate.
 - The training subsample draws from its own RNG stream
   (`seed ^ TRAINING_SAMPLE_STREAM`) and is sorted, so subsampling never changes
   the training draws of a full run with the same seed.
+- `subsample_rows` / `sample_seed` are the only event sampler: training
+  subsamples (`sample_seed(seed, "")`) and CytoNorm's balanced SOM input
+  (keyed by sample id) use it. Changing it changes CytoNorm bundles; the unit
+  test `shared_sampler_selects_the_rows_of_both_replaced_samplers` pins it
+  against the frozen 0.4.1 samplers.
 
 ## Where changes belong
 
@@ -63,8 +68,9 @@ cargo test -p cytiq-flowsom
 cargo test -p cytiq-engine --test flowsom_cli
 ```
 
-- `src/runner.rs` `#[cfg(test)]` — deterministic training, radius quantile, Chebyshev distance, distinct-event
-  initialisation, metacluster count.
+- `src/runner.rs` `#[cfg(test)]` — deterministic training, radius quantile,
+  Chebyshev distance, distinct-event initialisation, metacluster count, the
+  shared sampler against its frozen predecessors.
 - `tests/populations.rs` — `FlowSomModel::populations` signal means, empty
   metaclusters and input validation.
 - `crates/cytiq-engine/tests/flowsom_cli.rs` — end-to-end runs with debug

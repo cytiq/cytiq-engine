@@ -95,6 +95,7 @@ learning rate and radius schedules remain fixed constants.
 | `FlowSomConstants` | The fixed training schedule, recorded in provenance `constants` |
 | `FlowSomRunner::run(input, output, &FlowSomConfig, overwrite)` | Run the pipeline and write the assignment CSV |
 | `FlowSomConfig` | `channels`, optional `debug_dir`, `masks`, `xdim`, `ydim`, `metaclusters`, `seed`, `scale`, `training_events` (defaults from `FLOWSOM_*`) |
+| `subsample_rows`, `sample_seed` | The deterministic sampler behind training subsamples and CytoNorm's balanced SOM input |
 | `FlowSomResult` | `summary`, per-event `assignments`, `nodes`, `metaclusters` |
 | `FlowSomSummary`, `FlowSomParameters`, `FlowSomMetrics`, `FlowSomScaleSummary` | Run summary, written as `summary.json` |
 | `FlowSomAssignment`, `FlowSomNode`, `FlowSomMetacluster` | Output rows |

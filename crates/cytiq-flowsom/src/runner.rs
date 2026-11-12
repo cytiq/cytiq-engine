@@ -407,7 +407,17 @@ fn validate_config(config: &FlowSomConfig) -> Result<(), FlowSomError> {
 /// own RNG stream so the training draws match a full run's seed, in row order.
 fn training_rows(events: usize, config: &FlowSomConfig) -> Option<Vec<usize>> {
     let target = config.training_events.filter(|target| *target < events)?;
-    let mut rng = DeterministicRng::new(config.seed ^ TRAINING_SAMPLE_STREAM);
+    Some(subsample_rows(events, target, sample_seed(config.seed, "")))
+}
+
+/// `quota.min(events)` distinct rows of `0..events`, in row order: a partial
+/// Fisher–Yates shuffle driven by the crate's LCG from `state`. Training
+/// subsamples and `CytoNorm`'s balanced SOM input draw their rows with it, so
+/// the same `state` always selects the same rows.
+#[must_use]
+pub fn subsample_rows(events: usize, quota: usize, state: u64) -> Vec<usize> {
+    let target = quota.min(events);
+    let mut rng = DeterministicRng::new(state);
     let mut rows = (0..events).collect::<Vec<_>>();
     for position in 0..target {
         let swap_with = position + rng.next_index(events - position);
@@ -415,7 +425,18 @@ fn training_rows(events: usize, config: &FlowSomConfig) -> Option<Vec<usize>> {
     }
     rows.truncate(target);
     rows.sort_unstable();
-    Some(rows)
+    rows
+}
+
+/// The [`subsample_rows`] state for the sample named `id` (a `CytoNorm` sample
+/// id): `id` mixed into `seed` on the training-sample stream.
+/// `sample_seed(seed, "")` is the stream of a single-input training subsample.
+#[must_use]
+pub fn sample_seed(seed: u64, id: &str) -> u64 {
+    id.bytes()
+        .fold(seed ^ TRAINING_SAMPLE_STREAM, |state, byte| {
+            state.wrapping_mul(0x100_0000_01b3) ^ u64::from(byte)
+        })
 }
 
 /// `FlowSOM` distances assume transformed (arcsinh/logicle) marker values; on
@@ -1013,6 +1034,98 @@ mod tests {
         assert_eq!(rows.len(), 10);
         assert!(rows.windows(2).all(|pair| pair[0] < pair[1]));
         assert_eq!(training_rows(100, &config), Some(rows));
+    }
+
+    /// Frozen copies of the two samplers `subsample_rows` replaced: `FlowSOM`'s
+    /// `training_rows` (0.4.1) and `CytoNorm`'s `subsample_indices` and
+    /// `sample_seed` (0.4.1). The shared sampler must select exactly their rows,
+    /// so saved models and `CytoNorm` bundles stay bit-identical.
+    mod frozen {
+        use super::super::{DeterministicRng, TRAINING_SAMPLE_STREAM};
+
+        pub fn flowsom_training_rows(events: usize, target: usize, seed: u64) -> Vec<usize> {
+            let mut rng = DeterministicRng::new(seed ^ TRAINING_SAMPLE_STREAM);
+            let mut rows = (0..events).collect::<Vec<_>>();
+            for position in 0..target {
+                let swap_with = position + rng.next_index(events - position);
+                rows.swap(position, swap_with);
+            }
+            rows.truncate(target);
+            rows.sort_unstable();
+            rows
+        }
+
+        pub fn cytonorm_sample_seed(seed: u64, id: &str) -> u64 {
+            id.bytes().fold(seed ^ 0x9e37_79b9_7f4a_7c15, |s, b| {
+                s.wrapping_mul(0x100_0000_01b3) ^ u64::from(b)
+            })
+        }
+
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
+        pub fn cytonorm_subsample_indices(
+            events: usize,
+            quota: usize,
+            mut seed: u64,
+        ) -> Vec<usize> {
+            let n = quota.min(events);
+            let mut ids = (0..events).collect::<Vec<_>>();
+            for i in 0..n {
+                seed = seed
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                let j =
+                    i + ((seed >> 11) as f64 / (1_u64 << 53) as f64 * (events - i) as f64) as usize;
+                ids.swap(i, j.min(events - 1));
+            }
+            ids.truncate(n);
+            ids.sort_unstable();
+            ids
+        }
+    }
+
+    #[test]
+    fn shared_sampler_selects_the_rows_of_both_replaced_samplers() {
+        for seed in [
+            0,
+            1,
+            42,
+            FLOWSOM_RANDOM_SEED,
+            u64::MAX,
+            0x0123_4567_89ab_cdef,
+        ] {
+            for events in [0_usize, 1, 2, 7, 100, 1_001] {
+                for quota in [
+                    0,
+                    1,
+                    3,
+                    events / 2,
+                    events.saturating_sub(1),
+                    events,
+                    events + 5,
+                ] {
+                    if quota < events {
+                        assert_eq!(
+                            subsample_rows(events, quota, sample_seed(seed, "")),
+                            frozen::flowsom_training_rows(events, quota, seed),
+                            "flowsom seed={seed} events={events} quota={quota}"
+                        );
+                    }
+                    for id in ["", "a", "b2", "sample-17", "0123456789abcdef"] {
+                        let state = sample_seed(seed, id);
+                        assert_eq!(state, frozen::cytonorm_sample_seed(seed, id));
+                        assert_eq!(
+                            subsample_rows(events, quota, state),
+                            frozen::cytonorm_subsample_indices(events, quota, state),
+                            "cytonorm seed={seed} id={id} events={events} quota={quota}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
