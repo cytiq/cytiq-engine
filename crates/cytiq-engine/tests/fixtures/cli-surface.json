@@ -2454,6 +2454,29 @@
                 ]
               },
               {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "pooled"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "cohort_sampling",
+                "long": "cohort-sampling",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "pooled",
+                  "per-file"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "COHORT_SAMPLING"
+                ]
+              },
+              {
                 "action": "append",
                 "aliases": [],
                 "conflicts_with": [],

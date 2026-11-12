@@ -74,3 +74,23 @@ Rust API: `GatingConfig`, `PeacoQcConfig`, `CleanConfig`, `CytoScanConfig` and
 `export_spread_matrix` and `cytiq_autospectral::write_outputs` take an
 `Existing`. Pass `false` / `Existing::Refuse` for the new default, `true` /
 `Existing::Replace` for the old behaviour.
+
+## FlowSOM cohorts (additive)
+
+`cytiq flowsom train` with several `--input` files now accepts one or more
+`--mask` per input: each mask applies to the input of its acquisition. Every
+input then needs a mask, every mask must match an input, and an acquisition
+may not be listed twice. `--cohort-sampling per-file --training-events N`
+draws `ceil(N / inputs)` events from each input instead of sampling the pooled
+events, so large acquisitions no longer dominate the scale and the training
+set. Without these options training is byte-identical to 0.4.1, and
+`cohort_sampling` is recorded in provenance only when it is `per-file`.
+
+A per-file model carries an optional `cohort` object. 0.5 reads 0.4 models
+unchanged; 0.4 refuses a per-file model (unknown field `cohort`) rather than
+misreading it.
+
+Rust API: `FlowSomConfig` gains `cohort_sampling` (default `Pooled`) and
+`FlowSomModel` gains `cohort` (`None` for pooled models; struct literals need
+`cohort: None`). `cytiq_flowsom::{subsample_rows, sample_seed}` is the shared
+sampler; CytoNorm's private copy is gone and its bundles are unchanged.

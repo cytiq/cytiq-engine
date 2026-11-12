@@ -5,10 +5,11 @@ use cytiq_publish::{Existing, Publication};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Cluster, DeterministicRng, EQUALITY_EPSILON, FlowSomAssignment, FlowSomConfig, FlowSomError,
-    FlowSomScaleSummary, ResolvedChannel, SomGrid, assign_events, channel_matrix,
-    closest_cluster_pair, hierarchical_metaclusters, load_dataset, resolve_channels, scale_matrix,
-    selected_rows, train_som, training_rows, validate_config, write_assignments,
+    Cluster, CohortAcquisition, CohortSampling, CohortSummary, DeterministicRng, EQUALITY_EPSILON,
+    FlowSomAssignment, FlowSomConfig, FlowSomError, FlowSomScaleSummary, ResolvedChannel, SomGrid,
+    acquisition_of, assign_events, channel_matrix, closest_cluster_pair, hierarchical_metaclusters,
+    kept_rows, load_dataset, resolve_channels, sample_seed, scale_matrix, selected_rows,
+    subsample_rows, train_som, training_rows, validate_config, write_assignments,
 };
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -42,6 +43,11 @@ pub struct FlowSomModel {
     pub training_events: usize,
     pub transform: Option<TransformContract>,
     pub normalization_model: Option<String>,
+    /// The per-file draw of [`CohortSampling::PerFile`] training; absent for
+    /// pooled training, so those models keep their earlier bytes. Earlier
+    /// versions reject a model that has it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cohort: Option<CohortSummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -153,32 +159,62 @@ impl FlowSomModel {
             training_events: training.len(),
             transform: None,
             normalization_model: None,
+            cohort: None,
         };
         model.validate()?;
         Ok(model)
     }
 
-    /// Train on several files; masks in config are supported for one file.
+    /// Train on several files. Each mask in `config.masks` applies to the
+    /// input of its acquisition (every mask to a single input), and
+    /// `config.cohort_sampling` decides how the files are combined.
     ///
     /// # Errors
-    /// Rejects incompatible channel or signal contracts across acquisitions.
+    /// Rejects incompatible channel or signal contracts across acquisitions,
+    /// masks that match no input, inputs without a mask when others have one,
+    /// repeated acquisitions when masks or per-file sampling identify inputs,
+    /// and per-file sampling without `training_events`.
     pub fn train_files(
         inputs: &[PathBuf],
         config: &FlowSomConfig,
         method: Metaclustering,
     ) -> Result<Self, FlowSomError> {
-        if inputs.is_empty() || (inputs.len() > 1 && !config.masks.is_empty()) {
-            return Err(invalid(
-                "provide inputs; per-acquisition masks require a single input",
-            ));
+        if inputs.is_empty() {
+            return Err(invalid("provide at least one training input"));
         }
+        let quota = match config.cohort_sampling {
+            CohortSampling::Pooled => None,
+            CohortSampling::PerFile => Some(
+                config
+                    .training_events
+                    .filter(|events| *events > 0)
+                    .ok_or_else(|| invalid("per-file cohort sampling needs --training-events"))?
+                    .div_ceil(inputs.len()),
+            ),
+        };
+        let masks = config
+            .masks
+            .iter()
+            .map(|path| cytiq_mask::EventMask::read_parquet(path))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut routing = MaskRouting::new(masks, inputs.len());
+        let identify = quota.is_some() || !routing.is_empty();
+        let mut cohort = Vec::new();
         let mut matrix = Vec::new();
         let mut resolved = None;
         let mut contract = None;
         let mut label_contract = None;
         for input in inputs {
             let dataset = load_dataset(input)?;
-            let rows = selected_rows(input, &dataset, &config.masks)?;
+            let acquisition = if identify {
+                Some(acquisition_of(input, &dataset)?)
+            } else {
+                None
+            };
+            let rows = match (&acquisition, routing.take(input, acquisition.as_deref())?) {
+                (Some(acquisition), Some(mask)) => kept_rows(input, &dataset, &mask, acquisition)?,
+                _ => (0..dataset.event_count()).collect(),
+            };
             let channels = resolve_channels(input, &dataset, &config.channels, &rows)?;
             let names = channels
                 .iter()
@@ -231,11 +267,36 @@ impl FlowSomModel {
             }
             resolved = Some(names);
             contract = Some(current);
+            let rows = match (quota, acquisition) {
+                (Some(quota), Some(acquisition)) => {
+                    let picks =
+                        subsample_rows(rows.len(), quota, sample_seed(config.seed, &acquisition));
+                    let sampled = picks.iter().map(|&pick| rows[pick]).collect::<Vec<_>>();
+                    cohort.push(CohortAcquisition {
+                        acquisition,
+                        events: rows.len(),
+                        sampled: sampled.len(),
+                    });
+                    sampled
+                }
+                _ => rows,
+            };
             matrix.extend(channel_matrix(&channels, &dataset, &rows)?);
         }
+        routing.finish()?;
         let mut config = config.clone();
         config.channels = resolved.ok_or_else(|| invalid("no training files"))?;
+        if quota.is_some() {
+            // The balanced aggregate is the training set: scale and train on all of it.
+            config.training_events = None;
+        }
         let mut model = Self::train(&matrix, &config, method)?;
+        model.cohort = quota.map(|per_file_quota| CohortSummary {
+            sampling: CohortSampling::PerFile,
+            per_file_quota,
+            acquisitions: cohort,
+        });
+        model.validate()?;
         model.channel_labels = label_contract;
         if let Some((transform, normalization)) = contract {
             model.transform = transform;
@@ -279,6 +340,29 @@ impl FlowSomModel {
         let max = self.node_metaclusters.iter().copied().max().unwrap_or(0);
         if self.node_metaclusters.iter().collect::<HashSet<_>>().len() != max {
             return Err(invalid("metacluster labels must be contiguous"));
+        }
+        if let Some(cohort) = &self.cohort {
+            let acquisitions = &cohort.acquisitions;
+            // `training_events` is at least 1 (checked above), so a draw that
+            // sums to it has acquisitions and a positive quota.
+            let drawn = acquisitions
+                .iter()
+                .try_fold(0_usize, |sum, entry| sum.checked_add(entry.sampled));
+            if cohort.sampling != CohortSampling::PerFile
+                || acquisitions
+                    .iter()
+                    .map(|entry| entry.acquisition.as_str())
+                    .collect::<HashSet<_>>()
+                    .len()
+                    != acquisitions.len()
+                || acquisitions.iter().any(|entry| {
+                    !cytiq_fcs::is_sha256(&entry.acquisition)
+                        || entry.sampled != entry.events.min(cohort.per_file_quota)
+                })
+                || drawn != Some(self.training_events)
+            {
+                return Err(invalid("invalid cohort sampling summary"));
+            }
         }
         validate_matrix(&self.codebook, count)
     }
@@ -448,6 +532,84 @@ impl FlowSomModel {
         })?;
         publication.commit()?;
         Ok(assignments.len())
+    }
+}
+
+/// Assigns the training masks to inputs: every mask to a single input (its
+/// acquisition is checked when it is applied); with several inputs, each mask
+/// to the input of its acquisition.
+struct MaskRouting {
+    masks: Vec<Option<cytiq_mask::EventMask>>,
+    single_input: bool,
+    seen: HashSet<String>,
+}
+
+impl MaskRouting {
+    fn new(masks: Vec<cytiq_mask::EventMask>, inputs: usize) -> Self {
+        Self {
+            masks: masks.into_iter().map(Some).collect(),
+            single_input: inputs == 1,
+            seen: HashSet::new(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.masks.is_empty()
+    }
+
+    /// The combined mask of `input`, `None` without masks.
+    fn take(
+        &mut self,
+        input: &Path,
+        acquisition: Option<&str>,
+    ) -> Result<Option<cytiq_mask::EventMask>, FlowSomError> {
+        if let Some(acquisition) = acquisition
+            && !self.seen.insert(acquisition.to_owned())
+        {
+            return Err(FlowSomError::InvalidConfig(format!(
+                "{} repeats an acquisition already in the cohort",
+                input.display()
+            )));
+        }
+        if self.masks.is_empty() {
+            return Ok(None);
+        }
+        let mine = self
+            .masks
+            .iter_mut()
+            .filter(|mask| {
+                self.single_input
+                    || mask
+                        .as_ref()
+                        .is_some_and(|mask| Some(mask.acquisition.as_str()) == acquisition)
+            })
+            .filter_map(Option::take)
+            .collect::<Vec<_>>();
+        if mine.is_empty() {
+            return Err(FlowSomError::InvalidConfig(format!(
+                "no --mask belongs to {}; with several inputs every input needs its own mask",
+                input.display()
+            )));
+        }
+        Ok(Some(cytiq_mask::EventMask::combine(&mine)?))
+    }
+
+    /// Every mask must have found its input.
+    fn finish(self) -> Result<(), FlowSomError> {
+        let unmatched = self
+            .masks
+            .iter()
+            .flatten()
+            .map(|mask| mask.acquisition.as_str())
+            .collect::<Vec<_>>();
+        if unmatched.is_empty() {
+            Ok(())
+        } else {
+            Err(FlowSomError::InvalidConfig(format!(
+                "--mask for acquisition {} matches no training input",
+                unmatched.join(", ")
+            )))
+        }
     }
 }
 

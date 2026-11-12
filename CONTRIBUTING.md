@@ -229,8 +229,10 @@ functions to obtain a passing report.
 The initial selection excludes one equivalent mutant: `>` to `>=` at the
 `f32` probability-sum tolerance. Equality with `1e-5` cannot occur after
 subtracting one from an `f32` sum near one. Tests exercise the nearest
-representable sums inside and outside that boundary; the exact exclusion and
-its rationale live in `.cargo/mutants.toml`.
+representable sums inside and outside that boundary. A second one is `<` to
+`<=` in FlowSOM's `training_rows`: a subsample of every event is the whole
+matrix in row order, so training is identical. The exact exclusions and their
+rationale live in `.cargo/mutants.toml`.
 
 The **Mutation tests** workflow runs manually and on Mondays at 04:00 UTC,
 separately from PR checks. Its eleven-crate matrix runs up to three jobs at once,

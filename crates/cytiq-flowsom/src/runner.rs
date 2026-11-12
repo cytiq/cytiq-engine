@@ -11,10 +11,11 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter};
+use cytiq_mask::EventMask;
 use cytiq_publish::{Existing, Publication};
 use log::{debug, info, warn};
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::FlowSomError;
 use crate::export::{write_assignments, write_debug_artifacts};
@@ -81,8 +82,49 @@ pub struct FlowSomConfig {
     /// assign every event to its nearest node. `None` trains on all events.
     pub training_events: Option<usize>,
     /// Event masks (`masks.parquet`); only events every mask keeps are
-    /// scaled, trained on and assigned.
+    /// scaled, trained on and assigned. With several training inputs, each
+    /// mask applies to the input of its acquisition.
     pub masks: Vec<PathBuf>,
+    /// How multi-file training draws its events; see [`CohortSampling`].
+    pub cohort_sampling: CohortSampling,
+}
+
+/// How [`FlowSomModel::train_files`] draws training events from several
+/// acquisitions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CohortSampling {
+    /// Concatenate every kept event of every file, scale the pooled matrix
+    /// and subsample it uniformly (`training_events`): larger acquisitions
+    /// weigh more. The default, and the behaviour of earlier versions.
+    #[default]
+    Pooled,
+    /// Draw `ceil(training_events / files)` kept events from each file (all
+    /// of a smaller file), as `FlowSOM`'s `AggregateFlowFrames` does, then scale
+    /// and train on that balanced aggregate: every acquisition weighs alike.
+    PerFile,
+}
+
+/// The per-file draw of a model trained with [`CohortSampling::PerFile`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CohortSummary {
+    pub sampling: CohortSampling,
+    /// Events drawn from each acquisition at most.
+    pub per_file_quota: usize,
+    /// In input order.
+    pub acquisitions: Vec<CohortAcquisition>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CohortAcquisition {
+    /// `cytiq_fcs::acquisition_id` of the input.
+    pub acquisition: String,
+    /// Events the masks kept.
+    pub events: usize,
+    /// Events drawn for training: `min(events, per_file_quota)`.
+    pub sampled: usize,
 }
 
 impl FlowSomConfig {
@@ -98,6 +140,7 @@ impl FlowSomConfig {
             scale: FLOWSOM_SCALE_INPUT,
             training_events: None,
             masks: Vec::new(),
+            cohort_sampling: CohortSampling::Pooled,
         }
     }
 }
@@ -412,8 +455,8 @@ fn training_rows(events: usize, config: &FlowSomConfig) -> Option<Vec<usize>> {
 
 /// `quota.min(events)` distinct rows of `0..events`, in row order: a partial
 /// Fisher–Yates shuffle driven by the crate's LCG from `state`. Training
-/// subsamples and `CytoNorm`'s balanced SOM input draw their rows with it, so
-/// the same `state` always selects the same rows.
+/// subsamples, cohort training and `CytoNorm`'s balanced SOM input draw their
+/// rows with it, so the same `state` always selects the same rows.
 #[must_use]
 pub fn subsample_rows(events: usize, quota: usize, state: u64) -> Vec<usize> {
     let target = quota.min(events);
@@ -429,7 +472,7 @@ pub fn subsample_rows(events: usize, quota: usize, state: u64) -> Vec<usize> {
 }
 
 /// The [`subsample_rows`] state for the sample named `id` (a `CytoNorm` sample
-/// id): `id` mixed into `seed` on the training-sample stream.
+/// id, an acquisition): `id` mixed into `seed` on the training-sample stream.
 /// `sample_seed(seed, "")` is the stream of a single-input training subsample.
 #[must_use]
 pub fn sample_seed(seed: u64, id: &str) -> u64 {
@@ -475,13 +518,27 @@ fn selected_rows(
     let Some(mask) = cytiq_mask::read_combined(masks)? else {
         return Ok((0..dataset.event_count()).collect());
     };
-    let acquisition =
-        cytiq_fcs::acquisition_id(path, &dataset.text).map_err(|source| FlowSomError::FcsRead {
-            path: path.to_path_buf(),
-            source,
-        })?;
+    kept_rows(path, dataset, &mask, &acquisition_of(path, dataset)?)
+}
+
+/// `cytiq_fcs::acquisition_id` of a loaded input.
+pub(crate) fn acquisition_of(path: &Path, dataset: &FcsDataset) -> Result<String, FlowSomError> {
+    cytiq_fcs::acquisition_id(path, &dataset.text).map_err(|source| FlowSomError::FcsRead {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+/// The rows of `dataset` (acquisition `acquisition`) that `mask` keeps;
+/// `NoMaskedEvents` when it keeps none.
+pub(crate) fn kept_rows(
+    path: &Path,
+    dataset: &FcsDataset,
+    mask: &EventMask,
+    acquisition: &str,
+) -> Result<Vec<usize>, FlowSomError> {
     let rows = mask
-        .keep_for(dataset, &acquisition)?
+        .keep_for(dataset, acquisition)?
         .iter()
         .enumerate()
         .filter_map(|(row, keep)| keep.then_some(row))

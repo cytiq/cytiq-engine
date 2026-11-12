@@ -23,9 +23,35 @@ stores channel order and reagent labels, grid, codebook, training mean/SD, node-
 seed, training count and preprocessing contract. Assign returns one-based
 `(node, metacluster)` pairs and never rescales a new sample independently.
 Models are JSON and validated after loading. File workflows check transform
-settings and any upstream normalization ID. Training masks currently require a
-single input acquisition; CytoNorm manifests support per-file masks for cohorts.
-Every command refuses an existing output (exit 4) unless `--overwrite` is passed.
+settings and any upstream normalization ID. Every command refuses an existing
+output (exit 4) unless `--overwrite` is passed.
+
+### Cohorts: several training files
+
+`train` takes every `--input` with the same channels, labels and signal state.
+
+- **Masks.** Each `--mask` applies to the input of its acquisition (the
+  `cytiq.acquisition_sha256` the mask records); masks of one acquisition are
+  combined with AND. With several inputs every input needs at least one mask,
+  every mask must match an input, and an acquisition may appear only once, so
+  no file is silently left unmasked or counted twice. A single input takes
+  every mask, as before.
+- **`--cohort-sampling pooled`** (default, unchanged): the kept events of all
+  inputs are concatenated, z-scored together and, with `--training-events`,
+  subsampled uniformly. Larger acquisitions weigh more, in the scale and in
+  the training set.
+- **`--cohort-sampling per-file`** (needs `--training-events N`): each input
+  contributes `min(ceil(N / inputs), kept events)` events, drawn by the same
+  sampler from a stream seeded by the input's acquisition, so the draw does not
+  depend on paths or input order. This is FlowSOM's `AggregateFlowFrames`
+  quota (`ceiling(cTotal / nFiles)`, without replacement). The z-score and the
+  SOM are fitted on that balanced aggregate. The model records the draw in an
+  optional `cohort` object (`sampling`, `per_file_quota`, and per acquisition
+  `acquisition`, `events`, `sampled`); `training_events` is the aggregate size.
+
+Pooled models do not have `cohort` and keep the bytes of earlier versions.
+`schema_version` stays 1: this version reads both, while earlier versions
+refuse a per-file model (unknown field) instead of misreading it.
 
 Model JSON documents are limited to 16 MiB before deserialization. Selected
 event values are limited to 8 GiB before row-matrix allocation. Channel values
@@ -94,8 +120,10 @@ learning rate and radius schedules remain fixed constants.
 | `UPSTREAM` | Upstream implementations and versions the crate is validated against (`parity/versions.txt`), recorded in provenance `algorithms` |
 | `FlowSomConstants` | The fixed training schedule, recorded in provenance `constants` |
 | `FlowSomRunner::run(input, output, &FlowSomConfig, overwrite)` | Run the pipeline and write the assignment CSV |
-| `FlowSomConfig` | `channels`, optional `debug_dir`, `masks`, `xdim`, `ydim`, `metaclusters`, `seed`, `scale`, `training_events` (defaults from `FLOWSOM_*`) |
-| `subsample_rows`, `sample_seed` | The deterministic sampler behind training subsamples and CytoNorm's balanced SOM input |
+| `FlowSomConfig` | `channels`, optional `debug_dir`, `masks`, `xdim`, `ydim`, `metaclusters`, `seed`, `scale`, `training_events`, `cohort_sampling` (defaults from `FLOWSOM_*`, pooled) |
+| `FlowSomModel`, `Metaclustering`, `PopulationStatistics` | Saved model: training (`train` on a matrix, `train_files`, `train_to_file`), `assign`, `apply_file`, `populations`, `save`, `load`, `validate` |
+| `CohortSampling`, `CohortSummary`, `CohortAcquisition` | Multi-file training strategy and the per-file draw a model records |
+| `subsample_rows`, `sample_seed` | The deterministic sampler behind training subsamples, per-file cohorts and CytoNorm's balanced SOM input |
 | `FlowSomResult` | `summary`, per-event `assignments`, `nodes`, `metaclusters` |
 | `FlowSomSummary`, `FlowSomParameters`, `FlowSomMetrics`, `FlowSomScaleSummary` | Run summary, written as `summary.json` |
 | `FlowSomAssignment`, `FlowSomNode`, `FlowSomMetacluster` | Output rows |

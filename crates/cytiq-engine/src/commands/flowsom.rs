@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use cytiq_flowsom::{
     FLOWSOM_METACLUSTERS, FLOWSOM_RANDOM_SEED, FLOWSOM_XDIM, FLOWSOM_YDIM, FlowSomConfig,
     FlowSomConstants, FlowSomRunner,
@@ -12,6 +12,30 @@ use serde::Serialize;
 use crate::cli::CliMetaclustering;
 use crate::parsers::{parse_channels, parse_positive_usize, parse_threads};
 use crate::provenance::record_provenance;
+
+#[derive(Clone, Copy, Debug, Serialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CliCohortSampling {
+    Pooled,
+    PerFile,
+}
+
+impl CliCohortSampling {
+    /// The default; not recorded, so pooled runs keep their earlier config.
+    #[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+    const fn is_pooled(&self) -> bool {
+        matches!(self, Self::Pooled)
+    }
+}
+
+impl From<CliCohortSampling> for cytiq_flowsom::CohortSampling {
+    fn from(value: CliCohortSampling) -> Self {
+        match value {
+            CliCohortSampling::Pooled => Self::Pooled,
+            CliCohortSampling::PerFile => Self::PerFile,
+        }
+    }
+}
 
 /// SOM geometry and training flags shared by `flowsom` and `flowsom train`;
 /// flattened, so the flags and recorded config keys are those of each command.
@@ -59,8 +83,25 @@ pub(crate) enum FlowSomCommand {
         som: SomArgs,
         #[arg(long, value_enum, default_value_t = CliMetaclustering::Average)]
         metaclustering: CliMetaclustering,
+        /// Events to train on: a uniform sample of the pooled inputs, or with
+        /// `--cohort-sampling per-file` the total split evenly across inputs.
         #[arg(long, value_parser = parse_positive_usize)]
         training_events: Option<usize>,
+        /// `pooled` concatenates the inputs, so larger files weigh more;
+        /// `per-file` draws `ceil(--training-events / inputs)` events from each
+        /// input (all of a smaller one) and scales and trains on that balanced
+        /// set, as `FlowSOM`'s `AggregateFlowFrames`.
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = CliCohortSampling::Pooled,
+            requires_if("per-file", "training_events")
+        )]
+        #[serde(skip_serializing_if = "CliCohortSampling::is_pooled")]
+        cohort_sampling: CliCohortSampling,
+        /// Event mask Parquet (`masks.parquet`); repeat to combine masks. With
+        /// several inputs each mask applies to the input of its acquisition,
+        /// and every input needs at least one.
         #[arg(long = "mask")]
         masks: Vec<PathBuf>,
         #[arg(long, value_parser = parse_threads)]
@@ -192,6 +233,7 @@ fn run_flowsom_model(
             som,
             metaclustering,
             training_events,
+            cohort_sampling,
             masks,
             threads: _,
             overwrite,
@@ -201,6 +243,7 @@ fn run_flowsom_model(
             let mut config = FlowSomConfig::new(crate::parsers::parse_channel_list(&channels)?);
             som.configure(&mut config);
             config.training_events = training_events;
+            config.cohort_sampling = cohort_sampling.into();
             config.masks = masks;
             let recorder = crate::provenance::begin!(
                 recorder,

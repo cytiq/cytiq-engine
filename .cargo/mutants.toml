@@ -27,7 +27,7 @@ examine_re = [
     'crates/cytiq-fcs/src/inputs.rs:.*\b(resolve_inputs|resolve_glob|filename_matcher|collect_files|is_fcs_path)\b',
     'crates/cytiq-engine/src/logging.rs:.*\bparse_log_level_token\b',
     'crates/cytiq-clean/src/debris.rs:.*\bfit_population\b',
-    'crates/cytiq-flowsom/src/model.rs:.*\bpopulations\b',
+    'crates/cytiq-flowsom/src/model.rs:.*\b(populations|train_files|MaskRouting::take|MaskRouting::finish|validate)\b',
     'crates/cytiq-flowsom/src/runner.rs:.*\b(subsample_rows|sample_seed|training_rows)\b',
     'crates/cytiq-peacoqc/src/runner.rs:.*\b(isolation_tree_good_bins|isolation_children)\b',
     'crates/cytiq-spillqc/src/preprocess.rs:.*\b(prepare|prepare_logicle_columns)\b',
@@ -48,7 +48,13 @@ exclude_globs = ["**/tests/**", "**/*tests.rs", "**/examples/**", "**/benches/**
 # Near 1, an f32 sum differs from 1 by a multiple of 2^-24. The f32
 # value 1e-5 is not such a multiple, so equality cannot occur here.
 # Tests cover the closest representable sums on either side of the tolerance.
-exclude_re = ['^crates/cytiq-classify/src/lib\.rs:.*replace > with >= in validate_probabilities$']
+# A training subsample equal to the event count draws a full permutation,
+# which `subsample_rows` sorts back to `0..events`: the SOM trains on an
+# identical copy of the matrix, so `<=` differs only in a log line.
+exclude_re = [
+    '^crates/cytiq-classify/src/lib\.rs:.*replace > with >= in validate_probabilities$',
+    '^crates/cytiq-flowsom/src/runner\.rs:.*replace < with <= in training_rows$',
+]
 additional_cargo_args = ["--locked"]
 gitignore = true
 copy_target = true

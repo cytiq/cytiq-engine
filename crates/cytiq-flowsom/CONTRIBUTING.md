@@ -47,10 +47,14 @@ this crate.
   (`seed ^ TRAINING_SAMPLE_STREAM`) and is sorted, so subsampling never changes
   the training draws of a full run with the same seed.
 - `subsample_rows` / `sample_seed` are the only event sampler: training
-  subsamples (`sample_seed(seed, "")`) and CytoNorm's balanced SOM input
-  (keyed by sample id) use it. Changing it changes CytoNorm bundles; the unit
-  test `shared_sampler_selects_the_rows_of_both_replaced_samplers` pins it
-  against the frozen 0.4.1 samplers.
+  subsamples (`sample_seed(seed, "")`), per-file cohorts (keyed by
+  acquisition) and CytoNorm's balanced SOM input (keyed by sample id) use it.
+  Changing it changes CytoNorm bundles; the unit test
+  `shared_sampler_selects_the_rows_of_both_replaced_samplers` pins it against
+  the frozen 0.4.1 samplers.
+- Pooled multi-file training must stay byte-identical
+  (`pooled_cohort_training_is_pinned` in `flowsom_cli.rs`). Per-file sampling
+  and `FlowSomModel::cohort` are additive.
 
 ## Where changes belong
 
@@ -73,6 +77,11 @@ cargo test -p cytiq-engine --test flowsom_cli
   shared sampler against its frozen predecessors.
 - `tests/populations.rs` — `FlowSomModel::populations` signal means, empty
   metaclusters and input validation.
+- `tests/cohort.rs` — per-file quotas, the balanced scale, independence from
+  input order, mask routing by acquisition, rejected ambiguous cohorts, and
+  multi-file channel labels and detector compatibility.
+- `tests/model_validation.rs` — each `FlowSomModel::validate` guard against a
+  model that is otherwise valid, cohort summaries included.
 - `crates/cytiq-engine/tests/flowsom_cli.rs` — end-to-end runs with debug
   artifacts, determinism, event masks, missing input / channel / output, zero
   threads (rejected by the CLI parser), and the pinned pooled cohort models.

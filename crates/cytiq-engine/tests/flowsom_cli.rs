@@ -551,3 +551,70 @@ const PINNED_COHORT_MODELS: [&str; 3] = [
     "6779d5dfb667773e6ee055a0154d7cacb708c8d06d44ab04277aa7be26bbd185",
     "2996e70ec6eb6e5cce608cad0b70b72398a91c705b66559ccc97f2d0865ecd01",
 ];
+
+/// Per-file cohort training with one mask per acquisition records its draw in
+/// the model; `per-file` needs `--training-events`.
+#[test]
+fn per_file_cohort_training_uses_each_inputs_own_mask() {
+    let directory = create_temp_dir("cytiq-engine-flowsom-cohort-per-file");
+    let small = directory.join("small.fcs");
+    let large = directory.join("large.fcs");
+    write_cohort_fcs(&small, 90, 0.0);
+    write_cohort_fcs(&large, 600, 40.0);
+    let mut masks = Vec::new();
+    for (path, events) in [(&small, 90), (&large, 600)] {
+        let mask = path.with_extension("parquet");
+        cytiq_mask::EventMask::new(
+            common::acquisition_of(path),
+            (0..events).map(|row| row % 3 != 0).collect(),
+            None,
+        )
+        .write_parquet(&mask)
+        .expect("mask should write");
+        masks.push(mask);
+    }
+    let model = train_cohort(
+        &directory,
+        "per-file.json",
+        &[
+            "--cohort-sampling",
+            "per-file",
+            "--training-events",
+            "100",
+            "--mask",
+            utf8(&masks[1]),
+            "--mask",
+            utf8(&masks[0]),
+        ],
+    );
+    let model: serde_json::Value =
+        serde_json::from_slice(&fs::read(&model).expect("model")).expect("JSON");
+    assert_eq!(model["schema_version"], 1);
+    assert_eq!(model["cohort"]["sampling"], "per_file");
+    assert_eq!(model["cohort"]["per_file_quota"], 50);
+    let drawn = model["cohort"]["acquisitions"]
+        .as_array()
+        .expect("acquisitions")
+        .iter()
+        .map(|entry| (entry["events"].clone(), entry["sampled"].clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(drawn, [(60.into(), 50.into()), (400.into(), 50.into())]);
+    assert_eq!(model["training_events"], 100);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args([
+            "flowsom",
+            "train",
+            "--input",
+            utf8(&small),
+            "--output",
+            utf8(&directory.join("unbounded.json")),
+            "--channels",
+            "FL1-A,FL2-A,FL3-A",
+            "--cohort-sampling",
+            "per-file",
+        ])
+        .output()
+        .expect("command should run");
+    assert_eq!(output.status.code(), Some(2));
+}
