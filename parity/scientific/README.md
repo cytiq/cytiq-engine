@@ -145,7 +145,7 @@ truth or a phenotype perturbation into evidence of biological safety.
 
 ```bash
 cargo build --release --locked -p cytiq-engine --example performance_support
-$PY parity/scientific/prepare_performance.py --output target/scientific/workloads --helper target/release/examples/performance_support --binary "$BIN"
+$PY parity/scientific/prepare_performance.py --output target/scientific/workloads --helper target/release/examples/performance_support --binary "$BIN" --accept peacoqc_1000000,cytonorm_apply_1000000
 $PY performance/scientific.py --manifest target/scientific/workloads/cases.json --baseline-bin target/performance/baseline/cytiq --candidate-bin "$BIN" --helper target/release/examples/performance_support --output target/scientific/performance
 ```
 
@@ -162,6 +162,8 @@ recorded. Logical file sizes are also reported; OS block counters may be zero on
 macOS and are not converted into claimed physical I/O bytes.
 
 Acceptance requires at least 10% lower median RSS and an upper paired-bootstrap
-95% wall-ratio bound ≤1.05 for explicitly designated optimization cases. An
+95% wall-ratio bound ≤1.05 for the optimization cases a run designates with
+`--accept` (the example names this change's PeacoQC and CytoNorm apply cases);
+every other case is a diagnostic. An
 unoptimized diagnostic case need not improve. Report failures and insufficient
 evidence; do not change exactness checks or repeatedly select favorable runs.
