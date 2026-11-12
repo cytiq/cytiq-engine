@@ -198,9 +198,9 @@ fn check(name: &str, peak: usize, input_bytes: usize, budget_mib: usize) {
 }
 
 // Peaks measured on macOS arm64 (debug test profile, one rayon thread),
-// identical across runs. At 0e04d8d: PeacoQC 72,150,023 B, FlowSOM
+// identical across runs. With the library code of eb9ebd2: PeacoQC 72,150,023 B, FlowSOM
 // 33,611,512 B, CytoNorm apply 35,269,712 B. PeacoQC without the channel
-// copies: 46,549,575 B.
+// copies: 46,549,575 B. CytoNorm apply normalizing in place: 34,151,514 B.
 
 /// `PeacoQC` on 200k events and 8 channels (all methods, cleaned FCS, masks and
 /// summary).
@@ -208,7 +208,7 @@ const PEACOQC_BUDGET_MIB: usize = 49;
 /// `FlowSOM` assignment of 200k events on 8 channels, 10k training events.
 const FLOWSOM_BUDGET_MIB: usize = 36;
 /// `CytoNorm` apply to 200k events, after a two-batch training on small files.
-const CYTONORM_APPLY_BUDGET_MIB: usize = 37;
+const CYTONORM_APPLY_BUDGET_MIB: usize = 36;
 
 #[test]
 fn memory_heavy_entry_points_stay_within_their_heap_budgets() {

@@ -566,9 +566,19 @@ fn apply_inner(config: &ApplyConfig) -> Result<RunResult> {
         clusters,
     };
     let qc = cohort_qc(std::slice::from_ref(&sample), &model)?;
+    // The raw panel values are not needed past the QC: normalize them in
+    // place instead of a second full copy.
+    let LoadedSample {
+        batch,
+        mut values,
+        clusters,
+        ..
+    } = sample;
+    normalize_in_place(&mut values, &clusters, &batch, &model)?;
+    drop(clusters);
     let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     publication.stage_path(&config.output, |path| {
-        write_normalized_fcs(path, &config.input, &dataset, &sample, &model)
+        write_normalized_fcs(path, &config.input, &dataset, &values, &batch, &model)
     })?;
     publication.stage_path(&qc_path, |path| write_json(path, &qc))?;
     if let Some(debug) = &config.debug_dir {
@@ -591,12 +601,12 @@ fn write_normalized_fcs(
     path: &Path,
     source_path: &Path,
     dataset: &FcsDataset,
-    sample: &LoadedSample,
+    normalized: &[Vec<f64>],
+    batch: &str,
     model: &CytoNormModel,
 ) -> Result<()> {
     let normal_indices =
         marker_indices(&model.markers.panel, &model.document.normalization_markers)?;
-    let normalized = normalize(sample, model)?;
     let mut columns = dataset
         .data
         .columns
@@ -640,7 +650,7 @@ fn write_normalized_fcs(
     let normalization = NormalizationState {
         schema_version: 1,
         model_sha256: model.model_sha256.clone(),
-        batch: sample.batch.clone(),
+        batch: batch.to_owned(),
         panel_sha256: model.panel_sha256.clone(),
         channels: normalized_channels,
     };
@@ -744,14 +754,25 @@ fn resolve_panel(dataset: &FcsDataset, panel: &Panel) -> Result<Vec<usize>> {
 }
 
 fn panel_values(dataset: &FcsDataset, panel: &Panel, rows: &[usize]) -> Result<Vec<Vec<f64>>> {
+    // `get_f64` converts as `to_f64_vec` does, without full converted columns.
     let columns = resolve_panel(dataset, panel)?
         .into_iter()
-        .map(|i| dataset.data.columns[i].to_f64_vec())
+        .map(|i| &dataset.data.columns[i])
         .collect::<Vec<_>>();
-    let values = rows
-        .iter()
-        .map(|&r| columns.iter().map(|c| c[r]).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
+    // Exact capacities: collecting through `Result` loses the size hint and
+    // would over-allocate every row.
+    let mut values = Vec::with_capacity(rows.len());
+    for &r in rows {
+        let mut row = Vec::with_capacity(columns.len());
+        for column in &columns {
+            row.push(
+                column
+                    .get_f64(r)
+                    .ok_or_else(|| invalid("panel row outside the event data"))?,
+            );
+        }
+        values.push(row);
+    }
     if values.iter().flatten().any(|v| !v.is_finite()) {
         return Err(invalid("nonfinite panel data"));
     }
@@ -807,15 +828,27 @@ fn quantiles(sorted: &[f64], probabilities: &[f64]) -> Vec<f64> {
 }
 
 fn normalize(sample: &LoadedSample, model: &CytoNormModel) -> Result<Vec<Vec<f64>>> {
+    let mut values = sample.values.clone();
+    normalize_in_place(&mut values, &sample.clusters, &sample.batch, model)?;
+    Ok(values)
+}
+
+/// [`normalize`] on `values` themselves, for a caller that no longer needs
+/// the raw panel values (apply, after its QC).
+fn normalize_in_place(
+    values: &mut [Vec<f64>],
+    clusters: &[usize],
+    batch: &str,
+    model: &CytoNormModel,
+) -> Result<()> {
     let indices = marker_indices(&model.markers.panel, &model.document.normalization_markers)?;
     let maps = model
         .mappings
         .iter()
-        .filter(|m| m.batch == sample.batch)
+        .filter(|m| m.batch == batch)
         .map(|m| ((m.metacluster, m.marker.as_str()), m))
         .collect::<BTreeMap<_, _>>();
-    let mut values = sample.values.clone();
-    for (row, &cluster) in values.iter_mut().zip(&sample.clusters) {
+    for (row, &cluster) in values.iter_mut().zip(clusters) {
         for (marker, &i) in model.document.normalization_markers.iter().zip(&indices) {
             let mapping = maps
                 .get(&(cluster, marker.as_str()))
@@ -828,7 +861,7 @@ fn normalize(sample: &LoadedSample, model: &CytoNormModel) -> Result<Vec<Vec<f64
             }
         }
     }
-    Ok(values)
+    Ok(())
 }
 
 fn cohort_qc(samples: &[LoadedSample], model: &CytoNormModel) -> Result<Value> {
