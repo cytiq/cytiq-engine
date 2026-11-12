@@ -75,7 +75,8 @@ pub fn assess(destination: &Destination, expected: &RunRecord) -> Prior {
     if !destination.path().exists() && !path.exists() {
         return Prior::Absent;
     }
-    let bytes = match std::fs::read(&path) {
+    // A record is our own small JSON; an oversized one is not trusted.
+    let bytes = match crate::input::document_bytes(&path) {
         Ok(bytes) => bytes,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Prior::Unrecorded,
         Err(_) => return Prior::Damaged,
