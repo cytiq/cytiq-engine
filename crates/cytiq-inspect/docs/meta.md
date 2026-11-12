@@ -12,8 +12,12 @@ describe their values (for example the spillover matrix after `compensate` or
 
 - file identity: path, file name, size in bytes, SHA-256 of the raw bytes
 - FCS version (`FCS3.0` / `FCS3.1` / `FCS3.2`)
-- TEXT / DATA / ANALYSIS segment offsets, from the HEADER with a fallback to
-  `$BEGINDATA`/`$ENDDATA` and `$BEGINANALYSIS`/`$ENDANALYSIS` for large files
+- TEXT / DATA / ANALYSIS segment offsets, as the HEADER stores them, with a
+  fallback to `$BEGINDATA`/`$ENDDATA` and `$BEGINANALYSIS`/`$ENDANALYSIS`
+  when the HEADER field is `0`. That is the case for segments ending beyond
+  byte `99_999_999`, which do not fit the 8-digit HEADER fields. `cytiq-fcs`
+  treats the TEXT keywords as authoritative and rejects a file whose non-zero
+  HEADER offsets disagree with them.
 - event count (decoded rows, falling back to `$TOT`)
 - every parameter with its name, label, data type, width and `$Pn*` keywords
 - every primary and supplemental TEXT keyword as `[key, value]` pairs, in file

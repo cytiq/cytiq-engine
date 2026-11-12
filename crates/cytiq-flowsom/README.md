@@ -65,7 +65,11 @@ Its RNG stream is independent of SOM training. This mode does not reproduce R's
 RNG sequence. The legacy command and `FlowSomRunner::run` retain their previous
 defaults and assignment schema.
 
-1. Read one FCS file and select channels (`$PnN`, then `$PnS`, then
+The steps of `cytiq flowsom` (one file, assignments as output). `train` runs
+steps 1–3 and 5 on its cohort and saves the model; `apply` runs step 4 with
+the saved scale and codebook:
+
+1. Read the FCS file and select channels (`$PnN`, then `$PnS`, then
    `"$PnN [$PnS]"`). Values are used as stored: no compensation or transform
    is applied here, so run `cytiq transform` first when needed.
 2. Scale each channel to mean 0 / SD 1 (`base::scale`, n − 1).

@@ -146,9 +146,13 @@ write_fcs3_1_f32_with_options(
   `FcsWriteParameter::keywords`; `$PnN`, `$PnS`, `$PnB`, `$PnE`, `$PnR` and
   `$PnDATATYPE` are generated. `$PnR` comes from `range` when set, otherwise
   from the column maximum.
-- `$BEGINDATA`/`$ENDDATA` are zero-padded to 20 digits in TEXT and the HEADER
-  DATA fields are 0, so DATA segments of any size are written. Only the TEXT
-  segment must end within the 8-digit HEADER field (`99_999_999` bytes).
+- `$BEGINDATA`/`$ENDDATA` are zero-padded to 20 digits in TEXT, so DATA
+  segments of any size are written. The HEADER repeats the DATA offsets when
+  `$ENDDATA` fits its 8-digit fields (at most `99_999_999`), as FCS 3.1
+  requires and strict readers such as flowio check, and holds `0` otherwise.
+  Only the TEXT segment must always end within the 8-digit HEADER field.
+- The reader takes DATA offsets from `$BEGINDATA`/`$ENDDATA` and, when the
+  HEADER holds non-zero DATA offsets, requires them to agree.
 
 ## Dependencies
 
