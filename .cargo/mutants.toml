@@ -60,6 +60,11 @@ exclude_re = [
 additional_cargo_args = ["--locked"]
 gitignore = true
 copy_target = true
+# build.rs derives the provenance commit from git. Without `.git` in the
+# scratch copy every build is unidentified, `--reuse skip` refuses it, and the
+# cytiq-engine baseline fails before any mutant runs. With it, each mutant is
+# `<sha>-dirty.<digest>`: identified and distinct.
+copy_vcs = true
 # Match ordinary cargo test builds; the workspace has no deny(warnings) attributes.
 cap_lints = false
 test_tool = "cargo"

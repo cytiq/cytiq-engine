@@ -211,6 +211,8 @@ reconciliation, anchor-reliability and comparison functions of
 when extracting or renaming helpers: a move must not remove mutation coverage.
 The runner rejects an empty selection and checks the unmodified tests before
 injecting mutations into a scratch copy; the working tree is never mutated.
+The copy includes `.git` (`copy_vcs`): provenance identifies each mutated
+build as `<sha>-dirty.<digest>`, which the reuse tests need.
 It uses `cargo test --locked` for the mutated crate, including its integration
 tests and doctests. Library regressions must be tested in that library, not
 only by CLI tests. Coverage instrumentation is not used for mutation tests.
