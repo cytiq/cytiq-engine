@@ -1,6 +1,8 @@
 //! The `cytiq` binary: parse the command line, record provenance and run one command.
 
 mod cli;
+#[cfg(test)]
+mod cli_surface;
 mod commands;
 mod error;
 mod logging;

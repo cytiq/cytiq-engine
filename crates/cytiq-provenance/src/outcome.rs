@@ -223,6 +223,83 @@ mod tests {
         std::fs::remove_dir_all(&directory).unwrap();
     }
 
+    /// The outcome document is read by orchestrators: its keys, reason tokens
+    /// and exit codes are a versioned contract (`schema_version` 1).
+    #[test]
+    fn outcome_document_keeps_its_schema() {
+        let mut outcome =
+            CommandOutcome::new("cytiq gate", true, OutcomeReason::Success, String::new());
+        outcome.artifacts.push(FileRecord {
+            path: "counts.json".into(),
+            role: None,
+            bytes: 2,
+            sha256: "0".repeat(64),
+        });
+        outcome.execution = Some(Execution {
+            fingerprint: "f".repeat(64),
+            reused: false,
+        });
+        let value = serde_json::to_value(&outcome).unwrap();
+        let keys = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            keys,
+            [
+                "artifacts",
+                "command",
+                "completed",
+                "execution",
+                "exit_code",
+                "message",
+                "reason",
+                "schema_version"
+            ]
+        );
+        assert_eq!(value["schema_version"], 1);
+        let artifact = value["artifacts"][0].as_object().unwrap();
+        assert_eq!(
+            artifact.keys().collect::<Vec<_>>(),
+            ["bytes", "path", "sha256"]
+        );
+        assert_eq!(
+            value["execution"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            ["fingerprint", "reused"]
+        );
+        for (reason, token, code) in [
+            (OutcomeReason::Success, "success", 0),
+            (OutcomeReason::RuntimeError, "runtime_error", 1),
+            (
+                OutcomeReason::InvalidConfiguration,
+                "invalid_configuration",
+                2,
+            ),
+            (OutcomeReason::ChecksFailed, "checks_failed", 3),
+            (OutcomeReason::OutputConflict, "output_conflict", 4),
+            (OutcomeReason::Incomplete, "incomplete", 4),
+        ] {
+            assert_eq!(serde_json::to_value(reason).unwrap(), token);
+            assert_eq!(reason.exit_code(), code);
+        }
+        let without_execution = CommandOutcome::new(
+            "cytiq gate",
+            false,
+            OutcomeReason::RuntimeError,
+            "boom".into(),
+        );
+        assert!(
+            serde_json::to_value(&without_execution).unwrap()["execution"].is_null(),
+            "execution is omitted when absent"
+        );
+    }
+
     #[test]
     fn write_below_a_file_fails() {
         let parent =
