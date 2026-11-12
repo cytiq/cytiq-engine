@@ -103,8 +103,8 @@ let y = logicle.scale(1_000.0); // [0, 1] Gating-ML scale
   the run.
 - `dry_run` resolves inputs, channels and outputs without writing anything.
 - `debug_dir` gets `summary.json`, `metrics.csv` and a Plotly `report.html`.
-- Files and columns are processed in parallel with Rayon; `threads` caps the
-  pool size.
+- Files and columns are processed in parallel on the caller's rayon pool;
+  `cytiq transform --threads` sizes it.
 
 ## Dependencies
 

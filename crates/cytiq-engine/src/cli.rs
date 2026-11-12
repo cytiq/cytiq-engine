@@ -112,6 +112,53 @@ pub(crate) enum Commands {
     Flowsom(FlowsomArgs),
 }
 
+impl Commands {
+    /// `--threads` of the commands whose libraries run on rayon. The CLI
+    /// sizes the global pool once; libraries use the caller's pool.
+    /// `classify --threads` configures ONNX Runtime instead.
+    pub(crate) const fn rayon_threads(&self) -> Option<usize> {
+        match self {
+            Self::Autospill(args) => args.threads,
+            Self::Autospread(args) => args.threads,
+            Self::Autospectral(args) => args.threads,
+            Self::Peacoqc(args) => args.threads,
+            Self::Cytoscan(args) => args.threads,
+            Self::Transform(args) => args.threads,
+            Self::Gate(args) => args.threads,
+            Self::Clean(args) => args.threads,
+            Self::Spillqc(args) => args.threads,
+            Self::Flowsom(
+                FlowsomArgs {
+                    command:
+                        Some(
+                            FlowSomCommand::Train { threads, .. }
+                            | FlowSomCommand::Apply { threads, .. },
+                        ),
+                    ..
+                }
+                | FlowsomArgs {
+                    command: None,
+                    threads,
+                    ..
+                },
+            )
+            | Self::Cytonorm(
+                CytoNormCommand::Train { threads, .. } | CytoNormCommand::Apply { threads, .. },
+            ) => *threads,
+            Self::Population(_)
+            | Self::Specimen(_)
+            | Self::Classify(_)
+            | Self::Mask(_)
+            | Self::Plot(_)
+            | Self::Preflight(_)
+            | Self::Qc(_)
+            | Self::Meta(_)
+            | Self::Compensate(_)
+            | Self::Stats(_) => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, ValueEnum)]
 pub(crate) enum CliMetaclustering {
     Average,

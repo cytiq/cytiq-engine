@@ -138,7 +138,7 @@ PE,256,262144,4.418539922,0,-100
 - `debug_dir` gets one `report.html` (gates, regressions, convergence,
   heatmaps) and `summary.json`.
 - Controls, gates, spillover rows, spread rows and refinement error passes run
-  on Rayon; `threads` caps the pool size.
+  on the caller's rayon pool (`cytiq autospill --threads` sizes it).
 
 ## Dependencies
 

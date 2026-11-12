@@ -25,7 +25,7 @@ pub(crate) struct GateArgs {
     format: CliGateOutputFormat,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Event mask Parquet (`masks.parquet`) restricting the gated events;
     /// repeat to combine several masks with AND.
     #[arg(long = "mask")]
@@ -44,7 +44,7 @@ pub(crate) fn run(
         gating_ml,
         output,
         format,
-        threads,
+        threads: _,
         masks,
         membership,
     } = args;
@@ -59,7 +59,6 @@ pub(crate) fn run(
         gating_ml,
         output,
         format: format.into(),
-        threads,
         masks,
         membership,
     };

@@ -65,6 +65,12 @@ fn run(
     name: &str,
     policy: cytiq_provenance::reuse::ReusePolicy,
 ) -> Result<Option<CommandOutcome>, Box<dyn std::error::Error>> {
+    if let Some(threads) = command.rayon_threads() {
+        // Before anything else touches rayon; a build error exits 1.
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()?;
+    }
     let mut recorder = RunRecorder::start(
         name,
         env!("CARGO_PKG_VERSION"),

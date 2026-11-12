@@ -19,7 +19,7 @@ use nalgebra::DMatrix;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand_distr::{Distribution, Uniform};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::CytoScanError;
@@ -103,7 +103,6 @@ pub struct CytoScanConfig {
     pub feature_method: FeatureMethod,
     pub flag_method: FlagMethod,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     /// Fail instead of warning when a file has no spillover metadata or a
     /// selected channel is not in it, so no file is scored on raw values.
     pub strict: bool,
@@ -120,7 +119,6 @@ impl CytoScanConfig {
             feature_method: FeatureMethod::Quantiles,
             flag_method: FlagMethod::Outlier,
             debug_dir: None,
-            threads: None,
             strict: false,
         }
     }
@@ -147,7 +145,6 @@ pub struct CytoScanParameters {
     pub resolved_reference_inputs: Vec<PathBuf>,
     pub output_dir: PathBuf,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     pub constants: CytoScanConstants,
 }
 
@@ -315,7 +312,7 @@ impl CytoScanRunner {
     /// cannot be processed, model fitting fails, or output files cannot be
     /// written.
     pub fn run(config: &CytoScanConfig) -> Result<CytoScanResult, CytoScanError> {
-        with_thread_pool(config.threads, || Self::run_inner(config))
+        Self::run_inner(config)
     }
 
     /// The FCS files a run with `config` reads, `(test, reference)`, with
@@ -500,27 +497,7 @@ fn validate_config(config: &CytoScanConfig) -> Result<(), CytoScanError> {
             flag_method: config.flag_method.as_str(),
         });
     }
-    if let Some(0) = config.threads {
-        return Err(CytoScanError::InvalidThreads);
-    }
-
     Ok(())
-}
-
-fn with_thread_pool<T: Send>(
-    threads: Option<usize>,
-    operation: impl FnOnce() -> Result<T, CytoScanError> + Send,
-) -> Result<T, CytoScanError> {
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| CytoScanError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 fn build_parameters(
@@ -538,7 +515,6 @@ fn build_parameters(
         resolved_reference_inputs: reference_paths.to_vec(),
         output_dir: config.output_dir.clone(),
         debug_dir: config.debug_dir.clone(),
-        threads: config.threads,
         constants: CytoScanConstants::default(),
     }
 }

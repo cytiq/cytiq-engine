@@ -46,7 +46,7 @@ pub(crate) struct TransformArgs {
     logicle_a: f64,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Comma-separated channel names to transform.
     #[arg(long)]
     channels: Option<String>,
@@ -92,7 +92,7 @@ pub(crate) fn run(
         logicle_m,
         logicle_w,
         logicle_a,
-        threads,
+        threads: _,
         channels,
         exclude_channels,
         format,
@@ -134,7 +134,6 @@ pub(crate) fn run(
         dry_run,
         metadata_json,
         debug_dir,
-        threads,
         allow_retransform,
         allow_uncompensated,
     };

@@ -8,8 +8,7 @@ use cytiq_gating::{
     BooleanOp, Gate, GateKind, GateRef, GatingResults, GatingStrategy, Transform, parse_gatingml,
     to_gatingml,
 };
-use log::{debug, info};
-use rayon::ThreadPoolBuilder;
+use log::info;
 use serde::Serialize;
 use serde_json::json;
 
@@ -45,7 +44,6 @@ pub struct CleanConfig {
     /// Re-apply these (e.g. hand-edited) gates instead of fitting new ones.
     pub gates: Option<PathBuf>,
     pub max_fit_events: usize,
-    pub threads: Option<usize>,
     /// Event masks (`masks.parquet`) from earlier stages. Filters are fitted
     /// on events every mask keeps, and `keep` is false for the others.
     pub masks: Vec<PathBuf>,
@@ -93,7 +91,6 @@ impl CleanConfig {
             viability: ViabilityConfig::default(),
             gates: None,
             max_fit_events: DEFAULT_MAX_FIT_EVENTS,
-            threads: None,
             masks: Vec::new(),
             required: Vec::new(),
         }
@@ -190,25 +187,12 @@ impl CleanRunner {
     /// read, required channels are missing, or outputs cannot be written.
     pub fn run(config: &CleanConfig) -> Result<CleanResult, CleanError> {
         validate(config)?;
-        match config.threads {
-            Some(threads) => {
-                debug!("using local rayon thread pool with {threads} threads");
-                ThreadPoolBuilder::new()
-                    .num_threads(threads)
-                    .build()
-                    .map_err(|source| CleanError::ThreadPoolBuild { threads, source })?
-                    .install(|| run_inner(config))
-            }
-            None => run_inner(config),
-        }
+        run_inner(config)
     }
 }
 
 fn validate(config: &CleanConfig) -> Result<(), CleanError> {
     let invalid = |message: &str| Err(CleanError::InvalidConfig(message.to_owned()));
-    if config.threads == Some(0) {
-        return Err(CleanError::InvalidThreads);
-    }
     if config.debris.mode == DebrisMode::Fixed
         && config.debris.fsc_min.is_none()
         && config.debris.ssc_min.is_none()

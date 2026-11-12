@@ -80,7 +80,7 @@ pub(crate) struct FlowsomArgs {
     debug_dir: Option<PathBuf>,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// SOM grid width.
     #[arg(long, default_value_t = FLOWSOM_XDIM, value_parser = parse_positive_usize)]
     xdim: usize,
@@ -117,7 +117,7 @@ pub(crate) fn run(
         channels,
         channel,
         debug_dir,
-        threads,
+        threads: _,
         xdim,
         ydim,
         metaclusters,
@@ -141,7 +141,6 @@ pub(crate) fn run(
     let config = FlowSomConfig {
         channels,
         debug_dir,
-        threads,
         xdim,
         ydim,
         metaclusters,
@@ -195,7 +194,7 @@ fn run_flowsom_model(
             metaclustering,
             training_events,
             masks,
-            threads,
+            threads: _,
             overwrite,
         } => {
             recorder.snapshot_inputs("input", &input)?;
@@ -211,7 +210,6 @@ fn run_flowsom_model(
             config.scale = !no_scale;
             config.training_events = training_events;
             config.masks = masks;
-            config.threads = threads;
             let recorder = crate::provenance::begin!(
                 recorder,
                 cytiq_provenance::reuse::Destination::File(output.clone())
@@ -234,7 +232,7 @@ fn run_flowsom_model(
             model,
             output,
             masks,
-            threads,
+            threads: _,
             overwrite,
         } => {
             recorder.snapshot_inputs("input", std::slice::from_ref(&input))?;
@@ -245,7 +243,7 @@ fn run_flowsom_model(
                 cytiq_provenance::reuse::Destination::File(output.clone())
             );
             let events = cytiq_flowsom::FlowSomModel::apply_model_file(
-                &model, &input, &output, &masks, threads, overwrite,
+                &model, &input, &output, &masks, overwrite,
             )?;
             info!("flowsom assigned {events} events with saved model");
             record_provenance(

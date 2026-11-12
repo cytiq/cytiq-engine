@@ -35,7 +35,7 @@ pub(crate) struct AutospectralArgs {
     ssc: String,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Gate control FSC/SSC with the 1-99% quantile box instead of
     /// cleaning them (drop raw detector-margin events, then the
     /// `autospill` KDE gate), for controls too small for the KDE gate. On
@@ -62,7 +62,7 @@ pub(crate) fn run(
         debug_dir,
         fsc,
         ssc,
-        threads,
+        threads: _,
         quantile_gate,
         clean_controls: _,
     } = args;
@@ -104,7 +104,6 @@ pub(crate) fn run(
         detectors,
         output_dir: output.clone(),
         debug_dir,
-        threads,
         clean_controls: !quantile_gate,
     };
     let recorder = crate::provenance::begin!(

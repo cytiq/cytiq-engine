@@ -36,7 +36,7 @@ pub(crate) struct CytoscanArgs {
     debug_dir: Option<PathBuf>,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Fail instead of warning when a file has no spillover metadata or a
     /// selected channel is not in it.
     #[arg(long)]
@@ -56,7 +56,7 @@ pub(crate) fn run(
         method,
         flag_method,
         debug_dir,
-        threads,
+        threads: _,
         strict,
     } = args;
     info!(
@@ -77,7 +77,6 @@ pub(crate) fn run(
         feature_method: method.into(),
         flag_method: flag_method.into(),
         debug_dir,
-        threads,
         strict,
     };
     let (test, reference) = CytoScanRunner::input_files(&config)?;

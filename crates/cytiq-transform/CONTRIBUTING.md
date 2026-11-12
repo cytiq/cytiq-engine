@@ -39,9 +39,9 @@ this crate.
   (no duplicate outputs, no non-`.fcs` outputs, `overwrite` checks) and the
   metadata path are all checked before the first file is written. A
   `dry_run` must never touch the filesystem.
-- Output is deterministic for a given input and config regardless of
-  `threads`: parallelism is per file and per column, results are collected in
-  input order.
+- Output is deterministic for a given input and config regardless of the
+  thread count (the caller's rayon pool): parallelism is per file and per
+  column, results are collected in input order.
 
 ## Where changes belong
 

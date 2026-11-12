@@ -71,8 +71,10 @@ the package.
 
 ## Shared flag conventions
 
-- `--threads N` caps worker threads; omitted means all logical CPUs, `0` is
-  rejected at parse time.
+- `--threads N` sizes the process-wide rayon pool once, before the command
+  runs; omitted means all logical CPUs (or `RAYON_NUM_THREADS`), `0` is
+  rejected at parse time. `classify --threads` sets ONNX Runtime threads.
+  Results never depend on it (`tests/threads_cli.rs`).
 - `--debug-dir DIR` writes optional diagnostics where the command supports it.
 - Channels are passed either as `--channels A,B,C` or as repeated
   `--channel A --channel B` (`peacoqc`, `flowsom`, `cytoscan`; at least one is

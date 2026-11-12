@@ -8,8 +8,7 @@ use super::{
     Cluster, DeterministicRng, EQUALITY_EPSILON, FlowSomAssignment, FlowSomConfig, FlowSomError,
     FlowSomScaleSummary, ResolvedChannel, SomGrid, assign_events, channel_matrix,
     closest_cluster_pair, hierarchical_metaclusters, load_dataset, resolve_channels, scale_matrix,
-    selected_rows, train_som, training_rows, validate_config, with_thread_pool,
-    write_assignments_csv,
+    selected_rows, train_som, training_rows, validate_config, write_assignments_csv,
 };
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -88,7 +87,6 @@ impl FlowSomModel {
         input: &Path,
         output: &Path,
         masks: &[PathBuf],
-        threads: Option<usize>,
         overwrite: bool,
     ) -> Result<usize, FlowSomError> {
         let sources = std::iter::once(input.to_path_buf())
@@ -96,7 +94,7 @@ impl FlowSomModel {
             .chain(masks.iter().cloned())
             .collect::<Vec<_>>();
         check_file_outputs(output, &sources, overwrite)?;
-        Self::load(model_path)?.apply_file(input, output, masks, threads, overwrite)
+        Self::load(model_path)?.apply_file(input, output, masks, overwrite)
     }
     /// Train reusable SOM geometry on a row-major matrix in channel order.
     ///
@@ -107,61 +105,57 @@ impl FlowSomModel {
         config: &FlowSomConfig,
         method: Metaclustering,
     ) -> Result<Self, FlowSomError> {
-        with_thread_pool(config.threads, || {
-            validate_config(config)?;
-            validate_matrix(values, config.channels.len())?;
-            let unique: HashSet<_> = config.channels.iter().collect();
-            if unique.len() != config.channels.len()
-                || config.channels.iter().any(|c| c.trim().is_empty())
-            {
-                return Err(invalid("empty or duplicate model channels"));
+        validate_config(config)?;
+        validate_matrix(values, config.channels.len())?;
+        let unique: HashSet<_> = config.channels.iter().collect();
+        if unique.len() != config.channels.len()
+            || config.channels.iter().any(|c| c.trim().is_empty())
+        {
+            return Err(invalid("empty or duplicate model channels"));
+        }
+        let channels = config
+            .channels
+            .iter()
+            .map(|name| ResolvedChannel {
+                requested_name: name.clone(),
+                parameter_name: name.clone(),
+                display_name: name.clone(),
+                parameter_index: 0,
+            })
+            .collect::<Vec<_>>();
+        let scaled = scale_matrix(values.to_vec(), &channels, config.scale);
+        let rows = training_rows(values.len(), config);
+        let training_sample = rows.map(|r| {
+            r.into_iter()
+                .map(|i| scaled.values[i].clone())
+                .collect::<Vec<_>>()
+        });
+        let training = training_sample.as_deref().unwrap_or(&scaled.values);
+        let codebook = train_som(training, SomGrid::of(config), config.seed);
+        let node_metaclusters = match method {
+            Metaclustering::Average => hierarchical_metaclusters(&codebook, config.metaclusters),
+            Metaclustering::Consensus => {
+                consensus_metaclusters(&codebook, config.metaclusters, config.seed)?
             }
-            let channels = config
-                .channels
-                .iter()
-                .map(|name| ResolvedChannel {
-                    requested_name: name.clone(),
-                    parameter_name: name.clone(),
-                    display_name: name.clone(),
-                    parameter_index: 0,
-                })
-                .collect::<Vec<_>>();
-            let scaled = scale_matrix(values.to_vec(), &channels, config.scale);
-            let rows = training_rows(values.len(), config);
-            let training_sample = rows.map(|r| {
-                r.into_iter()
-                    .map(|i| scaled.values[i].clone())
-                    .collect::<Vec<_>>()
-            });
-            let training = training_sample.as_deref().unwrap_or(&scaled.values);
-            let codebook = train_som(training, SomGrid::of(config), config.seed);
-            let node_metaclusters = match method {
-                Metaclustering::Average => {
-                    hierarchical_metaclusters(&codebook, config.metaclusters)
-                }
-                Metaclustering::Consensus => {
-                    consensus_metaclusters(&codebook, config.metaclusters, config.seed)?
-                }
-            };
-            let model = Self {
-                schema_version: 1,
-                channels: config.channels.clone(),
-                channel_labels: None,
-                xdim: config.xdim,
-                ydim: config.ydim,
-                seed: config.seed,
-                scale_input: config.scale,
-                scale: scaled.scale,
-                codebook,
-                node_metaclusters,
-                metaclustering: method,
-                training_events: training.len(),
-                transform: None,
-                normalization_model: None,
-            };
-            model.validate()?;
-            Ok(model)
-        })
+        };
+        let model = Self {
+            schema_version: 1,
+            channels: config.channels.clone(),
+            channel_labels: None,
+            xdim: config.xdim,
+            ydim: config.ydim,
+            seed: config.seed,
+            scale_input: config.scale,
+            scale: scaled.scale,
+            codebook,
+            node_metaclusters,
+            metaclustering: method,
+            training_events: training.len(),
+            transform: None,
+            normalization_model: None,
+        };
+        model.validate()?;
+        Ok(model)
     }
 
     /// Train on several files; masks in config are supported for one file.
@@ -383,7 +377,6 @@ impl FlowSomModel {
         input: &Path,
         output: &Path,
         masks: &[PathBuf],
-        threads: Option<usize>,
         overwrite: bool,
     ) -> Result<usize, FlowSomError> {
         let sources = std::iter::once(input.to_path_buf())
@@ -393,69 +386,67 @@ impl FlowSomModel {
         if input == output || (output.exists() && !overwrite) {
             return Err(invalid("assignment output exists or aliases input"));
         }
-        with_thread_pool(threads, || {
-            let dataset = load_dataset(input)?;
-            let state = SignalState::of(&dataset.text).map_err(|source| FlowSomError::FcsRead {
+        let dataset = load_dataset(input)?;
+        let state = SignalState::of(&dataset.text).map_err(|source| FlowSomError::FcsRead {
+            path: input.to_path_buf(),
+            source,
+        })?;
+        let contract = if state.transform.is_some() {
+            Some(
+                TransformContract::of(&dataset.text, &self.channels).map_err(|source| {
+                    FlowSomError::FcsRead {
+                        path: input.to_path_buf(),
+                        source,
+                    }
+                })?,
+            )
+        } else {
+            None
+        };
+        if contract != self.transform
+            || state.normalization.map(|n| n.model_sha256) != self.normalization_model
+        {
+            return Err(invalid("model signal contract mismatch"));
+        }
+        let rows = selected_rows(input, &dataset, masks)?;
+        let channels = resolve_channels(input, &dataset, &self.channels, &rows)?;
+        if let Some(expected) = &self.channel_labels {
+            for (channel, labels) in self.channels.iter().zip(expected) {
+                let parameters = dataset
+                    .parameters
+                    .iter()
+                    .filter(|p| p.name == *channel)
+                    .collect::<Vec<_>>();
+                if parameters.len() != 1
+                    || !match parameters[0].label.as_ref() {
+                        Some(label) => labels.contains(label),
+                        None => labels.is_empty(),
+                    }
+                {
+                    return Err(invalid("model marker label mismatch"));
+                }
+            }
+        }
+        let assigned = self.assign(&channel_matrix(&channels, &dataset, &rows)?)?;
+        let source =
+            cytiq_fcs::source_event_ids(&dataset).map_err(|source| FlowSomError::FcsRead {
                 path: input.to_path_buf(),
                 source,
             })?;
-            let contract = if state.transform.is_some() {
-                Some(
-                    TransformContract::of(&dataset.text, &self.channels).map_err(|source| {
-                        FlowSomError::FcsRead {
-                            path: input.to_path_buf(),
-                            source,
-                        }
-                    })?,
-                )
-            } else {
-                None
-            };
-            if contract != self.transform
-                || state.normalization.map(|n| n.model_sha256) != self.normalization_model
-            {
-                return Err(invalid("model signal contract mismatch"));
-            }
-            let rows = selected_rows(input, &dataset, masks)?;
-            let channels = resolve_channels(input, &dataset, &self.channels, &rows)?;
-            if let Some(expected) = &self.channel_labels {
-                for (channel, labels) in self.channels.iter().zip(expected) {
-                    let parameters = dataset
-                        .parameters
-                        .iter()
-                        .filter(|p| p.name == *channel)
-                        .collect::<Vec<_>>();
-                    if parameters.len() != 1
-                        || !match parameters[0].label.as_ref() {
-                            Some(label) => labels.contains(label),
-                            None => labels.is_empty(),
-                        }
-                    {
-                        return Err(invalid("model marker label mismatch"));
-                    }
-                }
-            }
-            let assigned = self.assign(&channel_matrix(&channels, &dataset, &rows)?)?;
-            let source =
-                cytiq_fcs::source_event_ids(&dataset).map_err(|source| FlowSomError::FcsRead {
-                    path: input.to_path_buf(),
-                    source,
-                })?;
-            let assignments = assigned
-                .iter()
-                .zip(&rows)
-                .map(|(&(node, cluster), &row)| FlowSomAssignment {
-                    event_index: row,
-                    source_event_id: source.as_ref().map_or(row as u64, |ids| ids[row]),
-                    flowsom_node: node,
-                    flowsom_metacluster: cluster,
-                })
-                .collect::<Vec<_>>();
-            let mut publication = Publication::new(Existing::overwrite(overwrite));
-            publication.stage_path(output, |path| write_assignments_csv(path, &assignments))?;
-            publication.commit()?;
-            Ok(assignments.len())
-        })
+        let assignments = assigned
+            .iter()
+            .zip(&rows)
+            .map(|(&(node, cluster), &row)| FlowSomAssignment {
+                event_index: row,
+                source_event_id: source.as_ref().map_or(row as u64, |ids| ids[row]),
+                flowsom_node: node,
+                flowsom_metacluster: cluster,
+            })
+            .collect::<Vec<_>>();
+        let mut publication = Publication::new(Existing::overwrite(overwrite));
+        publication.stage_path(output, |path| write_assignments_csv(path, &assignments))?;
+        publication.commit()?;
+        Ok(assignments.len())
     }
 }
 

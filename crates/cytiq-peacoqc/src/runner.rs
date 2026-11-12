@@ -13,7 +13,7 @@ use cytiq_fcs::{
     MarginBounds, Parameter, SignalState,
 };
 use log::{debug, info, warn};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::PeacoQcError;
@@ -88,7 +88,6 @@ pub struct PeacoQcConfig {
     pub remove_margins: bool,
     pub remove_zeros: bool,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
 }
 
 impl PeacoQcConfig {
@@ -100,7 +99,6 @@ impl PeacoQcConfig {
             remove_margins: false,
             remove_zeros: false,
             debug_dir: None,
-            threads: None,
         }
     }
 }
@@ -283,7 +281,7 @@ impl PeacoQcRunner {
     ) -> Result<PeacoQcResult, PeacoQcError> {
         let input = input.as_ref();
         let output = output.as_ref();
-        with_thread_pool(config.threads, || Self::run_inner(input, output, config))
+        Self::run_inner(input, output, config)
     }
 
     fn run_inner(
@@ -430,18 +428,16 @@ pub fn peacoqc_mask(
         .iter()
         .map(|(name, values)| ChannelData { name, values })
         .collect::<Vec<_>>();
-    with_thread_pool(config.threads, || {
-        let mut warnings = Vec::new();
-        let computation = compute_mask(source, &data, events, None, config, &mut warnings)?;
-        for warning in &warnings {
-            warn!("peacoqc: {warning}");
-        }
-        Ok(computation
-            .mask
-            .iter()
-            .map(|record| record.is_good)
-            .collect())
-    })
+    let mut warnings = Vec::new();
+    let computation = compute_mask(source, &data, events, None, config, &mut warnings)?;
+    for warning in &warnings {
+        warn!("peacoqc: {warning}");
+    }
+    Ok(computation
+        .mask
+        .iter()
+        .map(|record| record.is_good)
+        .collect())
 }
 
 fn compute_mask(
@@ -1665,23 +1661,6 @@ fn fraction(count: usize, denominator: usize) -> f64 {
     } else {
         count as f64 / denominator as f64
     }
-}
-
-fn with_thread_pool<T, F>(threads: Option<usize>, operation: F) -> Result<T, PeacoQcError>
-where
-    T: Send,
-    F: FnOnce() -> Result<T, PeacoQcError> + Send,
-{
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| PeacoQcError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 #[cfg(test)]

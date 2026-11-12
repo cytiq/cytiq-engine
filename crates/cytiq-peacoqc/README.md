@@ -97,7 +97,7 @@ println!("kept {}", result.summary.metrics.events_after);
 - `summary.json` `status` is `WARN` when `warnings` is not empty, otherwise
   `PASS`. It does not judge how much was removed; panel thresholds are
   checked by `cytiq qc`.
-- `threads: Some(n)` runs in a local rayon pool.
+- Work runs on the caller's rayon pool; `cytiq peacoqc --threads` sizes it.
 
 ## Dependencies
 

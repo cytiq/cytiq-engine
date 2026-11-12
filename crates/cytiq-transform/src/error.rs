@@ -163,12 +163,6 @@ pub enum TransformError {
     },
     #[error("failed to publish transformed output: {0}")]
     Publish(#[from] cytiq_publish::PublishError),
-    #[error("failed to build transform worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
 }
 
 impl From<cytiq_fcs::inputs::InputError> for TransformError {

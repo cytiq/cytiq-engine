@@ -65,7 +65,7 @@ pub(crate) struct SpillqcArgs {
     fail_on_flag: bool,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
     /// Replace the outputs of an earlier run in the output directory.
     #[arg(long)]
     overwrite: bool,
@@ -99,7 +99,6 @@ impl SpillqcArgs {
                 min_files: self.batch_min_files,
                 min_fraction: self.batch_min_fraction,
             },
-            threads: self.threads,
             overwrite: self.overwrite,
         })
     }

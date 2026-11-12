@@ -9,8 +9,7 @@ this crate.
 - `src/lib.rs` — crate docs and re-exports only.
 - `src/runner.rs` — `AutospillRunner` / `AutospreadRunner`, config and result
   types, control loading and primary-channel inference, autofluorescence
-  proxy, initial spillover, refinement state machine, spread estimation,
-  thread pool.
+  proxy, initial spillover, refinement state machine, spread estimation.
 - `src/regression.rs` — `MASS::rlm` port, OLS with/without intercept, joint
   trimming, skewness, percentiles and robust SD.
 - `src/transform.rs` — per-channel FlowJo biexponential built on
@@ -45,7 +44,8 @@ this crate.
   ambiguous or missing match is an error, never a guess.
 - Square output with a `channel` header is the backward-compatible layout;
   keep it when detectors equal the primary channels.
-- Results do not depend on `threads`: parallel stages collect in input order.
+- Results do not depend on the thread count: parallel stages collect in input
+  order. The runners use the caller's rayon pool.
 - AutoSpread has no upstream reference; its golden file
   `data/fixtures/autospread/expected_spread.csv` is regenerated only on an
   intentional algorithm change, and the PR must say so.

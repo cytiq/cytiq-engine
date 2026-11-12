@@ -199,3 +199,42 @@ fn cli_surface_matches_the_reviewed_contract() {
         );
     }
 }
+
+/// Every command that accepts `--threads` sizes the global rayon pool with
+/// it, except `classify`, whose `--threads` sets ONNX Runtime's threads.
+#[test]
+fn every_threads_flag_sizes_the_rayon_pool() {
+    let mut invocations = Vec::new();
+    minimal_invocations(&Cli::command(), &[], &mut invocations);
+    let mut threaded = 0;
+    for (name, mut argv) in invocations {
+        let has_threads = {
+            let mut command = Cli::command();
+            let mut current = &mut command;
+            for part in name.split(' ') {
+                current = current
+                    .find_subcommand_mut(part)
+                    .expect("subcommand exists");
+            }
+            current
+                .get_arguments()
+                .any(|arg| arg.get_long() == Some("threads"))
+        };
+        argv.extend(["--threads".to_owned(), "3".to_owned()]);
+        let full = std::iter::once("cytiq".to_owned()).chain(argv.iter().cloned());
+        let parsed = <Cli as clap::Parser>::try_parse_from(full);
+        let expected = (has_threads && name != "classify").then_some(3);
+        match parsed {
+            Ok(cli) => {
+                assert!(
+                    has_threads,
+                    "`{name}` accepted --threads it does not declare"
+                );
+                assert_eq!(cli.command.rayon_threads(), expected, "`{name}`");
+                threaded += usize::from(expected.is_some());
+            }
+            Err(error) => assert!(!has_threads, "`{name}` with --threads: {error}"),
+        }
+    }
+    assert_eq!(threaded, 14, "threaded commands");
+}

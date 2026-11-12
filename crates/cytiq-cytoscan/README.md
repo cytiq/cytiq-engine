@@ -132,8 +132,8 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 - Inputs must be raw: a file another cytiq stage compensated, unmixed or
   transformed is `ProcessedInput`, because it would be scored on a different
   scale than the raw files of the cohort.
-- `novelty` and `both` require reference inputs; `threads = Some(0)` is
-  rejected.
+- `novelty` and `both` require reference inputs.
+- Work runs on the caller's rayon pool; `cytiq cytoscan --threads` sizes it.
 
 ## Dependencies
 

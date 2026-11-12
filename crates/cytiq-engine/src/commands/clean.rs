@@ -76,7 +76,7 @@ pub(crate) struct CleanArgs {
     max_fit_events: usize,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
 }
 
 impl From<CleanArgs> for CleanConfig {
@@ -106,7 +106,6 @@ impl From<CleanArgs> for CleanConfig {
             },
             gates: args.gates,
             max_fit_events: args.max_fit_events,
-            threads: args.threads,
             masks: args.masks,
             required: args.require.into_iter().map(FilterKind::from).collect(),
         }

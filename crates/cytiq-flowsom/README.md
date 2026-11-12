@@ -94,7 +94,7 @@ learning rate and radius schedules remain fixed constants.
 | `UPSTREAM` | Upstream implementations and versions the crate is validated against (`parity/versions.txt`), recorded in provenance `algorithms` |
 | `FlowSomConstants` | The fixed training schedule, recorded in provenance `constants` |
 | `FlowSomRunner::run(input, output, &FlowSomConfig)` | Run the pipeline and write the assignment CSV |
-| `FlowSomConfig` | `channels`, optional `debug_dir`, optional `threads`, `masks`, `xdim`, `ydim`, `metaclusters`, `seed`, `scale`, `training_events` (defaults from `FLOWSOM_*`) |
+| `FlowSomConfig` | `channels`, optional `debug_dir`, `masks`, `xdim`, `ydim`, `metaclusters`, `seed`, `scale`, `training_events` (defaults from `FLOWSOM_*`) |
 | `FlowSomResult` | `summary`, per-event `assignments`, `nodes`, `metaclusters` |
 | `FlowSomSummary`, `FlowSomParameters`, `FlowSomMetrics`, `FlowSomScaleSummary` | Run summary, written as `summary.json` |
 | `FlowSomAssignment`, `FlowSomNode`, `FlowSomMetacluster` | Output rows |
@@ -115,7 +115,9 @@ learning rate and radius schedules remain fixed constants.
   event count, codebook), `metaclusters.csv` and a Plotly `report.html`.
 - Join results from different stages on `source_event_id`, not on
   `event_index`, which counts rows of this input only.
-- Empty inputs, missing channels and `threads = Some(0)` are errors.
+- Empty inputs and missing channels are errors.
+- Training and assignment run on the caller's rayon pool; `cytiq flowsom
+  --threads` sizes it.
 
 ## Dependencies
 

@@ -36,7 +36,7 @@ pub(crate) struct AutospillArgs {
     ssc: String,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
 }
 
 pub(crate) fn run(
@@ -53,7 +53,7 @@ pub(crate) fn run(
         matrix_kind,
         fsc,
         ssc,
-        threads,
+        threads: _,
     } = args;
     info!(
         "starting autospill: controls={}, input_dir={}, output={}, matrix_kind={:?}",
@@ -102,7 +102,6 @@ pub(crate) fn run(
         detectors,
         transforms,
         debug_dir,
-        threads,
     };
     let recorder = crate::provenance::begin!(
         recorder,

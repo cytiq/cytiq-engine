@@ -28,7 +28,7 @@ use cytiq_publish::{Existing, Publication};
 pub use error::TransformError;
 use export::write_debug_artifacts;
 use log::{debug, info};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 /// Upstream implementations this crate is validated against
@@ -156,7 +156,6 @@ pub struct TransformConfig {
     pub dry_run: bool,
     pub metadata_json: Option<PathBuf>,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     /// Transform files that an earlier `cytiq transform` already transformed.
     pub allow_retransform: bool,
     /// Transform channels whose spillover matrix was not applied yet.
@@ -180,7 +179,6 @@ impl TransformConfig {
             dry_run: false,
             metadata_json: None,
             debug_dir: None,
-            threads: None,
             allow_retransform: false,
             allow_uncompensated: false,
         }
@@ -262,7 +260,7 @@ pub struct TransformRunner;
 
 impl TransformRunner {
     pub fn run(config: &TransformConfig) -> Result<TransformRunResult, TransformError> {
-        with_thread_pool(config.threads, || Self::run_inner(config))
+        Self::run_inner(config)
     }
 
     /// The FCS files a run with `config` reads, with directories and globs
@@ -310,22 +308,6 @@ impl TransformRunner {
     }
 }
 
-fn with_thread_pool<T: Send>(
-    threads: Option<usize>,
-    operation: impl FnOnce() -> Result<T, TransformError> + Send,
-) -> Result<T, TransformError> {
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| TransformError::ThreadPoolBuild { threads, source })?
-        .install(operation)
-}
-
 /// Parse a comma-separated list of channel names.
 pub fn parse_channel_list(raw: &str) -> Result<Vec<String>, TransformError> {
     cytiq_fcs::parse_channel_list(raw).map_err(|_| TransformError::EmptyChannelList)
@@ -357,11 +339,6 @@ fn validate_config(config: &TransformConfig) -> Result<(), TransformError> {
     if !config.biexponential.width.is_finite() {
         return Err(TransformError::InvalidFiniteParameter {
             parameter: "biexponential-width",
-        });
-    }
-    if config.threads == Some(0) {
-        return Err(TransformError::InvalidPositiveParameter {
-            parameter: "threads",
         });
     }
     TransformOperator::from_config(config)?;
@@ -1344,7 +1321,6 @@ mod tests {
                 dry_run: false,
                 metadata_json: None,
                 debug_dir: None,
-                threads: None,
                 allow_retransform: false,
                 allow_uncompensated: false,
             })
@@ -1397,7 +1373,7 @@ mod tests {
     #[test]
     fn matches_baseline_bits_on_100_seeded_columns_and_both_thread_counts() {
         let pools = [1, 4].map(|threads| {
-            ThreadPoolBuilder::new()
+            rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
                 .build()
                 .unwrap()
@@ -1478,7 +1454,7 @@ mod tests {
 
     #[test]
     fn keeps_first_error_in_event_order_across_chunks() {
-        let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().unwrap();
         let operator = TransformOperator::Arcsinh {
             cofactor: f64::MIN_POSITIVE,
         };

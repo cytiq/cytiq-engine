@@ -22,7 +22,6 @@ use crate::{
 pub struct TrainConfig {
     pub manifest: PathBuf,
     pub output: PathBuf,
-    pub threads: Option<usize>,
     pub debug_dir: Option<PathBuf>,
     pub overwrite: bool,
 }
@@ -32,7 +31,6 @@ pub struct ApplyConfig {
     pub model: PathBuf,
     pub batch: String,
     pub output: PathBuf,
-    pub threads: Option<usize>,
     pub debug_dir: Option<PathBuf>,
     pub overwrite: bool,
 }
@@ -74,7 +72,7 @@ impl CytoNormRunner {
     /// # Errors
     /// Rejects incompatible cohorts, sparse mappings and output collisions.
     pub fn train(config: &TrainConfig) -> Result<RunResult> {
-        with_pool(config.threads, || train_inner(config))
+        train_inner(config)
     }
 
     /// Apply fixed clustering and batch splines, preserving all event identities.
@@ -82,25 +80,7 @@ impl CytoNormRunner {
     /// # Errors
     /// Rejects unknown batches, incompatible signal state and invalid bundles.
     pub fn apply(config: &ApplyConfig) -> Result<RunResult> {
-        with_pool(config.threads, || apply_inner(config))
-    }
-}
-
-fn with_pool<T: Send>(
-    threads: Option<usize>,
-    work: impl FnOnce() -> Result<T> + Send,
-) -> Result<T> {
-    if let Some(threads) = threads {
-        if threads == 0 {
-            return Err(invalid("threads must be positive"));
-        }
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build()
-            .map_err(|e| invalid(e.to_string()))?
-            .install(work)
-    } else {
-        work()
+        apply_inner(config)
     }
 }
 

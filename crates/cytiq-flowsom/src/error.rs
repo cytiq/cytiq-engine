@@ -38,12 +38,6 @@ pub enum FlowSomError {
     },
     #[error("channel `{channel}` in `{path}` contains non-finite values")]
     NonFiniteChannel { path: PathBuf, channel: String },
-    #[error("failed to build flowsom worker thread pool with {threads} threads: {source}")]
-    ThreadPoolBuild {
-        threads: usize,
-        #[source]
-        source: rayon::ThreadPoolBuildError,
-    },
     #[error("failed to create debug output directory `{path}`: {source}")]
     DebugDirectoryCreate {
         path: PathBuf,

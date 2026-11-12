@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter};
 use log::{debug, info, warn};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::FlowSomError;
@@ -67,7 +67,6 @@ const TRAINING_SAMPLE_STREAM: u64 = 0x9e37_79b9_7f4a_7c15;
 pub struct FlowSomConfig {
     pub channels: Vec<String>,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     /// SOM grid width and height; defaults `FLOWSOM_XDIM` × `FLOWSOM_YDIM`.
     pub xdim: usize,
     pub ydim: usize,
@@ -91,7 +90,6 @@ impl FlowSomConfig {
         Self {
             channels,
             debug_dir: None,
-            threads: None,
             xdim: FLOWSOM_XDIM,
             ydim: FLOWSOM_YDIM,
             metaclusters: FLOWSOM_METACLUSTERS,
@@ -267,7 +265,7 @@ impl FlowSomRunner {
     ) -> Result<FlowSomResult, FlowSomError> {
         let input = input.as_ref();
         let output = output.as_ref();
-        with_thread_pool(config.threads, || Self::run_inner(input, output, config))
+        Self::run_inner(input, output, config)
     }
 
     fn run_inner(
@@ -353,27 +351,6 @@ impl FlowSomRunner {
             metaclusters,
         })
     }
-}
-
-fn with_thread_pool<T: Send>(
-    threads: Option<usize>,
-    operation: impl FnOnce() -> Result<T, FlowSomError> + Send,
-) -> Result<T, FlowSomError> {
-    let Some(threads) = threads else {
-        return operation();
-    };
-    if threads == 0 {
-        return Err(FlowSomError::InvalidConfig(
-            "threads must be positive".to_owned(),
-        ));
-    }
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| FlowSomError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 fn load_dataset(path: &Path) -> Result<FcsDataset, FlowSomError> {

@@ -804,6 +804,7 @@ dependencies = [
  "cytiq-transform",
  "log",
  "parquet",
+ "rayon",
  "serde",
  "serde_json",
  "sha2",

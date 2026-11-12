@@ -68,7 +68,6 @@ pub(crate) fn run(
             let result = CytoNormRunner::train(&TrainConfig {
                 manifest,
                 output,
-                threads,
                 debug_dir,
                 overwrite,
             })?;
@@ -79,7 +78,7 @@ pub(crate) fn run(
             model,
             batch,
             output,
-            threads,
+            threads: _,
             debug_dir,
             overwrite,
         } => {
@@ -97,7 +96,6 @@ pub(crate) fn run(
                 model,
                 batch,
                 output,
-                threads,
                 debug_dir,
                 overwrite,
             })?;

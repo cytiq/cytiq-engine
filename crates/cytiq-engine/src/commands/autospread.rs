@@ -31,7 +31,7 @@ pub(crate) struct AutospreadArgs {
     ssc: String,
     /// Worker thread limit; defaults to all available logical CPUs.
     #[arg(long, value_parser = parse_threads)]
-    threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
 }
 
 pub(crate) fn run(
@@ -46,7 +46,7 @@ pub(crate) fn run(
         debug_dir,
         fsc,
         ssc,
-        threads,
+        threads: _,
     } = args;
     info!(
         "starting autospread: controls={}, input_dir={}, output={}",
@@ -81,7 +81,6 @@ pub(crate) fn run(
         ssc,
         detectors,
         debug_dir,
-        threads,
     };
     let recorder = crate::provenance::begin!(
         recorder,

@@ -83,7 +83,7 @@ let xml = to_gatingml(&strategy)?;
 - Files from `cytiq transform`, `cytiq compensate` or `cytiq autospectral`
   are refused when a dimension would transform or compensate an already
   processed channel.
-- `threads: Some(n)` runs in a local rayon pool; `Some(0)` is an error.
+- Gates are evaluated on the caller's rayon pool; `cytiq gate --threads` sizes it.
 - `to_gatingml` cannot write `logicle` or `hyperlog` transformations, because
   their original parameters are not kept in memory.
 

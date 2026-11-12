@@ -8,7 +8,7 @@ use cytiq_compensate::{MatrixKind, read_matrix_file};
 use cytiq_fcs::{FcsDataset, FcsReader};
 use cytiq_publish::{Existing, Publication};
 use log::{debug, info, warn};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::batch::{BatchRow, BatchSettings, UNKNOWN_MATRIX, summarize};
@@ -39,7 +39,6 @@ pub struct SpillQcConfig {
     pub preprocess: PreprocessOptions,
     pub parameters: CompensaidParameters,
     pub batch: BatchSettings,
-    pub threads: Option<usize>,
     pub overwrite: bool,
 }
 
@@ -53,7 +52,6 @@ impl SpillQcConfig {
             preprocess: PreprocessOptions::default(),
             parameters: CompensaidParameters::default(),
             batch: BatchSettings::default(),
-            threads: None,
             overwrite: false,
         }
     }
@@ -199,9 +197,7 @@ impl SpillQcRunner {
                 read_matrix_file(path, *kind).map(|matrix| ExternalMatrix { matrix })
             })
             .transpose()?;
-        with_thread_pool(config.threads, || {
-            run_inner(config, &inputs, &names, external.as_ref())
-        })
+        run_inner(config, &inputs, &names, external.as_ref())
     }
 }
 
@@ -554,21 +550,6 @@ fn resolve_inputs(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, SpillQcError> {
         },
     )
     .map_err(Into::into)
-}
-
-fn with_thread_pool<T: Send>(
-    threads: Option<usize>,
-    operation: impl FnOnce() -> Result<T, SpillQcError> + Send,
-) -> Result<T, SpillQcError> {
-    let Some(threads) = threads else {
-        return operation();
-    };
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| SpillQcError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 #[cfg(test)]

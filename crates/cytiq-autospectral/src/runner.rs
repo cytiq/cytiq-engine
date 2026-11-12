@@ -15,7 +15,7 @@ use cytiq_fcs::{
 use cytiq_mask::EventMask;
 use log::{debug, info, warn};
 use nalgebra::{DMatrix, DVector};
-use rayon::{ThreadPoolBuilder, prelude::*};
+use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::AutoSpectralError;
@@ -59,7 +59,6 @@ pub struct AutoSpectralConfig {
     pub detectors: Vec<DetectorSpec>,
     pub output_dir: PathBuf,
     pub debug_dir: Option<PathBuf>,
-    pub threads: Option<usize>,
     /// Clean controls before building spectra (the default): drop events on
     /// raw detector margins and gate FSC/SSC with the `AutoSpill` KDE gate.
     /// `false` keeps the 1-99% quantile box, for controls too small for the
@@ -81,7 +80,6 @@ impl AutoSpectralConfig {
             detectors: Vec::new(),
             output_dir,
             debug_dir: None,
-            threads: None,
             clean_controls: true,
         }
     }
@@ -261,9 +259,7 @@ impl AutoSpectralRunner {
         config: &AutoSpectralConfig,
     ) -> Result<AutoSpectralSummary, AutoSpectralError> {
         let input_dir = input_dir.as_ref();
-        with_thread_pool(config.threads, || {
-            Self::run_inner(controls, samples, input_dir, config)
-        })
+        Self::run_inner(controls, samples, input_dir, config)
     }
 
     fn run_inner(
@@ -1488,23 +1484,6 @@ where
         .collect::<Vec<_>>()
         .into_iter()
         .collect()
-}
-
-fn with_thread_pool<T, F>(threads: Option<usize>, operation: F) -> Result<T, AutoSpectralError>
-where
-    T: Send,
-    F: FnOnce() -> Result<T, AutoSpectralError> + Send,
-{
-    let Some(threads) = threads else {
-        return operation();
-    };
-
-    debug!("using local rayon thread pool with {threads} threads");
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|source| AutoSpectralError::ThreadPoolBuild { threads, source })?
-        .install(operation)
 }
 
 /// R's default (type 7) quantile.

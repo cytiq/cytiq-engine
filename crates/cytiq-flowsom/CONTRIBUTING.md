@@ -69,4 +69,4 @@ cargo test -p cytiq-engine --test flowsom_cli
   metaclusters and input validation.
 - `crates/cytiq-engine/tests/flowsom_cli.rs` — end-to-end runs with debug
   artifacts, determinism, event masks, missing input / channel / output, zero
-  threads.
+  threads (rejected by the CLI parser), and the pinned pooled cohort models.
