@@ -16,19 +16,20 @@ a crash, copy the input to `tests/fuzz_regressions/<target>/crash-<sha1>`, fix
 the bug, and add a named test for it next to the code it exercises. Never name
 those directories `corpus` or `artifacts`: `fuzz/.gitignore` ignores both.
 
-Targets: `document_json` and `document_yaml` (`serialization::parse`: never
-panics; accepted documents are mappings with a stable digest) and
-`observations_parquet` (`table::read_from`: accepted rows validate).
+Targets:
 
-A crash inside a dependency, not this crate, goes to
-`tests/fuzz_upstream/<target>/` with an ignored test naming the dependency
-version. `observations_parquet` finds one in seconds: parquet 60.1.0 panics on
-corrupt definition levels (`arrow-buffer`: "offset + len out of bounds"), so
-the target is not in the CI fuzz matrix. Observation tables are only read
-from packages whose digests `verify_package` checked, but the release
-profile aborts on panic, so such a file would abort `cytiq` instead of
-failing with exit code 2. After upgrading parquet, run
-`cargo test -p cytiq-population --test fuzz_regressions -- --ignored`.
+- `document_json` and `document_yaml` (`serialization::parse`): never panics;
+  accepted documents are mappings with a stable digest.
+- `observations_parquet` (`table::read_from`): accepted rows validate.
+- `projected_parquet` (`cytiq_mask::parquet::ScalarParquetReader` with a
+  projection, as `annotations.rs` reads QC masks and classify or membership
+  tables): accepted batches carry exactly the projected columns and the
+  footer's row count.
+
+Every Parquet input goes through the bounded scalar reader, not Arrow's
+packed decoder, which panics on corrupt definition levels in parquet 60.1.0.
+The saved `crash-*` inputs replay against both Parquet targets; all four
+targets run in the CI fuzz matrix (`.github/workflows/fuzz.yml`).
 
 ## Contracts
 

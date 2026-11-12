@@ -54,6 +54,7 @@ jobs:
           - { crate: cytiq-population, target: document_json }
           - { crate: cytiq-population, target: document_yaml }
           - { crate: cytiq-population, target: observations_parquet }
+          - { crate: cytiq-population, target: projected_parquet }
           - { crate: cytiq-specimen, target: specimen_documents }
     env:
       FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && '60' || inputs.seconds || '600' }}

@@ -1,4 +1,4 @@
-# Fuzz targets for population documents and observation tables. Excluded
+# Fuzz targets for population documents, observation and annotation tables. Excluded
 # from the workspace: they need cargo-fuzz and a nightly toolchain
 # (`just fuzz cytiq-population <target>`).
 [package]
@@ -12,6 +12,7 @@ cargo-fuzz = true
 
 [dependencies]
 bytes = "1"
+cytiq-mask = { path = "../../cytiq-mask" }
 cytiq-population = { path = ".." }
 libfuzzer-sys = "0.4"
 
@@ -32,6 +33,13 @@ bench = false
 [[bin]]
 name = "observations_parquet"
 path = "fuzz_targets/observations_parquet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "projected_parquet"
+path = "fuzz_targets/projected_parquet.rs"
 test = false
 doc = false
 bench = false

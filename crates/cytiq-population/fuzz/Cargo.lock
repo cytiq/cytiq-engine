@@ -353,6 +353,7 @@ name = "cytiq-population-fuzz"
 version = "0.0.0"
 dependencies = [
  "bytes",
+ "cytiq-mask",
  "cytiq-population",
  "libfuzzer-sys",
 ]
