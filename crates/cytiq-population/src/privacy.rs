@@ -325,6 +325,40 @@ mod tests {
         );
     }
 
+    fn disclosure(contract: &str, purpose: &str, keywords: &[&str]) -> PrivacyPolicy {
+        PrivacyPolicy {
+            profile: PrivacyProfile::Controlled,
+            disclosures: vec![Disclosure {
+                contract: contract.into(),
+                purpose: purpose.into(),
+                keywords: keywords.iter().map(|k| (*k).to_owned()).collect(),
+                source_locations: false,
+                provenance_records: false,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_disclosure_names_both_its_contract_and_its_purpose() {
+        for (contract, purpose) in [("DUA-1", " "), (" ", "QC")] {
+            let mut issues = Issues::new();
+            disclosure(contract, purpose, &[]).check("/privacy", &mut issues);
+            assert_eq!(issues.errors(), 1, "{contract:?} {purpose:?}");
+        }
+        let mut issues = Issues::new();
+        disclosure("DUA-1", "QC", &["$CYTSN"]).check("/privacy", &mut issues);
+        assert_eq!(issues.errors(), 0, "{:?}", issues.items());
+    }
+
+    #[test]
+    fn disclosed_keywords_are_not_empty_and_have_no_control_characters() {
+        for keyword in ["", "  ", "$OP\n", "$O\tP"] {
+            let mut issues = Issues::new();
+            disclosure("DUA-1", "QC", &[keyword]).check("/privacy", &mut issues);
+            assert_eq!(issues.errors(), 1, "{keyword:?}");
+        }
+    }
+
     #[test]
     fn policies_must_be_explicit() {
         let mut issues = Issues::new();

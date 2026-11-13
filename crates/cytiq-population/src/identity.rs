@@ -173,6 +173,7 @@ mod tests {
         ] {
             assert!(ObjectKey::parse(key).is_err(), "{key:?}");
         }
+        assert!(ObjectKey::parse(&"a".repeat(OBJECT_KEY_BYTES_MAX)).is_ok());
         assert!(ObjectKey::parse(&"a".repeat(OBJECT_KEY_BYTES_MAX + 1)).is_err());
     }
 
