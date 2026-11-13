@@ -2,9 +2,13 @@
 
 pub mod annotations;
 pub mod artifact;
+mod bitmap;
 pub mod decision;
+pub mod identity;
+pub mod issue;
 pub mod knowledge;
 pub mod observation;
+pub mod privacy;
 pub mod serialization;
 pub mod table;
 

@@ -4,6 +4,20 @@ Workspace guidance lives in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 All documents reject unknown versions and invalid references. Keep measured integers exact, preserve missing states, and never infer biological partitions from parent links. Tests are offline and must not depend on sibling repositories. Keep public formats and CLI examples in README.md current.
 
+## Dataset modules
+
+- `identity.rs` keeps three identities apart: the path-free semantic id
+  (`semantic_id`), the content digest and size (`ContentRef`) and the
+  execution reference to a v3 provenance record (`ExecutionRef`). Objects
+  are located by relative `ObjectKey`s only; never record an absolute path,
+  URI or user-info.
+- `issue.rs` holds the typed validation codes. Codes are a public contract:
+  add new ones, never rename or reuse one.
+- `privacy.rs` is an allowlist. Adding a keyword to `ALLOWED_KEYWORDS` or
+  `ALLOWED_PARAMETER_SUFFIXES` needs a reason it cannot identify a person,
+  a patient or a site; anything else goes through a `Disclosure`.
+- `bitmap.rs` is the fallible per-event flag set shared by lineage checks.
+
 ## Fuzzing
 
 `fuzz/` holds cargo-fuzz targets outside the workspace; what they check lives
