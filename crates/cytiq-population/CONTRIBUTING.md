@@ -17,6 +17,16 @@ All documents reject unknown versions and invalid references. Keep measured inte
   `ALLOWED_PARAMETER_SUFFIXES` needs a reason it cannot identify a person,
   a patient or a site; anything else goes through a `Disclosure`.
 - `bitmap.rs` is the fallible per-event flag set shared by lineage checks.
+- `events/` is `cytiq.events.v1`: `descriptor.rs` builds the layer
+  descriptor from the `CYTIQ_*` signal keywords, `write.rs` streams an FCS
+  file into the table (one batch of at most 16 MiB at a time) and `read.rs`
+  verifies it through the bounded reader. A layer's identity is the digest
+  of its descriptor; never put a path, timestamp or build in it. A
+  compensation matrix or unmixing reference that the file records by path
+  enters only as a digest the caller supplies. Changing the columns, the key
+  metadata, the descriptor or the values digest is a new contract version.
+- `tests/events.rs` builds synthetic FCS files with the cytiq-fcs writer;
+  every refusal and every verification code has a test.
 
 ## Fuzzing
 
@@ -35,6 +45,9 @@ Targets:
 - `document_json` and `document_yaml` (`serialization::parse`): never panics;
   accepted documents are mappings with a stable digest.
 - `observations_parquet` (`table::read_from`): accepted rows validate.
+- `events_parquet` (`events::verify_with_limits`): never panics, a
+  rejection names an error, and an accepted table is consistent and
+  verifies identically twice.
 - `projected_parquet` (`cytiq_mask::parquet::ScalarParquetReader` with a
   projection, as `annotations.rs` reads QC masks and classify or membership
   tables): accepted batches carry exactly the projected columns and the

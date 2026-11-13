@@ -947,6 +947,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "bytes",
+ "cytiq-fcs",
  "cytiq-manifest",
  "cytiq-mask",
  "cytiq-provenance",

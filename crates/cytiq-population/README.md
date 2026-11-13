@@ -36,6 +36,29 @@ UInt64 and Float64 value columns. `target`, `denominator`, `method` and `lineage
 carry structured JSON; `target_id` and `target_kind` are checked against it.
 Each row has a content identity and table metadata pins schema version 1.
 
+## Events tables (`cytiq.events.v1`)
+
+`events::export` writes one Parquet table per acquisition and signal layer;
+`events::verify` checks one. Every row carries `acquisition_id` (the
+SHA-256 acquisition identity), `layer_id` and `source_event_id` (the raw
+row, strictly increasing), then one column per FCS channel named `$PnN` in
+`$Pn` order, typed as the FCS stores it (`UInt64`, `Float32`, `Float64`)
+and bit-exact. `Original_ID` becomes `source_event_id`. Events of two
+acquisitions never share an identity, even with equal rows.
+
+The layer descriptor (key-value `cytiq.events.layer`) lists the steps that
+produced the values (compensation or unmixing, transform, normalization),
+each with its method, parameters, channels, definition digest and origin:
+`recorded` (from the file's own keywords), `verified` (a supplied digest
+matched against the producing run's provenance), `declared` or `external`
+(processing by other software). `layer_id` is its canonical digest;
+`recipe_id` drops the acquisition and per-file definitions, so layers that
+may share one lakehouse table share it. `cytiq.events.values_sha256` is a
+digest of keys and values that does not depend on the Parquet encoding.
+Field metadata (`cytiq.channel.*`) keeps the detector (`$PnDET`), marker
+(`$PnS`, `$PnANALYTE`) and reporter (`$PnTAG`) apart. No other FCS TEXT is
+written: file names, operators and dates never reach the table.
+
 ## Knowledge and limits
 
 `knowledge::KnowledgeArtifact` validates the six upstream v2 artifact kinds
