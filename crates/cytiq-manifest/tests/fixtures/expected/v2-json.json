@@ -1,0 +1,86 @@
+{
+  "schema_version": 2,
+  "cytometry": "conventional",
+  "panels": [
+    {
+      "name": "T",
+      "markers": [
+        {
+          "marker": "CD3",
+          "channel": "FL1-A",
+          "required": true
+        }
+      ],
+      "signal_state": "raw",
+      "compensation": {
+        "source": "matrix",
+        "matrix": "autospill/t.csv",
+        "kind": "compensation"
+      }
+    },
+    {
+      "name": "B",
+      "markers": [
+        {
+          "marker": "CD19",
+          "channel": null,
+          "required": true
+        }
+      ],
+      "signal_state": "raw",
+      "compensation": {
+        "source": "controls"
+      }
+    },
+    {
+      "name": "C",
+      "markers": [
+        {
+          "marker": "CD14",
+          "channel": null,
+          "required": true
+        }
+      ],
+      "signal_state": "compensated"
+    }
+  ],
+  "samples": [
+    {
+      "id": "S01-T",
+      "file": "s01_t.fcs",
+      "panel": "T",
+      "specimen": "S01"
+    },
+    {
+      "id": "S01-T-repeat",
+      "file": "s01_t_2.fcs",
+      "panel": "T",
+      "specimen": "S01"
+    },
+    {
+      "id": "S01-B",
+      "file": "s01_b.fcs",
+      "panel": "B",
+      "specimen": "S01"
+    },
+    {
+      "id": "S01-C",
+      "file": "s01_c.fcs",
+      "panel": "C",
+      "specimen": "S01"
+    }
+  ],
+  "controls": [
+    {
+      "file": "unstained.fcs",
+      "dye": "Autofluorescence",
+      "primary_channel": null
+    },
+    {
+      "file": "cd19.fcs",
+      "dye": "PE",
+      "primary_channel": null,
+      "panel": "B"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# Run manifest v1 (schema_version omitted): one panel, QC policy, controls.
+cytometry: conventional
+panel:
+  name: T-cell-8c
+  markers:
+    - { marker: CD3, channel: FL1-A }
+    - { marker: CD4 }
+    - { marker: Live/Dead, required: false }
+  qc:
+    min_events: 1000
+    max_removed_fraction: 0.4
+    filters:
+      margin_pass: { required: true, max_removed_fraction: 0.1 }
+      live: { min_assessed_fraction: 0.9, assessed_of: eligible, severity: warn }
+samples:
+  - { id: S01, file: fcs/s01.fcs }
+controls:
+  - { file: fcs/unstained.fcs, dye: Autofluorescence }
+  - { file: fcs/cd3_fitc.fcs, dye: FITC, primary_channel: FL1-A }

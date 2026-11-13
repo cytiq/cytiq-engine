@@ -6,7 +6,13 @@ this crate.
 
 ## Layout
 
-- `src/lib.rs` — manifest types, `load`, `validate`; unit tests.
+- `src/lib.rs` — `ManifestError`, bounded `load` and parsing; unit tests.
+- `src/run.rs` — the document types and the panel, control and
+  compensation queries.
+- `src/check.rs` — `validate`: the consistency rules of every version.
+- `tests/migration.rs` — earlier versions keep loading, and their serialized
+  form is pinned in `tests/fixtures/expected/` (`CYTIQ_BLESS=1` rewrites it
+  when a change is intended).
 
 ## Invariants
 
