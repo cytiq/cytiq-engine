@@ -37,6 +37,8 @@
 //! Relative file paths are resolved against the manifest's directory.
 
 mod check;
+mod metadata;
+mod migrate;
 mod run;
 
 use std::fs;
@@ -45,6 +47,10 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
+pub use metadata::{
+    ControlRole, Detector, DetectorKind, Experiment, Instrument, OntologyTerm, Reagent, Specimen,
+};
+pub use migrate::{SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSIONS};
 pub use run::{
     AssessedOf, CompensationSource, ControlEntry, Cytometry, FilterPolicy, Marker, MatrixKind,
     Panel, QcPolicy, RunManifest, SampleEntry, Severity, SignalState,

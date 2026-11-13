@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::{
     AssessedOf, CompensationSource, ControlEntry, Cytometry, ManifestError, Panel, QcPolicy,
-    RunManifest, SignalState,
+    RunManifest, SUPPORTED_SCHEMA_VERSIONS, SignalState,
 };
 
 impl RunManifest {
@@ -29,11 +29,11 @@ impl RunManifest {
     }
 
     fn check(&self) -> Result<(), String> {
-        if !matches!(self.schema_version, 1 | 2) {
+        if !SUPPORTED_SCHEMA_VERSIONS.contains(&self.schema_version) {
             return Err("unsupported manifest schema_version".to_owned());
         }
-        if self.cytometry == Cytometry::Cytof && self.schema_version != 2 {
-            return Err("cytof requires manifest schema_version 2".to_owned());
+        if self.cytometry == Cytometry::Cytof && self.schema_version < 2 {
+            return Err("cytof requires manifest schema_version 2 or later".to_owned());
         }
         if self.samples.is_empty() {
             return Err("`samples` must list at least one sample".to_owned());
@@ -66,7 +66,7 @@ impl RunManifest {
                     panel.label()
                 ));
             }
-            if self.schema_version == 2
+            if self.schema_version >= 2
                 && sample
                     .specimen
                     .as_ref()
@@ -101,7 +101,7 @@ impl RunManifest {
         for panel in &self.panels {
             self.check_calibration(panel)?;
         }
-        Ok(())
+        self.check_metadata()
     }
 
     fn check_panels(&self) -> Result<(), String> {

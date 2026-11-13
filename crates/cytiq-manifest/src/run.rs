@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::metadata::{ControlRole, Experiment, Instrument, Reagent, Specimen};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Cytometry {
@@ -26,6 +28,15 @@ pub struct RunManifest {
     pub samples: Vec<SampleEntry>,
     #[serde(default)]
     pub controls: Vec<ControlEntry>,
+    /// The study (`schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub experiment: Option<Experiment>,
+    /// Instruments panels were acquired on (`schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instruments: Vec<Instrument>,
+    /// Specimens samples come from (`schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub specimens: Vec<Specimen>,
 }
 
 /// The manifest as written: `panel` (one) or `panels` (several).
@@ -42,6 +53,12 @@ struct ManifestDocument {
     samples: Vec<SampleEntry>,
     #[serde(default)]
     controls: Vec<ControlEntry>,
+    #[serde(default)]
+    experiment: Option<Experiment>,
+    #[serde(default)]
+    instruments: Vec<Instrument>,
+    #[serde(default)]
+    specimens: Vec<Specimen>,
 }
 
 const fn manifest_v1() -> u32 {
@@ -66,6 +83,9 @@ impl TryFrom<ManifestDocument> for RunManifest {
             panels,
             samples: document.samples,
             controls: document.controls,
+            experiment: document.experiment,
+            instruments: document.instruments,
+            specimens: document.specimens,
         })
     }
 }
@@ -88,6 +108,9 @@ pub struct Panel {
     /// Acceptance rules `cytiq qc` applies to the panel's samples.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qc: Option<QcPolicy>,
+    /// Instrument `id` the panel was acquired on (`schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instrument: Option<String>,
 }
 
 /// Panel-level QC policy, checked by `cytiq qc` on a sample's final event
@@ -215,13 +238,24 @@ pub enum MatrixKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Marker {
-    /// Marker name, matched against `$PnS` when `channel` is not given.
+    /// Marker (analyte) name, matched against `$PnS` when `channel` is not
+    /// given.
     pub marker: String,
-    /// Detector channel (`$PnN`) carrying the marker.
+    /// FCS channel (`$PnN`) carrying the marker.
     #[serde(default)]
     pub channel: Option<String>,
     #[serde(default = "default_required")]
     pub required: bool,
+    /// Fluorochrome or metal tag the reagent carries (`$PnTAG`;
+    /// `schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reporter: Option<String>,
+    /// Detector `id` of the panel's instrument (`$PnDET`; `schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detector: Option<String>,
+    /// The antibody or probe (`schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reagent: Option<Reagent>,
 }
 
 const fn default_required() -> bool {
@@ -252,6 +286,9 @@ pub struct ControlEntry {
     /// Panel name; a control without one belongs to every panel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panel: Option<String>,
+    /// What the control is for (`schema_version: 3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<ControlRole>,
 }
 
 impl ControlEntry {

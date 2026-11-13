@@ -978,6 +978,7 @@ mod tests {
             dye: dye.to_owned(),
             primary_channel: None,
             panel: None,
+            role: None,
         };
         let file = LoadedFile {
             scope: "control".to_owned(),

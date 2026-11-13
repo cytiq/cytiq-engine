@@ -1,0 +1,133 @@
+{
+  "schema_version": 3,
+  "cytometry": "conventional",
+  "experiment": {
+    "title": "T and B cell phenotyping",
+    "purpose": "Method comparison of two panels on one specimen",
+    "keywords": [
+      "lymphocytes",
+      "immunophenotyping"
+    ],
+    "variables": {
+      "timepoint": "Days after enrolment"
+    }
+  },
+  "instruments": [
+    {
+      "id": "canto-1",
+      "manufacturer": "BD Biosciences",
+      "model": "FACSCanto II",
+      "configuration": "3L-8C",
+      "detectors": [
+        {
+          "id": "B530",
+          "kind": "pmt",
+          "excitation_nm": 488,
+          "emission_filter": "530/30"
+        },
+        {
+          "id": "B585",
+          "kind": "pmt",
+          "excitation_nm": 488,
+          "emission_filter": "585/42"
+        },
+        {
+          "id": "R660",
+          "kind": "pmt",
+          "excitation_nm": 633,
+          "emission_filter": "660/20"
+        }
+      ]
+    }
+  ],
+  "specimens": [
+    {
+      "id": "SP01",
+      "organism": "Homo sapiens",
+      "material": "peripheral blood",
+      "preparation": "RBC lysis",
+      "ontology": [
+        {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        {
+          "id": "UBERON:0000178",
+          "label": "blood"
+        }
+      ]
+    }
+  ],
+  "panels": [
+    {
+      "name": "T",
+      "instrument": "canto-1",
+      "markers": [
+        {
+          "marker": "CD3",
+          "channel": "FITC-A",
+          "reporter": "FITC",
+          "detector": "B530",
+          "reagent": {
+            "clone": "SK7",
+            "vendor": "BD Biosciences",
+            "catalog": "345763"
+          }
+        },
+        {
+          "marker": "CD4",
+          "channel": "PE-A",
+          "reporter": "PE",
+          "detector": "B585"
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "instrument": "canto-1",
+      "markers": [
+        {
+          "marker": "CD19",
+          "channel": "APC-A",
+          "reporter": "APC",
+          "detector": "R660"
+        }
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "id": "SP01-T",
+      "file": "sp01_t.fcs",
+      "panel": "T",
+      "specimen": "SP01"
+    },
+    {
+      "id": "SP01-B",
+      "file": "sp01_b.fcs",
+      "panel": "B",
+      "specimen": "SP01"
+    }
+  ],
+  "controls": [
+    {
+      "file": "unstained.fcs",
+      "dye": "Autofluorescence",
+      "role": "unstained"
+    },
+    {
+      "file": "cd3_fitc.fcs",
+      "dye": "FITC",
+      "primary_channel": "FITC-A",
+      "panel": "T",
+      "role": "single_stain"
+    },
+    {
+      "file": "cd19_apc.fcs",
+      "dye": "APC",
+      "primary_channel": "APC-A",
+      "panel": "B",
+      "role": "single_stain"
+    }
+  ]
+}
