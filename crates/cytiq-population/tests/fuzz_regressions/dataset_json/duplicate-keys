@@ -1,0 +1,254 @@
+{
+  "acquisitions": [
+    {
+      "id": "6020a32fb0e848fa128d554136f8019e59e751f94c7c24773e417f1fe6c86cae",
+      "keywords": {
+        "$BYTEORD": "1,2,3,4",
+        "$CYT": "FACSCanto II",
+        "$DATATYPE": "F",
+        "$MODE": "L",
+        "$PAR": "3",
+        "$TOT": "5"
+      },
+      "panel": "T",
+      "raw_events": 5,
+      "role": "sample"
+    },
+    {
+      "id": "7d41dd60bccc4cb7052e900bae076aedf1c610aa71e36324e98238b68dcea0c4",
+      "keywords": {
+        "$BYTEORD": "1,2,3,4",
+        "$CYT": "FACSCanto II",
+        "$DATATYPE": "F",
+        "$MODE": "L",
+        "$PAR": "2",
+        "$TOT": "5"
+      },
+      "panel": "B",
+      "raw_events": 5,
+      "role": "sample"
+    }
+  ],
+  "artifact_type": "cytiq_dataset_manifest",
+  "artifacts": [
+    {
+      "acquisition": "6020a32fb0e848fa128d554136f8019e59e751f94c7c24773e417f1fe6c86cae",
+      "content": {
+        "bytes": 4827,
+        "sha256": "eb7b1e9377cca642c7c3e5da161c1cf4e1416fbba61e5bfdec61685ab452c7ce",
+        "values_sha256": "6bf2ed885403bdc8ff052b4f9f038a88fa68a8cad11bf830a8a65bf46ad5e09a"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "6459baa1d1e0f78a11e5b0e0d8a153134fa0e38667e0311617cb6d4dee138f2d",
+        "state": "raw",
+        "steps": []
+      },
+      "location": "events/T/SP01-T.raw.parquet",
+      "panel": "T",
+      "role": "signal_layer",
+      "semantic_id": "a7915ec282c6004d7b18f3a864b25fbf34bf7d811c3d1362e3cdd0fb3602cf86"
+    },
+    {
+      "acquisition": "6020a32fb0e848fa128d554136f8019e59e751f94c7c24773e417f1fe6c86cae",
+      "content": {
+        "bytes": 5176,
+        "sha256": "efba77152c0c9ffc68e9438e35a473648178fde81b55005def188879040c3051",
+        "values_sha256": "4105bf8c2effea2319a54f37e9944a9b80fff74e6a3ce05322023dabb29636c8"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "072be6c3e72660e17a602806067af8bb6c96a039b80fa8897405e535ee111cba",
+        "state": "compensated",
+        "steps": [
+          {
+            "definition_sha256": "3bbc10235c69d35cc542fa0d1d07b0d15662d8e168ab51894571575f425f48d2",
+            "kind": "compensation",
+            "method": "spillover",
+            "origin": "recorded"
+          }
+        ]
+      },
+      "location": "events/T/SP01-T.compensated.parquet",
+      "panel": "T",
+      "parents": [
+        "a7915ec282c6004d7b18f3a864b25fbf34bf7d811c3d1362e3cdd0fb3602cf86"
+      ],
+      "role": "signal_layer",
+      "semantic_id": "d597125691f6b8e32aceebefc0dd6bc8a838e549b504040c3407f6445bb2d3c1"
+    },
+    {
+      "acquisition": "6020a32fb0e848fa128d554136f8019e59e751f94c7c24773e417f1fe6c86cae",
+      "content": {
+        "bytes": 5320,
+        "sha256": "68ca82b156d36f8c63ced3a3d68bc5e2e5c78bb28ab2f69d3f57207b3bbc2d91",
+        "values_sha256": "8d818ef7a637f70a9b8c1c787a3cabf060ea191ccfcba9e94cb7bb6ace9cf20c"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "1f08b7c0dea03ee4c13742a0b6e8e1c391b813b06467f2cefb2449d8d3d966fd",
+        "state": "transformed",
+        "steps": [
+          {
+            "definition_sha256": "3bbc10235c69d35cc542fa0d1d07b0d15662d8e168ab51894571575f425f48d2",
+            "kind": "compensation",
+            "method": "spillover",
+            "origin": "recorded"
+          },
+          {
+            "kind": "transform",
+            "method": "arcsinh",
+            "origin": "recorded"
+          }
+        ]
+      },
+      "location": "events/T/SP01-T.transformed.parquet",
+      "panel": "T",
+      "parents": [
+        "d597125691f6b8e32aceebefc0dd6bc8a838e549b504040c3407f6445bb2d3c1"
+      ],
+      "role": "signal_layer",
+      "semantic_id": "a4ab43bd0cc2ffba72419d052d2bcc988cb347db496c8ea052216a6512c39d0f"
+    },
+    {
+      "acquisition": "7d41dd60bccc4cb7052e900bae076aedf1c610aa71e36324e98238b68dcea0c4",
+      "content": {
+        "bytes": 3966,
+        "sha256": "30ee202c61ab11f2ec7ba2be5c9d2f4901a3b22fcf5b6f6b546bcb9c44e90382",
+        "values_sha256": "472b728dd7ab7e110dc0f5bf71bb828af45d046feb9c7e742df4949389dee988"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "9f1165969876bd5fa6f8939cf6f9fbdf4e7647d11f9b5edfc209f56156489581",
+        "state": "raw",
+        "steps": []
+      },
+      "location": "events/B/SP01-B.raw.parquet",
+      "panel": "B",
+      "role": "signal_layer",
+      "semantic_id": "895712716a898f758e170db5cd44e08bdbaabec491fe5d1694f7dc5d0eabfc8e"
+    },
+    {
+      "acquisition": "6020a32fb0e848fa128d554136f8019e59e751f94c7c24773e417f1fe6c86cae",
+      "content": {
+        "bytes": 1428,
+        "sha256": "3f35e9034b5ff75f780628b69fcdd6d84bf3166500e9f96b4e967950a28babf6"
+      },
+      "contract": "cytiq.mask.v2",
+      "location": "masks/T/SP01-T.mask.parquet",
+      "parents": [
+        "a7915ec282c6004d7b18f3a864b25fbf34bf7d811c3d1362e3cdd0fb3602cf86"
+      ],
+      "role": "technical_mask",
+      "semantic_id": "53f1adb3385e668dad418f1c652803e81da6ad40db31d18aaaa612539902908a"
+    }
+  ],
+  "contracts": [
+    "cytiq.events.v1",
+    "cytiq.mask.v2"
+  ],
+  "dataset_id": "4c16dfb33a344faebf4ad618f51d6bcb95d621913d21cb0d21bd2013ceb4c5a5",
+  "instruments": [
+    {
+      "detectors": [
+        {
+          "emission_filter": "530/30",
+          "excitation_nm": 488,
+          "id": "B530",
+          "kind": "pmt"
+        },
+        {
+          "emission_filter": "585/42",
+          "excitation_nm": 488,
+          "id": "B585",
+          "kind": "pmt"
+        }
+      ],
+      "id": "canto-1",
+      "manufacturer": "BD Biosciences",
+      "model": "FACSCanto II"
+    }
+  ],
+  "panels": [
+    {
+      "channels": [
+        {
+          "index": 1,
+          "name": "FSC-A"
+        },
+        {
+          "detector": "B530",
+          "index": 2,
+          "kind": "fluorescence",
+          "marker": "CD3",
+          "name": "FL1-A",
+          "reagent": {
+            "clone": "SK7"
+          },
+          "reporter": "FITC"
+        },
+        {
+          "detector": "B585",
+          "index": 3,
+          "kind": "fluorescence",
+          "marker": "CD4",
+          "name": "FL2-A",
+          "reporter": "PE"
+        }
+      ],
+      "cytometry": "conventional",
+      "id": "T",
+      "instrument": "canto-1",
+      "signal_state": "raw"
+    },
+    {
+      "channels": [
+        {
+          "index": 1,
+          "name": "FSC-A"
+        },
+        {
+          "detector": "B530",
+          "index": 2,
+          "kind": "fluorescence",
+          "marker": "CD19",
+          "name": "FL1-A",
+          "reporter": "FITC"
+        }
+      ],
+      "cytometry": "conventional",
+      "id": "B",
+      "instrument": "canto-1",
+      "signal_state": "raw"
+    }
+  ],
+  "privacy": {
+    "profile": "deidentified"
+  },
+  "samples": [], "samples": [
+    {
+      "acquisition": "6020a32fb0e848fa128d554136f8019e59e751f94c7c24773e417f1fe6c86cae",
+      "id": "SP01-T",
+      "panel": "T",
+      "specimen": "SP01"
+    },
+    {
+      "acquisition": "7d41dd60bccc4cb7052e900bae076aedf1c610aa71e36324e98238b68dcea0c4",
+      "id": "SP01-B",
+      "panel": "B",
+      "specimen": "SP01"
+    }
+  ],
+  "schema_version": 1,
+  "specimens": [
+    {
+      "id": "SP01",
+      "material": "peripheral blood",
+      "organism": "Homo sapiens"
+    }
+  ],
+  "study": {
+    "purpose": "Contract tests",
+    "title": "Two-panel test"
+  }
+}

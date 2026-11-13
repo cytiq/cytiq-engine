@@ -3,6 +3,7 @@
 pub mod annotations;
 pub mod artifact;
 mod bitmap;
+pub mod dataset;
 pub mod decision;
 pub mod events;
 pub mod identity;

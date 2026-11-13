@@ -27,6 +27,19 @@ All documents reject unknown versions and invalid references. Keep measured inte
   metadata, the descriptor or the values digest is a new contract version.
 - `tests/events.rs` builds synthetic FCS files with the cytiq-fcs writer;
   every refusal and every verification code has a test.
+- `dataset/` is the dataset manifest v1. `mod.rs` holds its types, identity
+  and parsing, `document.rs` the rules that need no I/O (one function per
+  rule family), `objects.rs` the rules that read objects, `profile.rs` the
+  metadata profiles and `from_run.rs` the entries built from a run manifest
+  and FCS files. Every issue code has a test in `tests/dataset.rs`, which
+  builds a two-panel dataset (`tests/common/mod.rs`).
+- `contracts/dataset/v1/` is a published contract. `tests/dataset_contracts.rs`
+  checks it against `contracts/dataset/v1.lock.json`, reproduces
+  `identity-vectors.json` and checks that what cytiq writes conforms to the
+  schemas. A released version never changes: a change is a new version
+  directory, a row in `dataset::migrate` and migration tests.
+  `CYTIQ_BLESS=1` rewrites the lock and vectors only for an unreleased
+  version.
 
 ## Fuzzing
 
@@ -45,6 +58,9 @@ Targets:
 - `document_json` and `document_yaml` (`serialization::parse`): never panics;
   accepted documents are mappings with a stable digest.
 - `observations_parquet` (`table::read_from`): accepted rows validate.
+- `dataset_json` (`dataset::parse` and `validate_document`): never panics,
+  a rejection names an error, and an accepted manifest round-trips through
+  its canonical JSON with the same `dataset_id`.
 - `events_parquet` (`events::verify_with_limits`): never panics, a
   rejection names an error, and an accepted table is consistent and
   verifies identically twice.

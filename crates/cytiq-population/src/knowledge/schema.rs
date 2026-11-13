@@ -4,7 +4,7 @@
 use crate::{PopulationError, Result, require};
 use serde_json::Value;
 
-pub(super) fn normalize(value: &mut Value, schema: &Value, root: &Value) -> Result<()> {
+pub(crate) fn normalize(value: &mut Value, schema: &Value, root: &Value) -> Result<()> {
     if let Some(reference) = schema["$ref"].as_str() {
         let reference = reference
             .strip_prefix('#')

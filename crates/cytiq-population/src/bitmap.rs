@@ -37,6 +37,17 @@ impl Bitmap {
         }
     }
 
+    /// Set flag `index` and report whether it was clear: `Some(false)` means
+    /// `index` was seen before, `None` that it is out of range.
+    pub(crate) fn insert(&mut self, index: u64) -> Option<bool> {
+        let index = usize::try_from(index)
+            .ok()
+            .filter(|index| *index < self.len)?;
+        let fresh = !self.get(index);
+        self.set(index, true);
+        Some(fresh)
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.len
     }
@@ -64,5 +75,14 @@ mod tests {
         }
         assert!(flags.is_full());
         assert_eq!(flags.len(), 130);
+    }
+
+    #[test]
+    fn insert_reports_repeats_and_out_of_range_ids() {
+        let mut flags = Bitmap::new(130).unwrap();
+        assert_eq!(flags.insert(129), Some(true));
+        assert_eq!(flags.insert(129), Some(false));
+        assert_eq!(flags.insert(130), None);
+        assert_eq!(flags.insert(u64::MAX), None);
     }
 }

@@ -2,6 +2,7 @@
 //! too, so `cargo test` replays every saved input against the same checks.
 
 use cytiq_mask::parquet::ScalarParquetReader;
+use cytiq_population::dataset;
 use cytiq_population::events;
 use cytiq_population::issue::Issues;
 use cytiq_population::serialization::{self, DocumentFormat};
@@ -146,4 +147,39 @@ pub fn events_parquet_accepts(bytes: &[u8]) -> bool {
         &mut Issues::new(),
     )
     .is_some()
+}
+
+/// Any bytes as a dataset manifest: parsing and document validation never
+/// panic, and an accepted manifest has a stable identity and round-trips
+/// through its canonical JSON.
+pub fn dataset_json(bytes: &[u8]) {
+    let mut issues = Issues::new();
+    let Some(manifest) = dataset::parse(bytes, DocumentFormat::Json, &mut issues) else {
+        assert!(issues.has_errors(), "a rejected manifest names an error");
+        return;
+    };
+    for profile in [
+        dataset::Profile::Structural,
+        dataset::Profile::MiflowcytMinimal,
+    ] {
+        dataset::validate_document(&manifest, profile, &mut Issues::new());
+    }
+    let canonical = manifest.canonical_json();
+    let again = dataset::parse(
+        canonical.as_bytes(),
+        DocumentFormat::Json,
+        &mut Issues::new(),
+    )
+    .expect("canonical JSON of an accepted manifest parses");
+    assert_eq!(again, manifest);
+    assert_eq!(again.dataset_id(), manifest.dataset_id());
+}
+
+/// Whether [`dataset_json`] parses `bytes` and finds no document error.
+pub fn dataset_json_accepts(bytes: &[u8]) -> bool {
+    let mut issues = Issues::new();
+    dataset::parse(bytes, DocumentFormat::Json, &mut issues).is_some_and(|manifest| {
+        dataset::validate_document(&manifest, dataset::Profile::Structural, &mut issues);
+        !issues.has_errors()
+    })
 }

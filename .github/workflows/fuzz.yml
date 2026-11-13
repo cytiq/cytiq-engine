@@ -57,6 +57,7 @@ jobs:
           - { crate: cytiq-population, target: observations_parquet }
           - { crate: cytiq-population, target: projected_parquet }
           - { crate: cytiq-population, target: events_parquet }
+          - { crate: cytiq-population, target: dataset_json }
           - { crate: cytiq-specimen, target: specimen_documents }
           - { crate: cytiq-gating, target: gatingml }
     env:

@@ -59,6 +59,44 @@ Field metadata (`cytiq.channel.*`) keeps the detector (`$PnDET`), marker
 (`$PnS`, `$PnANALYTE`) and reporter (`$PnTAG`) apart. No other FCS TEXT is
 written: file names, operators and dates never reach the table.
 
+## Dataset manifest v1
+
+`dataset::DatasetManifest` describes an analytical dataset in one canonical
+JSON document (`schema_version: 1`, `artifact_type: cytiq_dataset_manifest`):
+- **Metadata:** the privacy contract, the study, instruments and detectors,
+  and specimens, all after MIFlowCyt.
+- **Panels:** each panel's ordered channels, with detector, marker, reporter
+  and reagent kept as separate fields.
+- **Samples, acquisitions and controls.** An acquisition is identified by the
+  SHA-256 of its raw FCS file and exports only allowlisted keywords.
+- **Knowledge references** by canonical digest.
+- **Artifacts:** signal layers, technical masks, annotations, observations,
+  definitions and provenance records. Each artifact has a role, a contract, a
+  path-free `semantic_id`, its acquisition, parents, content digest and size,
+  a relative object key and an optional execution reference.
+
+`dataset_id` is the digest of the manifest without locations, contents and
+executions, so moving or re-encoding a dataset keeps its identity.
+
+`dataset::validate` collects typed issues in two tiers.
+- **Document rules (no I/O):** unsupported contracts, missing metadata,
+  panel mismatches, incompatible signal states (step order, base state,
+  cytometry, recipes within a panel × state), duplicate event identities,
+  acquisitions and ids, invalid references, inconsistent channel order and
+  privacy violations.
+- **Object verification (opt-in):** missing objects, size and digest
+  mismatches, events tables, masks, predictions, observations and provenance
+  records against the manifest.
+
+Profiles: `structural`, and `miflowcyt-minimal`, which also requires the
+study purpose, instruments, detectors and reporters of marked channels, and
+specimen organism and material.
+
+JSON Schemas of the manifest, the layer descriptor and the validation report
+are published in `contracts/dataset/v1/`, pinned by
+`contracts/dataset/v1.lock.json`, with identity vectors for other
+implementations.
+
 ## Knowledge and limits
 
 `knowledge::KnowledgeArtifact` validates the six upstream v2 artifact kinds

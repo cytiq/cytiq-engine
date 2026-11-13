@@ -1,0 +1,635 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cytiq/cytiq-engine/contracts/dataset/v1/dataset-manifest.schema.json",
+  "title": "cytiq dataset manifest v1",
+  "description": "Acquisitions, panels, derived artifacts and their identities. Rules beyond shape (references, signal states, privacy) are checked by `cytiq dataset validate`.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_type": {
+      "const": "cytiq_dataset_manifest"
+    },
+    "dataset_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "study": {
+      "$ref": "#/$defs/experiment"
+    },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/instrument"
+      }
+    },
+    "panels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/panel"
+      },
+      "minItems": 1
+    },
+    "specimens": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/specimen"
+      }
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sample"
+      }
+    },
+    "acquisitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/acquisition"
+      }
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/control"
+      }
+    },
+    "knowledge": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/knowledge"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "contracts",
+    "privacy",
+    "panels",
+    "samples",
+    "acquisitions"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "values_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "bytes"
+      ]
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/text"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reagent": {
+      "type": "object",
+      "properties": {
+        "clone": {
+          "$ref": "#/$defs/text"
+        },
+        "vendor": {
+          "$ref": "#/$defs/text"
+        },
+        "catalog": {
+          "$ref": "#/$defs/text"
+        },
+        "lot": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false
+    },
+    "experiment": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "purpose": {
+          "$ref": "#/$defs/text"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "detector": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "kind": {
+          "enum": [
+            "pmt",
+            "apd",
+            "spectral_array",
+            "mass",
+            "other"
+          ]
+        },
+        "excitation_nm": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "emission_filter": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "instrument": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "manufacturer": {
+          "$ref": "#/$defs/text"
+        },
+        "model": {
+          "$ref": "#/$defs/text"
+        },
+        "configuration": {
+          "$ref": "#/$defs/text"
+        },
+        "detectors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/detector"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "ontology_term": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "label": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "specimen": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "organism": {
+          "$ref": "#/$defs/text"
+        },
+        "material": {
+          "$ref": "#/$defs/text"
+        },
+        "ontology": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ontology_term"
+          }
+        },
+        "preparation": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "channel": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "kind": {
+          "enum": [
+            "forward_scatter",
+            "side_scatter",
+            "fluorescence",
+            "unmixed_component",
+            "mass",
+            "time",
+            "other"
+          ]
+        },
+        "detector": {
+          "$ref": "#/$defs/text"
+        },
+        "marker": {
+          "$ref": "#/$defs/text"
+        },
+        "reporter": {
+          "$ref": "#/$defs/text"
+        },
+        "reagent": {
+          "$ref": "#/$defs/reagent"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name"
+      ]
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "cytometry": {
+          "enum": [
+            "conventional",
+            "spectral",
+            "cytof"
+          ]
+        },
+        "signal_state": {
+          "enum": [
+            "raw",
+            "compensated",
+            "unmixed"
+          ]
+        },
+        "instrument": {
+          "$ref": "#/$defs/text"
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/channel"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "cytometry",
+        "channels"
+      ]
+    },
+    "sample": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "panel": {
+          "$ref": "#/$defs/text"
+        },
+        "specimen": {
+          "$ref": "#/$defs/text"
+        },
+        "acquisition": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "panel",
+        "acquisition"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "$ref": "#/$defs/text"
+        },
+        "content": {
+          "$ref": "#/$defs/content"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "content"
+      ]
+    },
+    "acquisition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "panel": {
+          "$ref": "#/$defs/text"
+        },
+        "raw_events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "role": {
+          "enum": [
+            "sample",
+            "control"
+          ]
+        },
+        "keywords": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "panel",
+        "raw_events",
+        "role"
+      ]
+    },
+    "control": {
+      "type": "object",
+      "properties": {
+        "acquisition": {
+          "$ref": "#/$defs/sha256"
+        },
+        "panel": {
+          "$ref": "#/$defs/text"
+        },
+        "role": {
+          "enum": [
+            "unstained",
+            "single_stain",
+            "fmo",
+            "isotype",
+            "beads",
+            "reference"
+          ]
+        },
+        "reporter": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "acquisition",
+        "role"
+      ]
+    },
+    "knowledge": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sha256"
+      ]
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "compensation",
+            "unmixing",
+            "transform",
+            "normalization"
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/text"
+        },
+        "origin": {
+          "enum": [
+            "recorded",
+            "verified",
+            "declared",
+            "external"
+          ]
+        },
+        "definition_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "method",
+        "origin"
+      ]
+    },
+    "layer": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "raw",
+            "compensated",
+            "unmixed",
+            "transformed",
+            "normalized"
+          ]
+        },
+        "recipe_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/step"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "recipe_id",
+        "steps"
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "signal_layer",
+            "technical_mask",
+            "annotation",
+            "observations",
+            "model",
+            "gating",
+            "knowledge",
+            "provenance"
+          ]
+        },
+        "contract": {
+          "$ref": "#/$defs/text"
+        },
+        "semantic_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acquisition": {
+          "$ref": "#/$defs/sha256"
+        },
+        "panel": {
+          "$ref": "#/$defs/text"
+        },
+        "parents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "layer": {
+          "$ref": "#/$defs/layer"
+        },
+        "content": {
+          "$ref": "#/$defs/content"
+        },
+        "location": {
+          "$ref": "#/$defs/text"
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "contract",
+        "semantic_id",
+        "content",
+        "location"
+      ]
+    },
+    "disclosure": {
+      "type": "object",
+      "properties": {
+        "contract": {
+          "$ref": "#/$defs/text"
+        },
+        "purpose": {
+          "$ref": "#/$defs/text"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "source_locations": {
+          "type": "boolean"
+        },
+        "provenance_records": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "purpose"
+      ]
+    },
+    "privacy": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "enum": [
+            "deidentified",
+            "controlled"
+          ]
+        },
+        "disclosures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/disclosure"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "profile"
+      ]
+    }
+  }
+}

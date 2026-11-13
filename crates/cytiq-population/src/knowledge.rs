@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::{Result, require, serialization};
 
-mod schema;
+pub(crate) mod schema;
 
 /// A validated, default-expanded v2 knowledge artifact.
 #[derive(Clone, Debug)]

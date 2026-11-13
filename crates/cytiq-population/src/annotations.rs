@@ -400,7 +400,7 @@ fn validate_producer(
     Ok(())
 }
 
-fn producer_record(path: &Path) -> Result<RunRecord> {
+pub(crate) fn producer_record(path: &Path) -> Result<RunRecord> {
     let record: RunRecord = serde_json::from_value(serialization::read(path)?)?;
     require(
         (cytiq_provenance::MIN_READ_SCHEMA_VERSION..=cytiq_provenance::SCHEMA_VERSION)
