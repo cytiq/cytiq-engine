@@ -1,0 +1,12 @@
+{
+  "expect": "unsupported_schema",
+  "tier": "document",
+  "description": "A contract no reader supports.",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/contracts/-",
+      "value": "cytiq.events.v9"
+    }
+  ]
+}

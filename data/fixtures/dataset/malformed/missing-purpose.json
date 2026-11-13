@@ -1,0 +1,12 @@
+{
+  "expect": "missing_metadata",
+  "tier": "document",
+  "description": "The miflowcyt-minimal profile needs the study purpose.",
+  "patch": [
+    {
+      "op": "remove",
+      "path": "/study/purpose"
+    }
+  ],
+  "profile": "miflowcyt-minimal"
+}

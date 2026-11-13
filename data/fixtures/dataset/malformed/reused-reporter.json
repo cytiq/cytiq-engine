@@ -1,0 +1,12 @@
+{
+  "expect": "panel_mismatch",
+  "tier": "document",
+  "description": "Two channels of panel M carry FITC.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/panels/0/channels/5/reporter",
+      "value": "FITC"
+    }
+  ]
+}

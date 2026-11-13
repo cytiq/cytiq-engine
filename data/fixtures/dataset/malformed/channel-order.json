@@ -1,0 +1,12 @@
+{
+  "expect": "inconsistent_channel_order",
+  "tier": "document",
+  "description": "SS PEAK moved after the channels that follow it.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/panels/0/channels/1/index",
+      "value": 99
+    }
+  ]
+}

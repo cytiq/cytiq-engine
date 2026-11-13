@@ -1,0 +1,12 @@
+{
+  "expect": "privacy_violation",
+  "tier": "document",
+  "description": "An absolute path records a location and a user name.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/artifacts/6/location",
+      "value": "/home/analyst/gates.xml"
+    }
+  ]
+}

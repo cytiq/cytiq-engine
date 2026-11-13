@@ -1,0 +1,12 @@
+{
+  "expect": "invalid_reference",
+  "tier": "document",
+  "description": "Panel M's mask derived from panel B's acquisition: same row numbers, different events.",
+  "patch": [
+    {
+      "op": "copy",
+      "from": "/artifacts/4/semantic_id",
+      "path": "/artifacts/3/parents/0"
+    }
+  ]
+}

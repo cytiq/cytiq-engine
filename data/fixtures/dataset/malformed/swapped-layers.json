@@ -1,0 +1,17 @@
+{
+  "expect": "corrupt_artifact_hash",
+  "tier": "objects",
+  "description": "The raw entry points at the compensated table, with its digest: the table's layer is not the entry's.",
+  "patch": [
+    {
+      "op": "copy",
+      "from": "/artifacts/1/location",
+      "path": "/artifacts/0/location"
+    },
+    {
+      "op": "copy",
+      "from": "/artifacts/1/content",
+      "path": "/artifacts/0/content"
+    }
+  ]
+}

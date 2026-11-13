@@ -1,0 +1,12 @@
+{
+  "expect": "panel_mismatch",
+  "tier": "document",
+  "description": "FL1 INT names a detector the instrument does not have.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/panels/0/channels/4/detector",
+      "value": "FL99"
+    }
+  ]
+}

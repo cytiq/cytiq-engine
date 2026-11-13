@@ -1,0 +1,12 @@
+{
+  "expect": "invalid_reference",
+  "tier": "document",
+  "description": "A sample of an undeclared specimen.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/samples/0/specimen",
+      "value": "SP99"
+    }
+  ]
+}

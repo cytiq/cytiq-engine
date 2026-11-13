@@ -137,3 +137,23 @@ Rust API: `RunManifest` gains `experiment`, `instruments` and `specimens`,
 `reagent`, and `ControlEntry` gains `role`. Struct literals need the new
 fields (`None` or empty). `RunManifest::migrate` raises a document to
 `cytiq_manifest::SCHEMA_VERSION`.
+
+## Lakehouse dataset contract (additive)
+
+Two commands and two contracts are new; nothing existing changes. See the
+[dataset contract](dataset-contract.md).
+
+- `cytiq events export` writes one FCS file as a `cytiq.events.v1` Parquet
+  table, keyed by acquisition, signal layer and raw event id in every row.
+  A file `cytiq compensate --matrix` produced needs `--compensation-matrix`,
+  and a file unmixed by `cytiq autospectral` needs `--unmixing-reference`:
+  the FCS records those definitions only by path, which is never exported.
+- `cytiq dataset validate` checks a dataset manifest v1 and writes a typed
+  report. Errors exit 3 after the report is written.
+
+Rust API:
+- `cytiq_population::PopulationError` gains `Fcs`; exhaustive matches need
+  an arm.
+- `cytiq-population` now depends on `cytiq-fcs` directly.
+- New modules: `events`, `dataset`, `identity`, `issue` and `privacy`.
+- `serialization::canonical` returns the canonical text that `digest` hashes.

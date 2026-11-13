@@ -1,0 +1,12 @@
+{
+  "expect": "unsupported_schema",
+  "tier": "document",
+  "description": "A manifest version this cytiq does not read.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/schema_version",
+      "value": 2
+    }
+  ]
+}

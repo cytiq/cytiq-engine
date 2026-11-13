@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<gating:Gating-ML xmlns:gating="http://www.isac-net.org/std/Gating-ML/v2.0/gating" xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v2.0/datatypes">
+<gating:RectangleGate gating:id="All"><gating:dimension gating:min="-1e20" gating:compensation-ref="uncompensated"><data-type:fcs-dimension data-type:name="FSC-A"/></gating:dimension></gating:RectangleGate>
+<gating:RectangleGate gating:id="T" gating:parent_id="All"><gating:dimension gating:min="50000" gating:compensation-ref="uncompensated"><data-type:fcs-dimension data-type:name="FSC-A"/></gating:dimension></gating:RectangleGate>
+<gating:RectangleGate gating:id="Activated" gating:parent_id="All"><gating:dimension gating:min="20000" gating:compensation-ref="uncompensated"><data-type:fcs-dimension data-type:name="SSC-A"/></gating:dimension></gating:RectangleGate>
+<gating:RectangleGate gating:id="Zero" gating:parent_id="All"><gating:dimension gating:min="1e10" gating:compensation-ref="uncompensated"><data-type:fcs-dimension data-type:name="FSC-A"/></gating:dimension></gating:RectangleGate>
+</gating:Gating-ML>

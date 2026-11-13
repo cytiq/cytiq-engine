@@ -40,6 +40,13 @@ All documents reject unknown versions and invalid references. Keep measured inte
   directory, a row in `dataset::migrate` and migration tests.
   `CYTIQ_BLESS=1` rewrites the lock and vectors only for an unreleased
   version.
+- `tests/dataset_fixtures.rs` checks the reference dataset of
+  `data/fixtures/dataset` offline. It verifies `sha256.json`, validates the
+  reference under both profiles with every object verified, checks schema
+  conformance and that no identifying text leaks, and replays every
+  `malformed/*.json` patch against its expected code. Add a malformed case
+  for every new issue code. `cytiq-engine`'s `dataset_fixtures` test rebuilds
+  the reference with the commands (see the fixture README).
 
 ## Fuzzing
 

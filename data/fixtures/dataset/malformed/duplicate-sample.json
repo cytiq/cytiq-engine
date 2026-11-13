@@ -1,0 +1,12 @@
+{
+  "expect": "duplicate_identifier",
+  "tier": "document",
+  "description": "Two samples named S12-M.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/samples/1/id",
+      "value": "S12-M"
+    }
+  ]
+}

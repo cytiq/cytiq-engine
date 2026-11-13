@@ -1,0 +1,12 @@
+{
+  "expect": "privacy_violation",
+  "tier": "document",
+  "description": "$FIL holds the source file name and is not disclosed.",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/acquisitions/0/keywords/$FIL",
+      "value": "Case12_P.fcs"
+    }
+  ]
+}

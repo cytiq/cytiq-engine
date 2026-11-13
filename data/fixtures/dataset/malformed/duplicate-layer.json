@@ -1,0 +1,12 @@
+{
+  "expect": "duplicate_event_identity",
+  "tier": "document",
+  "description": "The raw layer of S12-M listed twice would count its events twice.",
+  "patch": [
+    {
+      "op": "copy",
+      "from": "/artifacts/0",
+      "path": "/artifacts/-"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "expect": "privacy_violation",
+  "tier": "document",
+  "description": "Provenance records hold paths and command lines; referencing one needs a disclosure.",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/artifacts/0/execution",
+      "value": {
+        "provenance": "events/M/S12-M.raw.parquet.provenance.json"
+      }
+    }
+  ]
+}
