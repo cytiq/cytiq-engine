@@ -131,6 +131,28 @@ fn cli_fails_when_gating_ml_is_missing() {
 }
 
 #[test]
+fn cli_refuses_an_oversized_gating_ml_before_parsing() {
+    let directory = create_temp_dir("cytiq-engine-gate-oversized");
+    let gating_ml = directory.join("huge.xml");
+    fs::File::create(&gating_ml)
+        .expect("create sparse file")
+        .set_len(cytiq_gating::GATINGML_BYTES_MAX + 1)
+        .expect("extend sparse file");
+    let output = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args(["gate", "--input", utf8(&fixture("sample.fcs"))])
+        .args(["--gating-ml", utf8(&gating_ml)])
+        .args(["--output", utf8(&directory.join("counts.csv"))])
+        .output()
+        .expect("command should run");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("exceeds"), "{stderr}");
+    assert!(!directory.join("counts.csv").exists());
+    fs::remove_dir_all(directory).ok();
+}
+
+#[test]
 fn cli_refuses_to_transform_already_transformed_channels() {
     let directory = create_temp_dir("cytiq-engine-gate-transformed");
     let transformed = directory.join("sample.transformed.fcs");

@@ -25,6 +25,29 @@ fn runner_unmixes_synthetic_spectral_fixture() -> Result<(), Box<dyn Error>> {
     assert_eq!(summary.components, vec!["FITC", "PE", "Autofluorescence"]);
     assert_eq!(summary.samples.len(), 1);
     assert!(summary.condition_number.is_finite());
+    let sensitivity = summary
+        .reference_diagnostics
+        .af_peak_sensitivity
+        .as_ref()
+        .expect("several detectors give a runner-up AF detector");
+    assert_ne!(
+        sensitivity.runner_up_detector,
+        summary.reference_diagnostics.af_peak_detector
+    );
+    assert!(sensitivity.relative_margin.is_some_and(f64::is_finite));
+    let cosine = sensitivity
+        .runner_up_spectrum_cosine
+        .expect("the fixture AF control has spread on every detector");
+    assert!(cosine.is_finite() && cosine <= 1.0 + 1e-12);
+    assert_eq!(
+        sensitivity.stable,
+        Some(cosine >= sensitivity.cosine_threshold)
+    );
+    let run: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(directory.join("out/diagnostics/run.json"))?)?;
+    assert!(
+        run["reference_diagnostics"]["af_peak_sensitivity"]["runner_up_spectrum_cosine"].is_f64()
+    );
     assert!(
         directory
             .join("out/references/fluorophore_spectra.csv")

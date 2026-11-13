@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use arrow_array::builder::StringBuilder;
-use arrow_array::{ArrayRef, BooleanArray, Float64Array, RecordBatch, UInt64Array};
+use arrow_array::{ArrayRef, BooleanArray, Float32Array, Float64Array, RecordBatch, UInt64Array};
 use arrow_schema::{DataType, SchemaRef};
 use parquet::arrow::parquet_to_arrow_schema;
 use parquet::basic::{Compression, Encoding, Type as PhysicalType};
@@ -66,10 +66,15 @@ fn charge(budget: &AtomicU64, bytes: u64) -> Result<()> {
         .map_err(|_| invalid("Parquet decoded bytes exceed shared allocation budget"))
 }
 
-/// A flat Boolean/UInt64/Float64/Utf8 table, preserving Arrow schema metadata.
+/// A flat Boolean/UInt64/Float32/Float64/Utf8 table, preserving Arrow schema
+/// metadata. [`Self::project`] decodes only the named columns.
 pub struct ScalarParquetReader<R: ChunkReader> {
     file: SerializedFileReader<R>,
     schema: SchemaRef,
+    /// File column indices decoded into batches, in output order.
+    projection: Vec<usize>,
+    /// Schema of the emitted batches: `schema` restricted to `projection`.
+    output: SchemaRef,
     limits: ParquetReadLimits,
     group: usize,
     columns: Vec<ColumnReader>,
@@ -127,7 +132,11 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
         for field in schema.fields() {
             if !matches!(
                 field.data_type(),
-                DataType::Boolean | DataType::UInt64 | DataType::Float64 | DataType::Utf8
+                DataType::Boolean
+                    | DataType::UInt64
+                    | DataType::Float32
+                    | DataType::Float64
+                    | DataType::Utf8
             ) {
                 return Err(invalid("unsupported scalar Parquet type"));
             }
@@ -154,6 +163,8 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
         }
         Ok(Self {
             file,
+            projection: (0..schema.fields().len()).collect(),
+            output: Arc::clone(&schema),
             schema,
             limits,
             group: 0,
@@ -164,9 +175,44 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
         })
     }
 
+    /// The schema of the whole file, whatever the projection.
     #[must_use]
     pub fn schema(&self) -> &SchemaRef {
         &self.schema
+    }
+
+    /// Decode only `names`, in that order; other columns are never read past
+    /// the page-size checks. Emitted batches carry the projected schema with
+    /// the file's metadata.
+    ///
+    /// # Errors
+    /// Rejects an empty list, a missing or repeated name, and a reader that
+    /// has already produced a batch.
+    pub fn project(mut self, names: &[&str]) -> Result<Self> {
+        if self.group != 0 || !self.columns.is_empty() {
+            return Err(invalid("projection must precede reading"));
+        }
+        if names.is_empty() {
+            return Err(invalid("projection names no column"));
+        }
+        let mut projection = Vec::with_capacity(names.len());
+        for name in names {
+            let index = self
+                .schema
+                .index_of(name)
+                .map_err(|_| invalid(&format!("missing projected column `{name}`")))?;
+            if projection.contains(&index) {
+                return Err(invalid(&format!("repeated projected column `{name}`")));
+            }
+            projection.push(index);
+        }
+        self.output = Arc::new(
+            self.schema
+                .project(&projection)
+                .map_err(|error| invalid(&format!("invalid projection: {error}")))?,
+        );
+        self.projection = projection;
+        Ok(self)
     }
 
     #[must_use]
@@ -177,7 +223,7 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
     fn batch(&mut self) -> Result<Option<RecordBatch>> {
         while self.remaining == 0 {
             if !self.columns.is_empty() {
-                for (column, field) in self.columns.iter_mut().zip(self.schema.fields()) {
+                for (column, field) in self.columns.iter_mut().zip(self.output.fields()) {
                     if !scalar_column(column, field.is_nullable(), 1, &self.budget)?.is_empty() {
                         return Err(invalid("column contains more rows than declared"));
                     }
@@ -190,8 +236,13 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
             self.group += 1;
             self.remaining = usize::try_from(group.metadata().num_rows())
                 .map_err(|_| invalid("invalid row count"))?;
-            self.columns = (0..group.num_columns())
-                .map(|i| {
+            if group.num_columns() != self.schema.fields().len() {
+                return Err(invalid("row group columns differ from schema"));
+            }
+            self.columns = self
+                .projection
+                .iter()
+                .map(|&i| {
                     let descriptor = group.metadata().schema_descr().column(i);
                     let pages = CheckedPages {
                         inner: group.get_column_page_reader(i)?,
@@ -218,7 +269,7 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
         let arrays = self
             .columns
             .iter_mut()
-            .zip(self.schema.fields())
+            .zip(self.output.fields())
             .map(|(column, field)| {
                 let array = scalar_column(column, field.is_nullable(), count, &self.budget)?;
                 if array.len() != count {
@@ -229,7 +280,7 @@ impl<R: ChunkReader + 'static> ScalarParquetReader<R> {
             })
             .collect::<Result<Vec<_>>>()?;
         self.remaining -= count;
-        RecordBatch::try_new(self.schema.clone(), arrays)
+        RecordBatch::try_new(self.output.clone(), arrays)
             .map(Some)
             .map_err(|e| invalid(&e.to_string()))
     }
@@ -483,6 +534,9 @@ fn scalar_column(
                 .into_iter()
                 .map(|v| v.map(|v| u64::from_ne_bytes(v.to_ne_bytes()))),
         )),
+        ColumnReader::FloatColumnReader(r) => Arc::new(Float32Array::from(primitive_values(
+            r, nullable, count, budget, 32,
+        )?)),
         ColumnReader::DoubleColumnReader(r) => Arc::new(Float64Array::from(primitive_values(
             r, nullable, count, budget, 64,
         )?)),
@@ -652,7 +706,9 @@ fn validate_flat_footer(source: &mut dyn Read, bytes: u64) -> Result<()> {
                 if physical.is_some() || children != i64::try_from(count - 1).ok() {
                     return Err(invalid("schema child count differs from flat fields"));
                 }
-            } else if !matches!(physical, Some(0 | 2 | 5 | 6)) || children.is_some_and(|n| n != 0) {
+            } else if !matches!(physical, Some(0 | 2 | 4 | 5 | 6))
+                || children.is_some_and(|n| n != 0)
+            {
                 return Err(invalid("unsupported nested or physical schema"));
             }
         }
@@ -973,6 +1029,110 @@ mod tests {
         ] {
             assert!(ScalarParquetReader::new(file.try_clone().unwrap(), limits).is_err());
         }
+    }
+
+    fn write_table(schema: Arc<Schema>, columns: Vec<ArrayRef>) -> std::fs::File {
+        let file = tempfile::tempfile().unwrap();
+        let mut writer =
+            ArrowWriter::try_new(file.try_clone().unwrap(), schema.clone(), None).unwrap();
+        writer
+            .write(&RecordBatch::try_new(schema, columns).unwrap())
+            .unwrap();
+        writer.close().unwrap();
+        file
+    }
+
+    fn mixed_table() -> std::fs::File {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("cytiq.kind".to_owned(), "test".to_owned());
+        let schema = Arc::new(Schema::new_with_metadata(
+            vec![
+                Field::new("source_event_id", DataType::UInt64, false),
+                Field::new("p_a", DataType::Float32, true),
+                Field::new("label", DataType::Utf8, true),
+                Field::new("p_b", DataType::Float64, false),
+            ],
+            metadata,
+        ));
+        write_table(
+            schema,
+            vec![
+                Arc::new(UInt64Array::from(vec![0, 1, 2])),
+                Arc::new(Float32Array::from(vec![Some(0.25), None, Some(f32::MAX)])),
+                Arc::new(StringArray::from(vec![Some("a"), None, Some("b")])),
+                Arc::new(Float64Array::from(vec![1.0, 2.0, 3.0])),
+            ],
+        )
+    }
+
+    #[test]
+    fn float32_columns_round_trip_with_nulls() {
+        let batches = ScalarParquetReader::new(mixed_table(), ParquetReadLimits::default())
+            .unwrap()
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        let values = batches[0]
+            .column(1)
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap();
+        assert_eq!(
+            values.iter().collect::<Vec<_>>(),
+            vec![Some(0.25), None, Some(f32::MAX)]
+        );
+    }
+
+    #[test]
+    fn projection_decodes_only_named_columns_in_request_order() {
+        let reader = ScalarParquetReader::new(mixed_table(), ParquetReadLimits::default())
+            .unwrap()
+            .project(&["label", "source_event_id"])
+            .unwrap();
+        assert_eq!(reader.schema().fields().len(), 4, "file schema is kept");
+        let batches = reader.collect::<Result<Vec<_>>>().unwrap();
+        let schema = batches[0].schema();
+        let names = schema
+            .fields()
+            .iter()
+            .map(|field| field.name().as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["label", "source_event_id"]);
+        assert_eq!(schema.metadata()["cytiq.kind"], "test");
+        let labels = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(
+            labels.iter().collect::<Vec<_>>(),
+            vec![Some("a"), None, Some("b")]
+        );
+        let ids = batches[0]
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        assert_eq!(ids.values().as_ref(), [0, 1, 2]);
+    }
+
+    #[test]
+    fn projection_rejects_missing_repeated_and_empty_columns() {
+        for names in [&["missing"][..], &["label", "label"], &[]] {
+            let error = ScalarParquetReader::new(mixed_table(), ParquetReadLimits::default())
+                .unwrap()
+                .project(names)
+                .err()
+                .expect("invalid projection must be rejected");
+            assert!(error.to_string().contains("column"), "{error}");
+        }
+    }
+
+    #[test]
+    fn projection_after_reading_is_rejected() {
+        let mut reader =
+            ScalarParquetReader::new(mixed_table(), ParquetReadLimits::default()).unwrap();
+        reader.next().unwrap().unwrap();
+        assert!(reader.project(&["label"]).is_err());
     }
 
     #[test]

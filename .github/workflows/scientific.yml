@@ -79,6 +79,10 @@ jobs:
           use-public-rspm: false
       - name: Install system build dependencies
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libhdf5-dev libgit2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff-dev libjpeg-dev libwebp-dev libnlopt-dev libgsl-dev libglpk-dev libzstd-dev
+      # The environment follows the locks; the real-data cache follows the
+      # dataset pins. Cached members are content-addressed and every file is
+      # SHA-256-verified when materialised, so an older data cache is a safe
+      # starting point and a lock bump no longer downloads every dataset.
       - name: Restore reference environment
         uses: actions/cache/restore@v6
         with:
@@ -86,34 +90,49 @@ jobs:
             parity/.env/Rlib
             parity/.env/py
             target/scientific/r-sources
-            parity/.data/real-cache
-          key: scientific-${{ runner.os }}-${{ hashFiles('parity/r-packages.lock.json', 'parity/requirements.lock', 'mise.lock') }}
+          key: scientific-env-${{ runner.os }}-${{ hashFiles('parity/r-packages.lock.json', 'parity/requirements.lock', 'mise.lock') }}
+      - name: Restore real-data cache
+        uses: actions/cache/restore@v6
+        with:
+          path: parity/.data/real-cache
+          key: scientific-data-${{ hashFiles('parity/real/datasets.json') }}
+          restore-keys: scientific-data-
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           key: scientific
       - name: Restore and verify reference packages
+        id: setup
         run: just parity-setup
+      # Each validation layer runs and reports even when an earlier one
+      # failed; any failure still fails the job.
       - name: Numerical parity
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: just parity
       - name: Real acquisitions
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: just parity-real
       - name: CytoNorm numerical and held-out donor parity
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           just parity-cytonorm
           just parity-cytonorm-real
       - name: Independent scientific metrics
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python -m unittest discover -s parity/scientific -p 'test_*.py'
+      # Normal donors and the weak phenotype use small fixtures in the
+      # repository, so they run whenever parity is selected; only the 16 GB
+      # CyMAE cohort waits for full, scheduled and release validation.
       - name: Complete biological acquisition cohort
-        if: inputs.full || github.event_name == 'schedule'
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && (inputs.full || github.event_name == 'schedule') }}
         run: |
           python3 parity/scientific/datasets.py fetch --lock data/fixtures/scientific/cymae.lock.json --cache target/scientific/cymae
           parity/.env/py/bin/python parity/scientific/run.py retention --binary target/release/cytiq --registry data/fixtures/scientific/cymae.lock.json --cache target/scientific/cymae --output target/scientific/results/cymae-retention
       - name: Independent normal donors
-        if: inputs.full || github.event_name == 'schedule'
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python parity/scientific/normal.py --binary target/release/cytiq --output target/scientific/results/normal-donors
       - name: Weak phenotype retention sensitivity
-        if: inputs.full || github.event_name == 'schedule'
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python parity/scientific/weak_population.py --binary target/release/cytiq --output target/scientific/results/weak-populations
       - name: Save reference environment
         if: success() && github.ref == 'refs/heads/main'
@@ -123,8 +142,13 @@ jobs:
             parity/.env/Rlib
             parity/.env/py
             target/scientific/r-sources
-            parity/.data/real-cache
-          key: scientific-${{ runner.os }}-${{ hashFiles('parity/r-packages.lock.json', 'parity/requirements.lock', 'mise.lock') }}
+          key: scientific-env-${{ runner.os }}-${{ hashFiles('parity/r-packages.lock.json', 'parity/requirements.lock', 'mise.lock') }}
+      - name: Save real-data cache
+        if: success() && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: parity/.data/real-cache
+          key: scientific-data-${{ hashFiles('parity/real/datasets.json') }}
       - name: Upload scientific evidence
         if: always()
         uses: actions/upload-artifact@v7

@@ -164,6 +164,8 @@ YAML `yes/no/on/off` are strings, booleans use `true/false`, and numeric label
 keys require quotes. Duplicate/non-string keys, merge keys, unsupported tags,
 recursive aliases and non-finite values are rejected. Missing or ambiguous
 bundle files and mismatched checksums fail before inference/output creation.
+A `model.onnx` or OOD model over `MODEL_BYTES_MAX` (2 GiB − 1, the protobuf
+limit without external data) is refused before it is hashed or loaded.
 `input_files()` returns the actual selected paths for provenance.
 
 Golden serialization vectors and Python-exported v4 fixtures verify canonical

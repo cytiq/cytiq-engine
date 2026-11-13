@@ -84,6 +84,26 @@ struct PlotEntry {
     title: Option<String>,
 }
 
+/// Largest batch file read; real batches are a few KiB.
+const BATCH_BYTES_MAX: u64 = 16 << 20;
+
+/// Read at most [`BATCH_BYTES_MAX`] bytes as UTF-8 before parsing.
+fn read_batch(path: &Path) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(BATCH_BYTES_MAX + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > BATCH_BYTES_MAX {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("batch file exceeds {BATCH_BYTES_MAX} bytes"),
+        ));
+    }
+    String::from_utf8(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+}
+
 /// Read a batch file and plan each plot's outputs as
 /// `<output_dir>/<name>.<extension>` for every format.
 ///
@@ -101,7 +121,7 @@ pub fn load_batch(
         path: path.to_path_buf(),
         message,
     };
-    let text = std::fs::read_to_string(path).map_err(|error| fail(error.to_string()))?;
+    let text = read_batch(path).map_err(|error| fail(error.to_string()))?;
     let extension = path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -199,6 +219,21 @@ mod tests {
             Path::new("out"),
             &[OutputFormat::Svg, OutputFormat::Plotly],
         )
+    }
+
+    #[test]
+    fn oversized_batch_is_refused_before_parsing() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("plots.yaml");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(BATCH_BYTES_MAX + 1)
+            .unwrap();
+        let error = load_batch(&path, Path::new("out"), &[OutputFormat::Svg]).unwrap_err();
+        assert!(
+            matches!(&error, PlotError::Batch { message, .. } if message.contains("exceeds")),
+            "{error}"
+        );
     }
 
     #[test]

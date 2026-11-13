@@ -94,8 +94,9 @@ let keep: Vec<bool> = analysis.keep_for(&dataset, &acquisition)?; // one entry p
 ## Bounded Parquet input
 
 `parquet::ScalarParquetReader` is shared by masks, population observations and
-CytoNorm spline tables. It accepts flat Boolean/UInt64/Float64/Utf8 columns and
-preserves Arrow metadata. Defaults cap files at 8 GiB, metadata at 16 MiB,
+CytoNorm spline tables, and reads classify annotation tables. It accepts flat
+Boolean/UInt64/Float32/Float64/Utf8 columns and preserves Arrow metadata;
+`project` decodes only the named columns. Callers check the exact types they need. Defaults cap files at 8 GiB, metadata at 16 MiB,
 compressed and decoded pages at 64 MiB, cumulative decoded allocations at 8 GiB,
 pages at 2^20, rows at 2^30 and columns at 1,024. Dictionary storage and Arrow
 arrays share one allocation budget; repeated dictionary strings are checked

@@ -47,6 +47,11 @@ pub const MIN_RETAINED_EVENTS: usize = 20;
 /// `asp$min.cell.stop.n`.
 pub const MIN_POSITIVE_EVENTS: usize = 20;
 pub const CONDITION_NUMBER_LIMIT: f64 = 1.0e8;
+/// The AF spectrum is reported unstable when re-estimating it on the
+/// runner-up AF detector moves it below this cosine: the minimum
+/// `autospectral.spectra.*.cosine` of `parity/tolerances.json`, so a near-tied
+/// peak changes the reference more than implementations may differ.
+pub const AF_PEAK_COSINE_THRESHOLD: f64 = 0.9999;
 /// Never inferred as detectors: acquisition time and the event lineage.
 pub const AUTO_EXCLUDED_CHANNELS: &[&str] = &["Time", cytiq_fcs::ORIGINAL_ID_PARAMETER];
 
@@ -144,6 +149,27 @@ pub struct ReferenceDiagnostics {
     /// P Pᵀ for independent unit-variance detector noise. This is a model
     /// sensitivity, not empirical spreading or a fitted photon-noise model.
     pub unit_noise_covariance: Vec<Vec<f64>>,
+    /// How the AF spectrum depends on the detector it is regressed on;
+    /// absent with a single detector.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub af_peak_sensitivity: Option<AfPeakSensitivity>,
+}
+
+/// The AF spectrum re-estimated on the detector with the second-highest gated
+/// mean, from the same events. A single AF source gives the same normalised
+/// spectrum on either detector; a lower cosine means the near-tied argmax
+/// choice moves the reference (for example, more than one AF source).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AfPeakSensitivity {
+    pub runner_up_detector: String,
+    /// (peak mean − runner-up mean) / |peak mean|; absent for a zero peak mean.
+    pub relative_margin: Option<f64>,
+    /// Cosine between the spectra estimated on the peak and the runner-up;
+    /// absent when no spectrum can be estimated on the runner-up.
+    pub runner_up_spectrum_cosine: Option<f64>,
+    pub cosine_threshold: f64,
+    /// `runner_up_spectrum_cosine >= cosine_threshold`; absent with it.
+    pub stable: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -328,6 +354,7 @@ impl AutoSpectralRunner {
             controls: references.controls,
             samples: sample_qc,
         };
+        ensure_finite_diagnostics(&summary)?;
         let result = AutoSpectralResult {
             references: references.set,
             samples: unmixed_samples
@@ -609,6 +636,14 @@ fn build_references(
         .map_or(0, |(index, _)| index);
     let af_spectrum =
         estimate_spectrum(&autofluorescence.path, &[(&af_columns, &af_gate)], af_peak)?;
+    let af_sensitivity = af_peak_sensitivity(
+        &autofluorescence.path,
+        (&af_columns, &af_gate),
+        &af_means,
+        af_peak,
+        detectors,
+        &af_spectrum,
+    );
     let negatives = Negatives {
         columns: &af_columns,
         events: &af_gate,
@@ -666,6 +701,7 @@ fn build_references(
             detectors[af_peak].clone(),
             af_means,
             fluorophore_condition,
+            af_sensitivity,
         ),
         set: SpectralReferenceSet {
             detectors: detectors.to_vec(),
@@ -1148,12 +1184,14 @@ fn reference_diagnostics(
     af_peak_detector: String,
     af_detector_means: Vec<f64>,
     fluorophore_condition_number: f64,
+    af_peak_sensitivity: Option<AfPeakSensitivity>,
 ) -> ReferenceDiagnostics {
     let covariance = unmixing * unmixing.transpose();
     ReferenceDiagnostics {
         af_peak_detector,
         af_detector_means,
         fluorophore_condition_number,
+        af_peak_sensitivity,
         singular_values: matrix
             .clone()
             .svd(false, false)
@@ -1179,6 +1217,127 @@ fn reference_diagnostics(
                     .collect()
             })
             .collect(),
+    }
+}
+
+/// [`AfPeakSensitivity`] of the AF reference `spectrum`, estimated on `peak`
+/// from `events` of `columns`. Never fails the run: an undefined runner-up
+/// spectrum is reported as absent.
+fn af_peak_sensitivity(
+    path: &Path,
+    (columns, events): (&[Vec<f64>], &[usize]),
+    means: &[f64],
+    peak: usize,
+    detectors: &[String],
+    spectrum: &[f64],
+) -> Option<AfPeakSensitivity> {
+    let runner_up = means
+        .iter()
+        .enumerate()
+        .filter(|(detector, _)| *detector != peak)
+        .max_by(|(_, left), (_, right)| left.total_cmp(right))
+        .map(|(detector, _)| detector)?;
+    let relative_margin =
+        (means[peak] != 0.0).then(|| (means[peak] - means[runner_up]) / means[peak].abs());
+    let runner_up_spectrum_cosine = estimate_spectrum(path, &[(columns, events)], runner_up)
+        .ok()
+        .map(|alternative| cosine(spectrum, &alternative));
+    let stable = runner_up_spectrum_cosine.map(|value| value >= AF_PEAK_COSINE_THRESHOLD);
+    if stable == Some(false) {
+        warn!(
+            "autofluorescence spectrum depends on its peak detector: re-estimated on {} (mean {:.6} vs {:.6} on {}) its cosine is {:.6} < {AF_PEAK_COSINE_THRESHOLD}",
+            detectors[runner_up],
+            means[runner_up],
+            means[peak],
+            detectors[peak],
+            runner_up_spectrum_cosine.unwrap_or(f64::NAN),
+        );
+    }
+    Some(AfPeakSensitivity {
+        runner_up_detector: detectors[runner_up].clone(),
+        relative_margin,
+        runner_up_spectrum_cosine,
+        cosine_threshold: AF_PEAK_COSINE_THRESHOLD,
+        stable,
+    })
+}
+
+fn cosine(left: &[f64], right: &[f64]) -> f64 {
+    let dot = left.iter().zip(right).map(|(a, b)| a * b).sum::<f64>();
+    let norm = |values: &[f64]| values.iter().map(|value| value * value).sum::<f64>().sqrt();
+    dot / (norm(left) * norm(right))
+}
+
+/// `serde_json` writes a non-finite float as `null`; refuse to report one.
+fn ensure_finite_diagnostics(summary: &AutoSpectralSummary) -> Result<(), AutoSpectralError> {
+    let diagnostics = &summary.reference_diagnostics;
+    let mut fields: Vec<(String, Vec<f64>)> = vec![
+        ("condition_number".into(), vec![summary.condition_number]),
+        (
+            "reference_diagnostics.af_detector_means".into(),
+            diagnostics.af_detector_means.clone(),
+        ),
+        (
+            "reference_diagnostics.singular_values".into(),
+            diagnostics.singular_values.clone(),
+        ),
+        (
+            "reference_diagnostics.fluorophore_condition_number".into(),
+            vec![diagnostics.fluorophore_condition_number],
+        ),
+        (
+            "reference_diagnostics.spectral_cosine".into(),
+            diagnostics.spectral_cosine.concat(),
+        ),
+        (
+            "reference_diagnostics.unit_noise_covariance".into(),
+            diagnostics.unit_noise_covariance.concat(),
+        ),
+    ];
+    if let Some(sensitivity) = &diagnostics.af_peak_sensitivity {
+        fields.push((
+            "reference_diagnostics.af_peak_sensitivity".into(),
+            [
+                sensitivity.relative_margin,
+                sensitivity.runner_up_spectrum_cosine,
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+        ));
+    }
+    for sample in &summary.samples {
+        let name = |field: &str| format!("samples[{}].{field}", sample.filename);
+        fields.extend([
+            (
+                name("residual"),
+                vec![
+                    sample.residual_mean,
+                    sample.residual_median,
+                    sample.residual_p95,
+                    sample.negative_fraction,
+                ],
+            ),
+            (
+                name("detector_residual_rms"),
+                sample.detector_residual_rms.clone(),
+            ),
+            (
+                name("relative_residual_rms"),
+                sample.relative_residual_rms.into_iter().collect(),
+            ),
+            (
+                name("component_negative_fraction"),
+                sample.component_negative_fraction.clone(),
+            ),
+        ]);
+    }
+    match fields
+        .into_iter()
+        .find(|(_, values)| values.iter().any(|value| !value.is_finite()))
+    {
+        Some((field, _)) => Err(AutoSpectralError::NonFiniteDiagnostic { field }),
+        None => Ok(()),
     }
 }
 
@@ -1549,6 +1708,132 @@ mod tests {
         assert_eq!(
             matrix,
             DMatrix::from_row_slice(3, 2, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+        );
+    }
+
+    fn diagnostics_of(rows: usize, columns: usize, values: &[f64]) -> super::ReferenceDiagnostics {
+        let matrix = DMatrix::from_row_slice(rows, columns, values);
+        let unmixing = super::unmixing_matrix(&matrix).unwrap();
+        super::reference_diagnostics(
+            &matrix,
+            &unmixing,
+            "D1".to_owned(),
+            vec![1.0; rows],
+            1.0,
+            None,
+        )
+    }
+
+    fn assert_close(actual: &[f64], expected: &[f64]) {
+        assert_eq!(actual.len(), expected.len());
+        for (a, e) in actual.iter().zip(expected) {
+            assert!((a - e).abs() <= 1e-12, "{actual:?} != {expected:?}");
+        }
+    }
+
+    fn sorted_descending(values: &[f64]) -> Vec<f64> {
+        let mut values = values.to_vec();
+        values.sort_by(|a, b| b.total_cmp(a));
+        values
+    }
+
+    /// An AF source: its spectrum and its amount in each event.
+    type AfSource<'a> = (&'a [f64], fn(usize) -> f64);
+
+    fn sensitivity_of(sources: &[AfSource<'_>]) -> super::AfPeakSensitivity {
+        let detectors = sources[0].0.len();
+        let events = (0..400).collect::<Vec<usize>>();
+        let columns = (0..detectors)
+            .map(|detector| {
+                events
+                    .iter()
+                    .map(|&event| {
+                        sources
+                            .iter()
+                            .map(|(spectrum, amount)| spectrum[detector] * amount(event))
+                            .sum::<f64>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let means = super::mean_spectrum(&columns, &events);
+        let peak = means
+            .iter()
+            .enumerate()
+            .max_by(|(_, left), (_, right)| left.total_cmp(right))
+            .unwrap()
+            .0;
+        let path = std::path::Path::new("af.fcs");
+        let spectrum = super::estimate_spectrum(path, &[(&columns, &events)], peak).unwrap();
+        let names = (0..detectors).map(|d| format!("D{d}")).collect::<Vec<_>>();
+        super::af_peak_sensitivity(path, (&columns, &events), &means, peak, &names, &spectrum)
+            .unwrap()
+    }
+
+    #[test]
+    fn single_component_af_is_insensitive_to_the_peak_detector() {
+        // One AF source: D1 and D2 within 2%; either regression basis gives
+        // the same normalised spectrum.
+        let sensitivity = sensitivity_of(&[(&[0.2, 1.0, 0.98, 0.5], |event| {
+            100.0 + (event * 37 % 101) as f64
+        })]);
+        assert_eq!(sensitivity.runner_up_detector, "D2");
+        assert!((sensitivity.relative_margin.unwrap() - 0.02).abs() < 1e-12);
+        assert!(sensitivity.runner_up_spectrum_cosine.unwrap() >= 1.0 - 1e-12);
+        assert_eq!(sensitivity.stable, Some(true));
+    }
+
+    #[test]
+    fn two_component_af_with_near_tied_peaks_is_flagged() {
+        // Two independent AF sources peaking on different detectors with
+        // near-equal means: the argmax choice changes the reference.
+        let sensitivity = sensitivity_of(&[
+            (&[1.0, 0.3, 0.1, 0.05], |event| {
+                50.0 + (event * 37 % 101) as f64
+            }),
+            (&[0.05, 0.2, 1.0, 0.4], |event| {
+                49.0 + (event * 53 % 97) as f64
+            }),
+        ]);
+        assert!(sensitivity.relative_margin.unwrap() < 0.05);
+        let cosine = sensitivity.runner_up_spectrum_cosine.unwrap();
+        assert!(cosine < super::AF_PEAK_COSINE_THRESHOLD, "{cosine}");
+        assert_eq!(sensitivity.stable, Some(false));
+    }
+
+    #[test]
+    fn square_reference_diagnostics_match_closed_form() {
+        // Detectors are rows: components (1, 0) and (0.5, 1).
+        let diagnostics = diagnostics_of(2, 2, &[1.0, 0.5, 0.0, 1.0]);
+        let root17 = 17.0_f64.sqrt();
+        assert_close(
+            &sorted_descending(&diagnostics.singular_values),
+            &[(root17 + 1.0) / 4.0, (root17 - 1.0) / 4.0],
+        );
+        let cosine = 1.0 / 5.0_f64.sqrt();
+        assert_close(&diagnostics.spectral_cosine[0], &[1.0, cosine]);
+        assert_close(&diagnostics.spectral_cosine[1], &[cosine, 1.0]);
+        // A⁻¹ = [[1, -0.5], [0, 1]], so A⁻¹A⁻ᵀ:
+        assert_close(&diagnostics.unit_noise_covariance[0], &[1.25, -0.5]);
+        assert_close(&diagnostics.unit_noise_covariance[1], &[-0.5, 1.0]);
+    }
+
+    #[test]
+    fn tall_reference_noise_covariance_is_the_inverse_gram() {
+        // Components (1, 0, 1) and (0, 1, 1): AᵀA = [[2, 1], [1, 2]].
+        let diagnostics = diagnostics_of(3, 2, &[1.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        assert_close(
+            &sorted_descending(&diagnostics.singular_values),
+            &[3.0_f64.sqrt(), 1.0],
+        );
+        assert_close(&diagnostics.spectral_cosine[0], &[1.0, 0.5]);
+        assert_close(
+            &diagnostics.unit_noise_covariance[0],
+            &[2.0 / 3.0, -1.0 / 3.0],
+        );
+        assert_close(
+            &diagnostics.unit_noise_covariance[1],
+            &[-1.0 / 3.0, 2.0 / 3.0],
         );
     }
 

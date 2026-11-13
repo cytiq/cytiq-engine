@@ -18,6 +18,31 @@ const GATING_NS: &str = "http://www.isac-net.org/std/Gating-ML/v2.0/gating";
 const TRANSFORMS_NS: &str = "http://www.isac-net.org/std/Gating-ML/v2.0/transformations";
 const DATA_TYPE_NS: &str = "http://www.isac-net.org/std/Gating-ML/v2.0/datatypes";
 
+/// Largest Gating-ML document read: far above real strategies (the bundled
+/// fixtures are under 8 KiB), and small enough to bound the parse tree.
+pub const GATINGML_BYTES_MAX: u64 = 16 << 20;
+
+/// Read a Gating-ML document, refusing more than [`GATINGML_BYTES_MAX`] bytes
+/// (also when the file grows after opening) before anything is parsed.
+///
+/// # Errors
+/// Returns the I/O error, `InvalidData` over the limit or for invalid UTF-8.
+pub fn read_gatingml(path: &std::path::Path) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(GATINGML_BYTES_MAX + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > GATINGML_BYTES_MAX {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Gating-ML document exceeds {GATINGML_BYTES_MAX} bytes"),
+        ));
+    }
+    String::from_utf8(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+}
+
 /// Parse a `GatingML` 2.0 document.
 ///
 /// # Errors
@@ -627,6 +652,34 @@ fn invalid_transform(id: &str, reason: &str) -> GatingError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refuses_gatingml_over_the_budget_before_parsing() {
+        let directory = std::env::temp_dir().join(format!(
+            "cytiq-gating-oversized-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("huge.xml");
+        // Sparse: the length is declared, nothing is written.
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(GATINGML_BYTES_MAX + 1)
+            .unwrap();
+        let error = read_gatingml(&path).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("exceeds"), "{error}");
+
+        std::fs::write(&path, document("")).unwrap();
+        assert!(read_gatingml(&path).unwrap().contains("Gating-ML"));
+        std::fs::write(&path, [0xff, 0xfe]).unwrap();
+        assert_eq!(
+            read_gatingml(&path).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidData
+        );
+        std::fs::remove_dir_all(directory).ok();
+    }
 
     fn document(body: &str) -> String {
         format!(

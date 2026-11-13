@@ -38,6 +38,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -319,6 +320,27 @@ impl ControlEntry {
     }
 }
 
+/// Largest manifest read. Real run manifests are a few KiB; the bound keeps a
+/// wrong or hostile path from being read whole before YAML/JSON parsing.
+pub const MANIFEST_BYTES_MAX: u64 = 16 << 20;
+
+/// Read at most [`MANIFEST_BYTES_MAX`] bytes, also when the file grows after
+/// opening; more, or invalid UTF-8, is `InvalidData`.
+fn read_bounded(path: &Path) -> std::io::Result<String> {
+    let mut bytes = Vec::new();
+    fs::File::open(path)?
+        .take(MANIFEST_BYTES_MAX + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MANIFEST_BYTES_MAX {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("manifest exceeds {MANIFEST_BYTES_MAX} bytes"),
+        ));
+    }
+    String::from_utf8(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+}
+
 impl RunManifest {
     /// Read, parse and validate a manifest, resolving relative file paths
     /// against its directory.
@@ -328,7 +350,7 @@ impl RunManifest {
     /// Returns an error when the file cannot be read or parsed, or when the
     /// manifest is invalid (see [`Self::validate`]).
     pub fn load(path: &Path) -> Result<Self, ManifestError> {
-        let text = fs::read_to_string(path).map_err(|source| ManifestError::Read {
+        let text = read_bounded(path).map_err(|source| ManifestError::Read {
             path: path.to_path_buf(),
             source,
         })?;
@@ -678,6 +700,21 @@ controls:
         let path = directory.join(name);
         fs::write(&path, text).unwrap();
         path
+    }
+
+    #[test]
+    fn oversized_manifest_is_refused_before_parsing() {
+        let path = write("huge.yaml", "");
+        fs::File::create(&path)
+            .unwrap()
+            .set_len(MANIFEST_BYTES_MAX + 1)
+            .unwrap();
+        let error = RunManifest::load(&path).unwrap_err();
+        assert!(
+            matches!(&error, ManifestError::Read { source, .. }
+                if source.kind() == std::io::ErrorKind::InvalidData),
+            "{error}"
+        );
     }
 
     #[test]

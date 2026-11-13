@@ -42,7 +42,7 @@ examine_re = [
     'crates/cytiq-population/src/observation.rs:.*\b(PopulationObservation::validate|is_sha256)\b',
     'crates/cytiq-population/src/artifact.rs:.*\bverify_package\b',
     'crates/cytiq-population/src/serialization.rs:.*\b(parse_document|bounded)\b',
-    'crates/cytiq-specimen/src/reconcile.rs:.*\b(reference_ratio|anchor_checks|measured_count|estimate_precision|check_consistency|validate_quantities|index_sources|SpecimenResult::validate|SpecimenResult::outcome_reason)\b',
+    'crates/cytiq-specimen/src/reconcile.rs:.*\b(reference_ratio|anchor_checks|measured_count|estimate_precision|check_consistency|validate_quantities|index_sources|descriptor_counts_are_consistent|SpecimenResult::validate|SpecimenResult::outcome_reason)\b',
     'crates/cytiq-specimen/src/layout.rs:.*\b(SpecimenLayout::validate|AnchorLimits::validate)\b',
     'crates/cytiq-specimen/src/compare.rs:.*\b(SpecimenComparison::outcome_reason|compare_row|compare_checks)\b',
 ]
@@ -60,6 +60,11 @@ exclude_re = [
 additional_cargo_args = ["--locked"]
 gitignore = true
 copy_target = true
+# build.rs derives the provenance commit from git. Without `.git` in the
+# scratch copy every build is unidentified, `--reuse skip` refuses it, and the
+# cytiq-engine baseline fails before any mutant runs. With it, each mutant is
+# `<sha>-dirty.<digest>`: identified and distinct.
+copy_vcs = true
 # Match ordinary cargo test builds; the workspace has no deny(warnings) attributes.
 cap_lints = false
 test_tool = "cargo"

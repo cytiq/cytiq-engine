@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from metrics import bootstrap_interval, empirical_spreading, retention, spectral_metrics, wilson_interval, unmixing_spreading
+from metrics import bootstrap_interval, coefficient_perturbations, empirical_spreading, retention, spectral_metrics, wilson_interval, unmixing_spreading
 
 
 class ScientificMetricsTests(unittest.TestCase):
@@ -9,6 +9,23 @@ class ScientificMetricsTests(unittest.TestCase):
         result=unmixing_spreading(matrix,matrix,events=4000)
         np.testing.assert_allclose(result["predicted_variance_excess_per_signal"],np.eye(2)*1.5)
         np.testing.assert_allclose(result["empirical_variance_excess_per_signal"],np.eye(2)*1.5,atol=.12)
+    def test_coefficient_perturbation_first_order_error_is_bounded(self):
+        rng = np.random.default_rng(7)
+        spillover = np.eye(3) + rng.uniform(0, .3, (3, 3)) * (1 - np.eye(3))
+        latent = rng.lognormal(4, 1, (2000, 3))
+        result = coefficient_perturbations(spillover, latent, deltas=(1e-3, .1))
+        self.assertEqual(len(result), 6)
+        for cell in result.values():
+            small, large = cell["0.001"], cell["0.1"]
+            for entry in (small, large):
+                self.assertLessEqual(entry["first_order_relative_error"], entry["bound"] + 1e-12)
+            # Error grows linearly to first order: a 100x larger delta.
+            self.assertAlmostEqual(large["rmse"] / small["rmse"], 100, delta=100 * large["bound"] * 3)
+        # A negligible coefficient error leaves a negligible compensation error.
+        exact = coefficient_perturbations(spillover, latent, deltas=(1e-12,))
+        for cell in exact.values():
+            self.assertLess(cell["1e-12"]["rmse"], 1e-6)
+
     def test_unit_noise_gain_matches_exact_inverse(self):
         matrix = np.array([[1., .5], [0., 1.]])
         result = spectral_metrics(matrix)

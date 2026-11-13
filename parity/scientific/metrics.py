@@ -13,6 +13,43 @@ def bootstrap_interval(values, statistic=np.mean, *, replicates=1000, seed=42):
     return np.quantile(estimates, [0.025, 0.975], axis=0).tolist()
 
 
+def coefficient_perturbations(spillover, latent, deltas=(1e-4, 1e-3, 1e-2)):
+    """Compensate ``latent @ spillover`` with every off-diagonal coefficient
+    (row = dye, column = detector) perturbed by each delta.
+
+    With E the perturbation and A = E S^-1, the exact error is
+    r = -latent A (I + A)^-1 and the first-order term f = -latent A, so
+    f - r = r A: the first-order term's error relative to r is at most
+    ||A||_2 (``bound``). ``rmse_per_unit`` is the sensitivity to a unit
+    coefficient error. Nothing here changes a production matrix.
+    """
+    spillover = np.asarray(spillover, dtype=float)
+    latent = np.asarray(latent, dtype=float)
+    observed = latent @ spillover
+    inverse = np.linalg.inv(spillover)
+    results = {}
+    for dye in range(len(spillover)):
+        for detector in range(spillover.shape[1]):
+            if dye == detector:
+                continue
+            cell = results[f"{dye},{detector}"] = {}
+            for delta in deltas:
+                perturbation = np.zeros_like(spillover)
+                perturbation[dye, detector] = delta
+                residual = observed @ np.linalg.inv(spillover + perturbation) - latent
+                first_order = -latent @ perturbation @ inverse
+                norm = np.linalg.norm(residual)
+                cell[str(delta)] = {
+                    "rmse": float(np.sqrt(np.mean(residual**2))),
+                    "rmse_per_unit": float(np.sqrt(np.mean(residual**2)) / delta),
+                    "max_abs": float(np.abs(residual).max()),
+                    "per_detector_rmse": np.sqrt(np.mean(residual**2, axis=0)).tolist(),
+                    "first_order_relative_error": float(np.linalg.norm(residual - first_order) / norm) if norm else 0.0,
+                    "bound": float(np.linalg.norm(perturbation @ inverse, 2)),
+                }
+    return results
+
+
 def spectral_metrics(reference):
     reference = np.asarray(reference, dtype=float)
     singular = np.linalg.svd(reference, compute_uv=False)

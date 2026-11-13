@@ -34,12 +34,16 @@ fn reader_output_matches_characterization_digests() {
 
     let golden = root.join("data/fixtures/characterization/fcs.json");
     if std::env::var_os("CYTIQ_BLESS").is_some() {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "CYTIQ_BLESS rewrites a reviewed golden; CI never regenerates goldens"
+        );
         fs::create_dir_all(golden.parent().expect("golden has a parent"))
             .expect("create characterization directory");
         let mut json = serde_json::to_string_pretty(&actual).expect("serialize digests");
         json.push('\n');
         fs::write(&golden, json).expect("write golden digests");
-        return;
+        eprintln!("rewrote {golden:?}; review `git diff` before committing it");
     }
 
     let expected: BTreeMap<String, String> = serde_json::from_str(

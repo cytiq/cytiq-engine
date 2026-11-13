@@ -3,8 +3,9 @@
 use arrow_array::{Array, BooleanArray, RecordBatch, StringArray, UInt64Array};
 use cytiq_provenance::{RunRecord, hash_file};
 mod definition;
+use arrow_schema::Schema;
+use cytiq_mask::parquet::{ParquetReadLimits, ScalarParquetReader};
 use definition::validate_classifier_definition;
-use parquet::arrow::{ProjectionMask, arrow_reader::ParquetRecordBatchReaderBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -420,15 +421,20 @@ fn check_single_mask(record: &RunRecord, mask: &ArtifactRef) -> Result<()> {
     )
 }
 
-fn metadata(
-    builder: &ParquetRecordBatchReaderBuilder<File>,
-    context: &ObservationContext,
-) -> Result<()> {
+/// Masks and annotation tables are external inputs: read them through the
+/// bounded scalar reader, which rejects malformed or over-budget pages before
+/// the decoder allocates from their declared sizes.
+pub(crate) fn open_table(path: &Path) -> Result<ScalarParquetReader<File>> {
+    Ok(ScalarParquetReader::new(
+        File::open(path)?,
+        ParquetReadLimits::default(),
+    )?)
+}
+
+fn metadata(schema: &Schema, context: &ObservationContext) -> Result<()> {
     require(
-        builder.schema().metadata().get("cytiq.acquisition_sha256")
-            == Some(&context.acquisition_sha256)
-            && builder
-                .schema()
+        schema.metadata().get("cytiq.acquisition_sha256") == Some(&context.acquisition_sha256)
+            && schema
                 .metadata()
                 .get("cytiq.event_id_base")
                 .map(String::as_str)
@@ -473,16 +479,16 @@ fn booleans(size: usize) -> Result<Bitmap> {
 }
 
 fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
-    metadata(&builder, context)?;
+    let reader = open_table(path)?;
+    metadata(reader.schema(), context)?;
     require(
-        builder
+        reader
             .schema()
             .metadata()
             .get("cytiq.mask.schema_version")
             .map(String::as_str)
             == Some("2")
-            && builder.metadata().file_metadata().num_rows()
+            && reader.metadata().file_metadata().num_rows()
                 == i64::try_from(context.raw_events).unwrap_or(-1),
         "QC mask must cover every raw event with schema v2",
     )?;
@@ -491,7 +497,7 @@ fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
     })?;
     let mut seen = booleans(size)?;
     let mut eligible = booleans(size)?;
-    for batch in projected(builder, &["source_event_id".into(), "keep".into()])? {
+    for batch in reader.project(&["source_event_id", "keep"])? {
         let batch = batch?;
         let sources = uint(&batch, "source_event_id")?;
         let keep = boolean(&batch, "keep")?;
@@ -542,9 +548,9 @@ fn count_annotations(
     context: &ObservationContext,
     eligible: &Bitmap,
 ) -> Result<AnnotationCounts> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
-    metadata(&builder, context)?;
-    let classifier = validate_source_metadata(&builder, context)?;
+    let reader = open_table(path)?;
+    metadata(reader.schema(), context)?;
+    let classifier = validate_source_metadata(reader.schema(), context)?;
     let policy = context
         .source
         .decision_policy
@@ -569,7 +575,8 @@ fn count_annotations(
     let parents = denominator_indices(&context.source.bindings);
     let mut seen = booleans(eligible.len())?;
     let mut rows = 0_u64;
-    for batch in projected(builder, &columns)? {
+    let names = columns.iter().map(String::as_str).collect::<Vec<_>>();
+    for batch in reader.project(&names)? {
         let batch = batch?;
         let ids = uint(&batch, "event_id")?;
         let sources = uint(&batch, "source_event_id")?;
@@ -712,21 +719,6 @@ fn count_classifier_row(
         }
     }
     Ok(())
-}
-
-fn projected(
-    builder: ParquetRecordBatchReaderBuilder<File>,
-    names: &[String],
-) -> Result<parquet::arrow::arrow_reader::ParquetRecordBatchReader> {
-    let indexes = names
-        .iter()
-        .map(|name| builder.schema().index_of(name))
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    let projection = ProjectionMask::roots(builder.parquet_schema(), indexes);
-    Ok(builder
-        .with_projection(projection)
-        .with_batch_size(crate::DEFAULT_BATCH_SIZE)
-        .build()?)
 }
 
 fn uint<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a UInt64Array> {
@@ -891,14 +883,10 @@ fn validate_bindings(bindings: &[Binding]) -> Result<()> {
     Ok(())
 }
 
-fn validate_source_metadata(
-    builder: &ParquetRecordBatchReaderBuilder<File>,
-    context: &ObservationContext,
-) -> Result<bool> {
+fn validate_source_metadata(schema: &Schema, context: &ObservationContext) -> Result<bool> {
     let classifier = context.source.format == AnnotationFormat::ClassifyPredictions;
     if classifier {
-        let output_version = builder
-            .schema()
+        let output_version = schema
             .metadata()
             .get("cytiq.classify.schema_version")
             .and_then(|s| s.parse::<u32>().ok());
@@ -907,15 +895,13 @@ fn validate_source_metadata(
                 crate::PopulationError::Invalid("unplanned decision policy output".into())
             })?;
             require(
-                builder
-                    .schema()
+                schema
                     .metadata()
                     .get("cytiq.classify.decision_policy_sha256")
                     == Some(&policy.sha256),
                 "prediction decision policy mismatch",
             )?;
-            builder
-                .schema()
+            schema
                 .metadata()
                 .get("cytiq.classify.bundle_schema_version")
                 .and_then(|s| s.parse::<u32>().ok())
@@ -941,11 +927,7 @@ fn validate_source_metadata(
             hash_file(&vocabulary.path)?.1
         };
         require(
-            builder
-                .schema()
-                .metadata()
-                .get("cytiq.classify.vocabulary_sha256")
-                == Some(&expected),
+            schema.metadata().get("cytiq.classify.vocabulary_sha256") == Some(&expected),
             "prediction vocabulary mismatch",
         )?;
         let classes = context
@@ -955,14 +937,13 @@ fn validate_source_metadata(
             .map(|b| &b.label)
             .collect::<Vec<_>>();
         require(
-            builder.schema().metadata().get("cytiq.classify.classes")
+            schema.metadata().get("cytiq.classify.classes")
                 == Some(&serde_json::to_string(&classes)?),
             "prediction class order mismatch",
         )?;
     } else {
         require(
-            builder
-                .schema()
+            schema
                 .metadata()
                 .get("cytiq.mask.schema_version")
                 .map(String::as_str)

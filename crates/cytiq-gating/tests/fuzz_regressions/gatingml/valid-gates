@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gating:Gating-ML
+    xmlns:gating="http://www.isac-net.org/std/Gating-ML/v2.0/gating"
+    xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v2.0/transformations"
+    xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v2.0/datatypes">
+
+  <transforms:transformation transforms:id="lin">
+    <transforms:flin transforms:T="262144" transforms:A="0"/>
+  </transforms:transformation>
+  <transforms:transformation transforms:id="log">
+    <transforms:flog transforms:T="262144" transforms:M="4.5"/>
+  </transforms:transformation>
+  <transforms:transformation transforms:id="asinh">
+    <transforms:fasinh transforms:T="262144" transforms:M="4.5" transforms:A="0.5"/>
+  </transforms:transformation>
+  <transforms:transformation transforms:id="logicle">
+    <transforms:logicle transforms:T="262144" transforms:W="0.5" transforms:M="4.5" transforms:A="0"/>
+  </transforms:transformation>
+  <transforms:transformation transforms:id="hyperlog">
+    <transforms:hyperlog transforms:T="262144" transforms:W="0.5" transforms:M="4.5" transforms:A="0"/>
+  </transforms:transformation>
+
+  <transforms:spectrumMatrix transforms:id="panel">
+    <transforms:fluorochromes>
+      <data-type:fcs-dimension data-type:name="CD3"/>
+      <data-type:fcs-dimension data-type:name="CD4"/>
+      <data-type:fcs-dimension data-type:name="CD8"/>
+    </transforms:fluorochromes>
+    <transforms:detectors>
+      <data-type:fcs-dimension data-type:name="FL1-A"/>
+      <data-type:fcs-dimension data-type:name="FL2-A"/>
+      <data-type:fcs-dimension data-type:name="FL3-A"/>
+    </transforms:detectors>
+    <transforms:spectrum><transforms:coefficient transforms:value="1"/><transforms:coefficient transforms:value="0.1"/><transforms:coefficient transforms:value="0"/></transforms:spectrum>
+    <transforms:spectrum><transforms:coefficient transforms:value="0.04"/><transforms:coefficient transforms:value="1"/><transforms:coefficient transforms:value="0.15"/></transforms:spectrum>
+    <transforms:spectrum><transforms:coefficient transforms:value="0"/><transforms:coefficient transforms:value="0.06"/><transforms:coefficient transforms:value="1"/></transforms:spectrum>
+  </transforms:spectrumMatrix>
+
+  <!-- Integer vertices: some events sit exactly on edges and vertices. -->
+  <gating:PolygonGate gating:id="Cells">
+    <gating:dimension gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FSC-A"/>
+    </gating:dimension>
+    <gating:dimension gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="SSC-A"/>
+    </gating:dimension>
+    <gating:vertex><gating:coordinate data-type:value="20000"/><gating:coordinate data-type:value="10000"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="200000"/><gating:coordinate data-type:value="10000"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="200000"/><gating:coordinate data-type:value="150000"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="110000"/><gating:coordinate data-type:value="60000"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="20000"/><gating:coordinate data-type:value="150000"/></gating:vertex>
+  </gating:PolygonGate>
+
+  <gating:RectangleGate gating:id="Singlets" gating:parent_id="Cells">
+    <gating:dimension gating:min="40000" gating:max="180000" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FSC-A"/>
+    </gating:dimension>
+    <gating:dimension gating:max="0.45" gating:compensation-ref="uncompensated" gating:transformation-ref="lin">
+      <data-type:fcs-dimension data-type:name="SSC-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <gating:RectangleGate gating:id="Early" gating:parent_id="Cells">
+    <gating:dimension gating:max="20" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="Time"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <gating:RectangleGate gating:id="CD3pos" gating:parent_id="Singlets">
+    <gating:dimension gating:min="0.55" gating:compensation-ref="FCS" gating:transformation-ref="logicle">
+      <data-type:fcs-dimension data-type:name="FL1-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <gating:RectangleGate gating:id="CD4pos_CD8neg" gating:parent_id="CD3pos">
+    <gating:dimension gating:min="0.5" gating:compensation-ref="FCS" gating:transformation-ref="asinh">
+      <data-type:fcs-dimension data-type:name="FL2-A"/>
+    </gating:dimension>
+    <gating:dimension gating:max="0.5" gating:compensation-ref="FCS" gating:transformation-ref="asinh">
+      <data-type:fcs-dimension data-type:name="FL3-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <gating:EllipsoidGate gating:id="CD4_CD8_ellipse" gating:parent_id="CD3pos">
+    <gating:dimension gating:compensation-ref="panel" gating:transformation-ref="hyperlog">
+      <data-type:fcs-dimension data-type:name="CD4"/>
+    </gating:dimension>
+    <gating:dimension gating:compensation-ref="panel" gating:transformation-ref="hyperlog">
+      <data-type:fcs-dimension data-type:name="CD8"/>
+    </gating:dimension>
+    <gating:mean><gating:coordinate data-type:value="0.75"/><gating:coordinate data-type:value="0.35"/></gating:mean>
+    <gating:covarianceMatrix>
+      <gating:row><gating:entry data-type:value="0.010"/><gating:entry data-type:value="0.002"/></gating:row>
+      <gating:row><gating:entry data-type:value="0.002"/><gating:entry data-type:value="0.012"/></gating:row>
+    </gating:covarianceMatrix>
+    <gating:distanceSquare data-type:value="3"/>
+  </gating:EllipsoidGate>
+
+  <!-- Self-intersecting (bow-tie) polygon on compensated, logicle-scaled data. -->
+  <gating:PolygonGate gating:id="Bowtie" gating:parent_id="Singlets">
+    <gating:dimension gating:compensation-ref="panel" gating:transformation-ref="logicle">
+      <data-type:fcs-dimension data-type:name="FL2-A"/>
+    </gating:dimension>
+    <gating:dimension gating:compensation-ref="panel" gating:transformation-ref="logicle">
+      <data-type:fcs-dimension data-type:name="FL3-A"/>
+    </gating:dimension>
+    <gating:vertex><gating:coordinate data-type:value="0.2"/><gating:coordinate data-type:value="0.2"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="0.9"/><gating:coordinate data-type:value="0.9"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="0.9"/><gating:coordinate data-type:value="0.2"/></gating:vertex>
+    <gating:vertex><gating:coordinate data-type:value="0.2"/><gating:coordinate data-type:value="0.9"/></gating:vertex>
+  </gating:PolygonGate>
+
+  <gating:RectangleGate gating:id="FL3_log" gating:parent_id="Cells">
+    <gating:dimension gating:min="0.6" gating:compensation-ref="uncompensated" gating:transformation-ref="log">
+      <data-type:fcs-dimension data-type:name="FL3-A"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+
+  <gating:BooleanGate gating:id="CD4_not_ellipse" gating:parent_id="CD3pos">
+    <gating:and>
+      <gating:gateReference gating:ref="CD4pos_CD8neg"/>
+      <gating:gateReference gating:ref="CD4_CD8_ellipse" gating:use-as-complement="true"/>
+    </gating:and>
+  </gating:BooleanGate>
+
+  <gating:BooleanGate gating:id="Ellipse_or_log">
+    <gating:or>
+      <gating:gateReference gating:ref="CD4_CD8_ellipse"/>
+      <gating:gateReference gating:ref="FL3_log"/>
+    </gating:or>
+  </gating:BooleanGate>
+
+  <gating:BooleanGate gating:id="CD3neg" gating:parent_id="Singlets">
+    <gating:not>
+      <gating:gateReference gating:ref="CD3pos"/>
+    </gating:not>
+  </gating:BooleanGate>
+</gating:Gating-ML>

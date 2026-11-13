@@ -36,8 +36,9 @@ already applied by an external application.
    compensate the selected channels with `SPILL` / `$SPILL`, transform with
    `asinh(x / 150)`. Without spillover the channels stay raw and a warning is
    recorded.
-3. Subsample 1,000 events per file with the generator reseeded to 42 for every
-   file, so results do not depend on path spelling.
+3. Subsample 1,000 events per file with the generator reseeded to the run's
+   seed (42, as upstream) for every file, so results do not depend on path
+   spelling or file order.
 4. Compute features (`FeatureMethod`): `summary`, `quantiles` (default), `emd`,
    `binning` (`cut()` decile bins) or `fingerprint` (`flowFP` probability
    binning, 4 recursions). The last three use an aggregate of
@@ -62,6 +63,16 @@ features match R to ~5e-13 on identical events; random draws use `rand`, so
 results are reproducible but not bit-identical to R.
 Event selections and tree-feature choices retain rand 0.8's integer sampling
 semantics when using rand 0.10; golden tests guard those seeded results.
+
+`--seed` (`CytoScanConfig::random_seed`, default `DEFAULT_RANDOM_SEED` = 42)
+seeds both the per-file subsample and the isolation trees (tree `t` uses
+`seed + t`, wrapping). With files of at most 1,000 events only the trees
+depend on it. It is recorded in provenance `constants.random_seed`, so a
+different seed invalidates reuse while runs without the flag keep their
+fingerprints. Vary it to measure seed sensitivity
+(`parity/scientific/run.py novelty` reports score ranges and flag agreement
+across seeds); one seed's flags are one Monte Carlo draw, not a calibrated
+decision.
 
 ## Novelty reference cohorts
 
@@ -116,7 +127,7 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 | `CytoScanParameters`, `CytoScanConstants` | Effective settings, serialized into `cytoscan_config.json`; the constants also go into provenance `constants` |
 | `CytoScanFeatureMatrix`, `CytoScanFeatureRow`, `CytoScanSummaryRow`, `CytoScanDiagnostics` | Result rows and model diagnostics |
 | `MclustModel` | mclust's name of the fitted novelty structure (`VVI`, `XXX`, ...) |
-| `DEFAULT_*` constants | Fixed algorithm settings (seed 42, 1,000 events, 10,000 aggregate, 1,000 trees, 0.5 / 0.05 thresholds, cofactor 150, 4 recursions) |
+| `DEFAULT_*` constants | Algorithm settings (default seed 42, overridable with `--seed`; fixed: 1,000 events, 10,000 aggregate, 1,000 trees, 0.5 / 0.05 thresholds, cofactor 150, 4 recursions) |
 | `CytoScanError` | Error type for every failure mode |
 
 ## Output rules

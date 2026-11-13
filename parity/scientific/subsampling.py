@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Novelty sensitivity to event subsampling, keeping reference membership fixed.
 
-Uniform seeded permutations change which source events the pinned production
-sampler sees. The production sampling/model RNG remains 42. Counts above 1,000
-exercise the actual production sampling cap; smaller counts use every event.
+Uniform seeded permutations change which source events the production sampler
+sees at its default seed 42 (`cytoscan --seed`; `run.py novelty` varies that
+seed separately). Counts above 1,000 exercise the actual production sampling
+cap; smaller counts use every event.
 """
 import argparse
 import json
@@ -27,7 +28,7 @@ def run(binary, source, output):
         raise ValueError('required independent synthetic normal acquisitions missing')
     report={'schema_version':1,'status':'failed','binary_sha256':sha256(binary),
             'source_sha256':{str(p):sha256(p) for group in files.values() for p in group},
-            'seed_scope':'source event permutations; production RNG=42; reference membership fixed',
+            'seed_scope':'source event permutations; default algorithm seed 42; reference membership fixed',
             'results':[]}
     try:
         for budget in (250,1000,2000):

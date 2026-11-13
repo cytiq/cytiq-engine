@@ -111,7 +111,7 @@ every other option is semantic. Classify records effective parallelism separatel
 because ONNX results can depend on it.
 
 `reuse::assess` verifies the fingerprint and every output size/hash under the caller's
-output lock. `reuse::decide` implements recompute/skip/reject; v2, stale, damaged and
+output lock; a prior record over 16 MiB (`input::DOCUMENT_BYTES_MAX`) is damaged. `reuse::decide` implements recompute/skip/reject; v2, stale, damaged and
 unrecorded results are never reused. `CommandOutcome.execution` reports the
 fingerprint and whether the result was reused. Input paths remain significant,
 and assessment re-hashes all outputs. An unlocked dependency update at `cargo install`

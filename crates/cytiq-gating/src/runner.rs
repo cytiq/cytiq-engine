@@ -1,4 +1,3 @@
-use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -9,7 +8,7 @@ use log::{debug, info};
 
 use crate::error::GatingError;
 use crate::evaluate::{GateCount, GatingResults};
-use crate::parse::parse_gatingml;
+use crate::parse::{parse_gatingml, read_gatingml};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OutputFormat {
@@ -64,11 +63,10 @@ fn run_inner(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
     if let Some(membership) = &config.membership {
         publication.check(membership)?;
     }
-    let xml =
-        fs::read_to_string(&config.gating_ml).map_err(|source| GatingError::GatingMlRead {
-            path: config.gating_ml.clone(),
-            source,
-        })?;
+    let xml = read_gatingml(&config.gating_ml).map_err(|source| GatingError::GatingMlRead {
+        path: config.gating_ml.clone(),
+        source,
+    })?;
     let strategy = parse_gatingml(&xml)?;
     info!(
         "parsed {} gate(s) from {}",

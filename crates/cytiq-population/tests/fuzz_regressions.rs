@@ -17,7 +17,7 @@ type Check = fn(&[u8]);
 type Accepts = fn(&[u8]) -> bool;
 
 /// Each target's inputs live in `tests/fuzz_regressions/<target>/`.
-const TARGETS: [(&str, Check, Accepts); 3] = [
+const TARGETS: [(&str, Check, Accepts); 4] = [
     ("document_json", checks::document_json, |bytes| {
         serialization::parse(bytes, DocumentFormat::Json).is_ok()
     }),
@@ -28,6 +28,11 @@ const TARGETS: [(&str, Check, Accepts); 3] = [
         "observations_parquet",
         checks::observations_parquet,
         |bytes| table::read_from(bytes::Bytes::copy_from_slice(bytes)).is_ok(),
+    ),
+    (
+        "projected_parquet",
+        checks::projected_parquet,
+        checks::projected_parquet_accepts,
     ),
 ];
 

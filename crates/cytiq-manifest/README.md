@@ -44,7 +44,7 @@ is the only way they learn about processing done elsewhere.
 
 | Item | Purpose |
 | --- | --- |
-| `RunManifest::load` | Read, parse (by extension) and validate; resolves relative paths (FCS files and matrices) against the manifest's directory |
+| `RunManifest::load` | Read (at most `MANIFEST_BYTES_MAX`, 16 MiB, as UTF-8), parse (by extension) and validate; resolves relative paths (FCS files and matrices) against the manifest's directory |
 | `RunManifest`, `Cytometry`, `Panel`, `Marker`, `SampleEntry`, `ControlEntry`, `CompensationSource`, `MatrixKind`, `SignalState` | The document; a single `panel` is read as one entry of `panels` |
 | `RunManifest::panel_of`, `controls_of`, `compensation_of` | A sample's panel, a panel's controls, the compensation source of a conventional panel of raw samples (`fcs` by default) |
 | `Panel::label` | `name`, or `panel` when unnamed |

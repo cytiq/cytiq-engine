@@ -176,6 +176,23 @@ fn assessment_rejects_stale_unrecorded_and_tampered_outputs() {
 }
 
 #[test]
+fn an_oversized_record_is_damaged_without_being_read() {
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("data.json");
+    std::fs::write(&output, b"data").unwrap();
+    let destination = Destination::File(output);
+    // Sparse: a record larger than any document cytiq reads back.
+    std::fs::File::create(destination.record_path())
+        .unwrap()
+        .set_len(cytiq_provenance::input::DOCUMENT_BYTES_MAX + 1)
+        .unwrap();
+    assert!(matches!(
+        reuse::assess(&destination, &recorder().snapshot_record()),
+        Prior::Damaged
+    ));
+}
+
+#[test]
 fn every_policy_has_a_decision_for_each_prior_state() {
     let mut matched = recorder().snapshot_record();
     matched.reason = Some(OutcomeReason::Success);

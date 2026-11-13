@@ -1,0 +1,26 @@
+# Fuzz target for the Gating-ML parser and writer. Excluded from the
+# workspace: it needs cargo-fuzz and a nightly toolchain
+# (`just fuzz cytiq-gating gatingml`).
+[package]
+name = "cytiq-gating-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+cytiq-gating = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "gatingml"
+path = "fuzz_targets/gatingml.rs"
+test = false
+doc = false
+bench = false
+
+# Not part of the parent workspace.
+[workspace]
+members = ["."]

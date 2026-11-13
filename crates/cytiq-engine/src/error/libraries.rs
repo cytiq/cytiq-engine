@@ -344,6 +344,7 @@ fn peacoqc(error: &cytiq_peacoqc::PeacoQcError) -> OutcomeReason {
         | E::DuplicateChannel { .. }
         | E::MissingChannel { .. }
         | E::NonFiniteChannel { .. }
+        | E::AllZeroChannel { .. }
         | E::UnknownMargins { .. }
         | E::AllEventsRemoved { .. }
         | E::NoPeakFeatures { .. }
@@ -477,6 +478,7 @@ fn autospectral(error: &cytiq_autospectral::AutoSpectralError) -> OutcomeReason 
         | E::JsonWrite { source, .. } => io(source),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
+        E::NonFiniteDiagnostic { .. } => RUNTIME,
         E::EmptyControlsManifest
         | E::EmptySamplesManifest
         | E::EmptyDetectorsManifest

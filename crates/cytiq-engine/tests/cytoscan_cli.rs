@@ -89,6 +89,59 @@ fn cli_runs_cytoscan_outlier_with_debug_artifacts() {
 }
 
 #[test]
+fn cli_seed_defaults_to_42_and_changes_outlier_scores() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-seed");
+    let input_dir = directory.join("test");
+    write_cytoscan_fixture_set(&input_dir, &[0.0, 4.0, 8.0, 280.0]);
+    let run = |name: &str, seed: Option<&str>| {
+        let output_dir = directory.join(name);
+        let mut command = Command::new(env!("CARGO_BIN_EXE_cytiq"));
+        command.args(["cytoscan", "--input", utf8(&input_dir)]);
+        command.args(["--output", utf8(&output_dir), "--channels", "CD3,CD4,CD8"]);
+        command.args(["--flag-method", "outlier", "--threads", "1"]);
+        if let Some(seed) = seed {
+            command.args(["--seed", seed]);
+        }
+        let output = command.output().expect("command should run");
+        assert!(
+            output.status.success(),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let record: serde_json::Value = serde_json::from_slice(
+            &fs::read(output_dir.join("provenance.json")).expect("provenance"),
+        )
+        .expect("provenance JSON");
+        (
+            fs::read(output_dir.join("cytoscan_summary.csv")).expect("summary"),
+            record,
+        )
+    };
+
+    let (default, default_record) = run("default", None);
+    let (explicit, explicit_record) = run("explicit", Some("42"));
+    let (other, other_record) = run("other", Some("7"));
+
+    assert_eq!(default, explicit, "the default seed is 42");
+    // The seed is recorded once, under the fingerprinted constants; the
+    // recorded config of a run without `--seed` is unchanged.
+    assert_eq!(default_record["constants"]["random_seed"], 42);
+    assert_eq!(default_record["constants"], explicit_record["constants"]);
+    let without_output = |record: &serde_json::Value| {
+        let mut config = record["config"].clone();
+        config.as_object_mut().expect("config").remove("output");
+        config
+    };
+    assert_eq!(
+        without_output(&default_record),
+        without_output(&explicit_record)
+    );
+    assert!(default_record["config"].get("seed").is_none());
+    assert_ne!(default, other, "the forest depends on the seed");
+    assert_eq!(other_record["constants"]["random_seed"], 7);
+}
+
+#[test]
 fn cli_runs_cytoscan_novelty_with_reference() {
     let directory = create_temp_dir("cytiq-engine-cytoscan-novelty");
     let input_dir = directory.join("test");

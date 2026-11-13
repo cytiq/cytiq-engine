@@ -93,6 +93,46 @@ fn cli_fails_when_peacoqc_channel_is_missing() {
 }
 
 #[test]
+fn cli_rejects_an_all_zero_channel_under_remove_zeros() {
+    let directory = create_temp_dir("cytiq-engine-peacoqc-all-zero");
+    let input = directory.join("sample.fcs");
+    let events = 2_000_u16;
+    let parameters = vec![
+        FcsWriteParameter::new("Time"),
+        FcsWriteParameter::new("FL1-A"),
+        FcsWriteParameter::new("FL2-A"),
+    ];
+    let columns = vec![
+        (0..events).map(f32::from).collect::<Vec<_>>(),
+        (0..events).map(|event| f32::from(event % 97)).collect(),
+        vec![0.0; usize::from(events)],
+    ];
+    cytiq_fcs::write_fcs3_1_f32(&input, &parameters, &columns).expect("fixture FCS should write");
+    let output = directory.join("sample.peacoqc.fcs");
+
+    let result = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args([
+            "peacoqc",
+            "--input",
+            utf8(&input),
+            "--output",
+            utf8(&output),
+        ])
+        .args(["--channels", "FL1-A,FL2-A", "--remove-zeros"])
+        .output()
+        .expect("command should run");
+
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert_eq!(result.status.code(), Some(2), "{stderr}");
+    assert!(
+        stderr.contains("FL2-A") && stderr.contains("--remove-zeros"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert!(!output.exists());
+}
+
+#[test]
 fn cli_rejects_non_fcs_peacoqc_output() {
     let directory = create_temp_dir("cytiq-engine-peacoqc-output-format");
     let input = directory.join("sample.fcs");

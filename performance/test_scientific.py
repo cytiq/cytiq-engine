@@ -11,6 +11,16 @@ class ScientificComparisonTests(unittest.TestCase):
         after["samples"][0]["rms_residual"]=1.000001
         with self.assertRaises(ValueError): equal_json(before,after,diagnostics=True)
 
+    def test_af_peak_sensitivity_is_the_only_new_reference_diagnostic(self):
+        before={"reference_diagnostics":{"singular_values":[1.0]}}
+        after={"reference_diagnostics":{"singular_values":[1.0],"af_peak_sensitivity":{"stable":True}}}
+        equal_json(before,after,diagnostics=True)
+        after["reference_diagnostics"]["other"]=1
+        with self.assertRaises(ValueError): equal_json(before,after,diagnostics=True)
+        del after["reference_diagnostics"]["other"]
+        after["reference_diagnostics"]["singular_values"]=[1.1]
+        with self.assertRaises(ValueError): equal_json(before,after,diagnostics=True)
+
     def test_model_and_mask_changes_are_not_diagnostics(self):
         with self.assertRaises(ValueError): equal_json({"weights":[1.,2.]},{"weights":[1.,2.1]})
         with self.assertRaises(ValueError): equal_json({"keep":[True]},{"keep":[False]})

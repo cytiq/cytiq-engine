@@ -18,10 +18,15 @@ maintenance operations, excluded from CI.
 `.github/workflows/scientific.yml` conservatively selects full parity for shared
 numerics, relevant crates, fixtures, dependency locks and reference scripts.
 Weekly/manual runs and release delivery perform full validation. Release/manual
-full runs additionally fetch every required CyMAE file. No missing dataset can
-turn a required suite into a passing skip. Uploads contain results/environment,
-not full acquisitions or source archives. Heavy environments use main-only cache
-saves; the complete CyMAE corpus is deliberately outside the cache.
+full runs additionally fetch every required CyMAE file; the normal-donor and
+weak-phenotype checks use in-repository fixtures and run with every selected
+parity run. Each layer runs and reports even after an earlier one failed, and
+any failure fails the job. No missing dataset can turn a required suite into a
+passing skip. Uploads contain results/environment, not full acquisitions or
+source archives. The reference environment (keyed by the R/Python/mise locks)
+and the content-addressed real-data cache (keyed by the dataset pins, restored
+from older keys and SHA-256-verified on use) are cached separately, with
+main-only saves; the complete CyMAE corpus is deliberately outside the cache.
 
 Release validation and publication use the same resolved commit SHA. The final
 signed tag cannot be moved on retry; a conflicting tag fails publication.
@@ -74,6 +79,11 @@ asymptotically. `spread_units.py` checks both-detector rescaling at 0.01/1/100.
 It compares the raw-detector surrogate with variance excess after compensation,
 keeps negative variance differences visible and excludes the structural diagonal.
 SSI is never an independent matrix correctness oracle.
+`coefficient_perturbation_all` perturbs every off-diagonal spillover coefficient
+by 1e-4/1e-3/1e-2 and reports RMSE, RMSE per unit coefficient error, maximum and
+per-detector error of the compensated events. With A = E·S⁻¹ the exact error r
+and the first-order term f = −latent·A satisfy f − r = r·A, so f is within
+‖A‖₂ of r; the run fails if any cell violates that bound.
 
 `metrics.py` computes spectral cosine, SVD conditioning and OLS unit-noise
 covariance independently with NumPy QR. Independent synthetic positive/negative
@@ -99,8 +109,11 @@ AF peak switches, spectral cosine and downstream unmixing RMS differences. This
 measures sensitivity to event selection, not independent AF donor variability.
 
 Novelty experiments vary reference count, feature method/dimension and five
-reference-membership seeds. Production sampling and model seed remain 42;
-these experiments must not be presented as arbitrary algorithm-seed validation.
+reference-membership seeds at the default algorithm seed 42.
+`production_seed_stability` then fixes 32 reference files and the test cohort
+and varies only `cytoscan --seed` (event subsample and isolation trees) over
+1/7/42/101/2026, reporting per-file outlier-score ranges and how often each
+outlier and novelty flag agrees across seeds. It is reported, not gated.
 `subsampling.py` additionally tests 250/1,000/2,000 available events and five
 seeded event permutations at fixed reference membership, exercising the actual
 1,000-event production cap with summary/quantile features.
@@ -132,12 +145,13 @@ truth or a phenotype perturbation into evidence of biological safety.
 
 ```bash
 cargo build --release --locked -p cytiq-engine --example performance_support
-$PY parity/scientific/prepare_performance.py --output target/scientific/workloads --helper target/release/examples/performance_support --binary "$BIN"
+$PY parity/scientific/prepare_performance.py --output target/scientific/workloads --helper target/release/examples/performance_support --binary "$BIN" --accept peacoqc_1000000,cytonorm_apply_1000000
 $PY performance/scientific.py --manifest target/scientific/workloads/cases.json --baseline-bin target/performance/baseline/cytiq --candidate-bin "$BIN" --helper target/release/examples/performance_support --output target/scientific/performance
 ```
 
 Use an isolated clean-main baseline and the same toolchain/profile/build flags.
-The 100k/1M workloads cover FlowSOM, CytoNorm, AutoSpectral and PeacoQC; each pair
+The 100k/1M workloads cover FlowSOM, CytoNorm training and apply (to a model
+trained during preparation), AutoSpectral and PeacoQC; each pair
 uses the same paths and arguments and alternates order, with two warmups and 20
 measured pairs. Run sequentially on an idle host. Shortened runs are diagnostic.
 Outputs must match exactly (logical Parquet equality); only documented additive
@@ -148,6 +162,8 @@ recorded. Logical file sizes are also reported; OS block counters may be zero on
 macOS and are not converted into claimed physical I/O bytes.
 
 Acceptance requires at least 10% lower median RSS and an upper paired-bootstrap
-95% wall-ratio bound ≤1.05 for explicitly designated optimization cases. An
+95% wall-ratio bound ≤1.05 for the optimization cases a run designates with
+`--accept` (the example names this change's PeacoQC and CytoNorm apply cases);
+every other case is a diagnostic. An
 unoptimized diagnostic case need not improve. Report failures and insufficient
 evidence; do not change exactness checks or repeatedly select favorable runs.

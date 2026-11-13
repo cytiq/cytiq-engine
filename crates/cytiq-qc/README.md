@@ -23,6 +23,21 @@ observations and a retained `release-qc.json` assessment. Specimen reconciliatio
 uses that hash-verified snapshot without reopening event files. No extra QC mode
 or configuration layer is needed.
 
+`--populations membership.parquet` adds `population_retention` to the report:
+the retention of each gate in a `cytiq gate --membership` file (computed on the
+raw acquisition, without `--mask`) after the final `keep` (`combined`) and after
+each filter column alone (`filters`, where null means not assessed and keeps the
+event). Per population it reports original, eligible and retained events,
+conditional and cumulative retention, and frequencies relative to every raw
+event with their absolute and relative errors; gates may overlap or nest. A
+small overall removed fraction can hide the complete loss of a rare gate, which
+this makes visible. It is descriptive only (`basis`): it never adds a check,
+changes the status or the exit code, and it cannot show that a filter removed
+only artifacts. A membership of another acquisition, one missing raw events or
+one computed under a mask is reported as `not_assessed` with a `reason`; an
+unreadable file is an input error. The file is a provenance input, so a changed
+membership invalidates `--reuse skip`.
+
 The policy is the panel's `qc` section (`cytiq_manifest::QcPolicy`):
 
 ```yaml
@@ -71,7 +86,9 @@ Recombining an already combined mask can add further numeric prefixes
 | Item | Purpose |
 | --- | --- |
 | `QcRunner::run` / `QcConfig` | Run the checks and write `qc.json` |
-| `QcRunner::input_files` | The manifest, the sample FCS and the mask, for provenance |
+| `QcRunner::input_files` | The manifest, the sample FCS, the mask and the optional population membership, for provenance |
+| `retention::population_retention`, `retention::membership_retention` | Per-stage retention of exclusive labels or overlapping gates against the original acquisition |
+| `retention::qc_population_retention`, `PopulationRetentionReport` | The descriptive `population_retention` section of `qc.json` |
 | `QcReport` (`ensure_passed`) | The report: status, counts, metrics, checks |
 | `QcMetrics`, `FilterMetrics` | Raw and kept events; per filter: columns, assessed (count and share of raw events), eligible events and the share of them assessed, removed |
 | `evaluate` | The policy rules over metrics, without files |

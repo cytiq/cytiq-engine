@@ -18,6 +18,7 @@ cytiq-mask.workspace = true
 cytiq-publish.workspace = true
 cytiq-transform.workspace = true
 log.workspace = true
+# Decodes zstd-compressed class predictions through cytiq-mask's bounded reader.
 parquet = { workspace = true, features = ["zstd"] }
 plotly.workspace = true
 roxmltree.workspace = true

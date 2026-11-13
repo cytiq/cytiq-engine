@@ -87,7 +87,7 @@ impl Sample {
 }
 
 fn read_strategy(path: &Path) -> Result<GatingStrategy, PlotError> {
-    let xml = std::fs::read_to_string(path).map_err(|source| PlotError::GatingMlRead {
+    let xml = cytiq_gating::read_gatingml(path).map_err(|source| PlotError::GatingMlRead {
         path: path.to_path_buf(),
         source,
     })?;

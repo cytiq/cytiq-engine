@@ -143,7 +143,14 @@ PE,256,262144,4.418539922,0,-100
   an `Existing`: `Refuse` (the CLI default) fails on an existing file,
   `Replace` (`--overwrite`) replaces it.
 - `debug_dir` gets one `report.html` (gates, regressions, convergence,
-  heatmaps) and `summary.json`.
+  heatmaps) and `summary.json`. For AutoSpread, `extra.spread_stats[dye].fits`
+  holds one `SpreadFit` per detector, in matrix column order: the per-bin
+  `primary_median` and `secondary_robust_sd` in raw detector units,
+  `skipped_bins`, the first fit and its `sigma0`, the unclamped second-fit slope,
+  the matrix `coefficient` and per-bin residuals. `status` (`primary`,
+  `too_few_bins`, `first_fit_failed`, `second_fit_failed`, `fitted`) says why a
+  coefficient is zero instead of leaving every failure looking like no spread.
+  The matrix itself is unchanged.
 - Controls, gates, spillover rows, spread rows and refinement error passes run
   on the caller's rayon pool (`cytiq autospill --threads` sizes it).
 

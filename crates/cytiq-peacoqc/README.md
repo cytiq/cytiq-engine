@@ -89,7 +89,8 @@ println!("kept {}", result.summary.metrics.events_after);
   Unprocessed flowCore files honor their `flowCore_$PnRmin/Rmax` metadata;
   Cytiq-recorded bounds retain priority for derived signals.
 - `--remove-zeros` ignores zero values during peak detection (useful for mass
-  cytometry).
+  cytometry). A selected channel without any non-zero event is an input error
+  (exit 2): upstream's bin size would be infinite.
 - Channels match `$PnN`, then `$PnS`, then `$PnN [$PnS]`.
 - With `debug_dir`, writes `summary.json`, `mask.csv` and `report.html`
   (Plotly from the CDN).
