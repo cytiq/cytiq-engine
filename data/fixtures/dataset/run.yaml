@@ -1,0 +1,79 @@
+# Run manifest (schema 3) of the reference dataset. Every FCS file is an
+# existing fixture. Case12 and Case30 are different FlowCyt cases: declaring
+# them two panels of one specimen (SP01) is synthetic, for multi-panel tests.
+# fcs3_2_mixed.fcs is synthetic; its reporter and detector are declared here.
+schema_version: 3
+cytometry: conventional
+experiment:
+  title: cytiq dataset contract reference
+  purpose: Reference fixtures for cytiq.events.v1 and the dataset manifest
+  keywords: [reference, contract]
+instruments:
+  - id: navios-1
+    manufacturer: Beckman Coulter
+    model: Navios
+    detectors:
+      - { id: FL1, kind: pmt }
+      - { id: FL2, kind: pmt }
+      - { id: FL3, kind: pmt }
+      - { id: FL4, kind: pmt }
+      - { id: FL5, kind: pmt }
+      - { id: FL6, kind: pmt }
+      - { id: FL7, kind: pmt }
+      - { id: FL8, kind: pmt }
+      - { id: FL9, kind: pmt }
+      - { id: FL10, kind: pmt }
+  - id: synthetic-1
+    manufacturer: cytiq
+    model: synthetic
+    detectors:
+      - { id: FITC PMT, kind: pmt }
+      - { id: V450, kind: pmt }
+specimens:
+  - id: SP01
+    organism: Homo sapiens
+    material: bone marrow aspirate
+    ontology:
+      - { id: "NCBITaxon:9606", label: Homo sapiens }
+      - { id: "UBERON:0002371", label: bone marrow }
+  - { id: SP02, organism: synthetic, material: synthetic events }
+panels:
+  # Kaluza export: channels are detectors (`FL1 INT`), `$PnS` is
+  # `CD14-FITC`; the manifest names marker and reporter separately.
+  - name: M
+    instrument: navios-1
+    markers:
+      - { marker: CD14, channel: FL1 INT, reporter: FITC, detector: FL1 }
+      - { marker: CD19, channel: FL2 INT, reporter: PE, detector: FL2 }
+      - { marker: CD13, channel: FL3 INT, reporter: ECD, detector: FL3 }
+      - { marker: CD33, channel: FL4 INT, reporter: PC5.5, detector: FL4 }
+      - { marker: CD34, channel: FL5 INT, reporter: PC7, detector: FL5 }
+      - { marker: CD117, channel: FL6 INT, reporter: APC, detector: FL6 }
+      - { marker: CD7, channel: FL7 INT, reporter: APC700, detector: FL7 }
+      - { marker: CD16, channel: FL8 INT, reporter: APC750, detector: FL8 }
+      - { marker: HLA, channel: FL9 INT, reporter: PB, detector: FL9 }
+      - { marker: CD45, channel: FL10 INT, reporter: KO, detector: FL10 }
+  # flowCore re-export of compensated values: channel names join marker and
+  # reporter (`CD14.FITC`), which stay separate identities here.
+  - name: B
+    instrument: navios-1
+    signal_state: compensated
+    markers:
+      - { marker: CD14, channel: CD14.FITC, reporter: FITC, detector: FL1 }
+      - { marker: CD19, channel: CD19.PE, reporter: PE, detector: FL2 }
+      - { marker: CD13, channel: CD13.ECD, reporter: ECD, detector: FL3 }
+      - { marker: CD33, channel: CD33.PC5.5, reporter: PC5.5, detector: FL4 }
+      - { marker: CD34, channel: CD34.PC7, reporter: PC7, detector: FL5 }
+      - { marker: CD117, channel: CD117.APC, reporter: APC, detector: FL6 }
+      - { marker: CD7, channel: CD7.APC700, reporter: APC700, detector: FL7 }
+      - { marker: CD16, channel: CD16.APC750, reporter: APC750, detector: FL8 }
+      - { marker: HLA, channel: HLA.PB, reporter: PB, detector: FL9 }
+      - { marker: CD45, channel: CD45.KO, reporter: KO, detector: FL10 }
+  - name: X
+    instrument: synthetic-1
+    markers:
+      - { marker: CD3, channel: CD3-A, reporter: BV421, detector: V450 }
+samples:
+  - { id: S12-M, file: ../flowcyt/Case12_P.fcs, panel: M, specimen: SP01 }
+  - { id: S30-B, file: ../flowcyt/Case30_P.fcs, panel: B, specimen: SP01 }
+  - { id: SX-X, file: ../fcs/fcs3_2_mixed.fcs, panel: X, specimen: SP02 }

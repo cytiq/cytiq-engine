@@ -201,6 +201,7 @@ fn check(name: &str, peak: usize, input_bytes: usize, budget_mib: usize) {
 // identical across runs. With the library code of eb9ebd2: PeacoQC 72,150,023 B, FlowSOM
 // 33,611,512 B, CytoNorm apply 35,269,712 B. PeacoQC without the channel
 // copies: 46,549,575 B. CytoNorm apply normalizing in place: 34,151,514 B.
+// Events export (batches of at most 16 MiB with keys): 26,038,442 B.
 
 /// `PeacoQC` on 200k events and 8 channels (all methods, cleaned FCS, masks and
 /// summary).
@@ -209,6 +210,32 @@ const PEACOQC_BUDGET_MIB: usize = 49;
 const FLOWSOM_BUDGET_MIB: usize = 36;
 /// `CytoNorm` apply to 200k events, after a two-batch training on small files.
 const CYTONORM_APPLY_BUDGET_MIB: usize = 36;
+/// `cytiq.events.v1` export of 200k raw events on 32 float32 channels. It
+/// streams batches of at most 16 MiB of values and keys; the peak is one
+/// batch, its key columns and the encoder's row group, whatever the count.
+const EVENTS_EXPORT_BUDGET_MIB: usize = 26;
+/// Channels of the events export input.
+const EXPORT_CHANNELS: usize = 32;
+
+/// A raw float32 FCS with `EXPORT_CHANNELS` channels and `EVENTS` events.
+fn write_raw_input(path: &Path) {
+    let mut state = 7;
+    let columns: Vec<Vec<f32>> = (0..EXPORT_CHANNELS)
+        .map(|channel| {
+            (0..EVENTS)
+                .map(|event| {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let value = signal(channel, event, &mut state) as f32;
+                    value
+                })
+                .collect()
+        })
+        .collect();
+    let parameters: Vec<FcsWriteParameter> = (1..=EXPORT_CHANNELS)
+        .map(|index| FcsWriteParameter::new(format!("C{index}")))
+        .collect();
+    cytiq_fcs::write_fcs3_1_f32(path, &parameters, &columns).expect("synthetic FCS writes");
+}
 
 #[test]
 fn memory_heavy_entry_points_stay_within_their_heap_budgets() {
@@ -270,4 +297,18 @@ fn memory_heavy_entry_points_stay_within_their_heap_budgets() {
             CYTONORM_APPLY_BUDGET_MIB,
         );
     });
+
+    let raw = directory.path().join("raw.fcs");
+    write_raw_input(&raw);
+    let output = directory.path().join("events.parquet");
+    let peak = peak_during(|| {
+        cytiq_population::events::export(
+            &raw,
+            &output,
+            &cytiq_population::events::ExportOptions::default(),
+        )
+        .expect("events export runs");
+    });
+    // At least one batch of decoded events is live.
+    check("events export", peak, MIB, EVENTS_EXPORT_BUDGET_MIB);
 }

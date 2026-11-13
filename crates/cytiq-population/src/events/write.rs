@@ -23,7 +23,8 @@ use super::{
 };
 use crate::{PopulationError, Result, require};
 
-/// Bytes of decoded events held per batch, whatever the event count.
+/// Bytes of decoded events and keys held per batch, whatever the event
+/// count; the Parquet encoder holds about as much again for the row group.
 const BATCH_BYTES: usize = 16 << 20;
 /// Most events per batch and row group.
 const BATCH_ROWS_MAX: usize = 65_536;
@@ -57,12 +58,14 @@ pub fn export(input: &Path, output: &Path, options: &ExportOptions) -> Result<Ex
     let descriptor = LayerDescriptor::from_fcs(&metadata, &empty.columns, &acquisition, options)?;
     let layer_id = descriptor.layer_id();
 
+    // Values, `source_event_id`, and both 64-character keys with offsets.
     let row_bytes = descriptor
         .channels
         .iter()
         .map(|channel| channel.value_type.bytes())
         .sum::<usize>()
-        + 8;
+        + 8
+        + 2 * (64 + 4);
     let rows = (BATCH_BYTES / row_bytes).clamp(1, BATCH_ROWS_MAX);
     let stream = FcsReader::open(input)?.stream(
         NonZeroUsize::new(rows).unwrap_or(NonZeroUsize::MIN),

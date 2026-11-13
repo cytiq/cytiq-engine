@@ -322,3 +322,62 @@ fn specimen_outcome_file_matches_the_stdout_outcome() {
     );
     assert_eq!(printed["completed"], false);
 }
+
+#[test]
+fn lakehouse_commands_follow_the_exit_contract() {
+    let directory = tempfile::tempdir().expect("temporary directory");
+    let input = directory.path().join("broken.fcs");
+    fs::write(&input, b"FCS3.1    garbage").expect("write");
+    let outcome = directory.path().join("export.json");
+    let output = cytiq(&[
+        "events",
+        "export",
+        "--input",
+        utf8(&input),
+        "--output",
+        utf8(&directory.path().join("events.parquet")),
+        "--outcome",
+        utf8(&outcome),
+    ]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_outcome(
+        &outcome,
+        "cytiq events export",
+        "invalid_configuration",
+        2,
+        false,
+    );
+
+    let manifest = directory.path().join("manifest.json");
+    fs::write(&manifest, b"{\"schema_version\": 7}").expect("write");
+    let outcome = directory.path().join("validate.json");
+    let output = cytiq(&[
+        "dataset",
+        "validate",
+        "--manifest",
+        utf8(&manifest),
+        "--output",
+        utf8(&directory.path().join("report.json")),
+        "--outcome",
+        utf8(&outcome),
+    ]);
+    // A completed validation with errors lists the report it published.
+    assert_eq!(output.status.code(), Some(3));
+    let outcome = read_json(&outcome);
+    assert_eq!(outcome["command"], "cytiq dataset validate");
+    assert_eq!(outcome["reason"], "checks_failed");
+    assert_eq!(outcome["completed"], true);
+    assert_eq!(
+        artifact_paths_of(&outcome),
+        [utf8(&directory.path().join("report.json")).to_owned()]
+    );
+}
+
+fn artifact_paths_of(outcome: &Value) -> Vec<String> {
+    outcome["artifacts"]
+        .as_array()
+        .expect("artifacts")
+        .iter()
+        .map(|artifact| artifact["path"].as_str().expect("path").to_owned())
+        .collect()
+}

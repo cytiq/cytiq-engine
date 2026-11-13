@@ -64,6 +64,13 @@ pub(crate) enum Commands {
     /// Learn and apply population-specific batch normalization after transform.
     #[command(subcommand)]
     Cytonorm(CytoNormCommand),
+    /// Export FCS events as `cytiq.events.v1` lakehouse tables.
+    #[command(subcommand)]
+    Events(crate::commands::events::EventsCommand),
+    /// Validate dataset manifests: identities, references, signal states,
+    /// metadata, privacy and object digests.
+    #[command(subcommand)]
+    Dataset(crate::commands::dataset::DatasetCommand),
     /// Estimate a spillover or compensation matrix from single-color controls.
     Autospill(AutospillArgs),
     /// Estimate a spillover spreading matrix from single-color controls.
@@ -147,6 +154,8 @@ impl Commands {
             ) => *threads,
             Self::Population(_)
             | Self::Specimen(_)
+            | Self::Events(_)
+            | Self::Dataset(_)
             | Self::Classify(_)
             | Self::Mask(_)
             | Self::Plot(_)
@@ -472,6 +481,10 @@ pub(crate) const fn command_name(command: &Commands) -> &'static str {
         }
         Commands::Specimen(crate::commands::specimen::SpecimenCommand::Report(_)) => {
             "specimen report"
+        }
+        Commands::Events(crate::commands::events::EventsCommand::Export(_)) => "events export",
+        Commands::Dataset(crate::commands::dataset::DatasetCommand::Validate(_)) => {
+            "dataset validate"
         }
         Commands::Autospill(_) => "autospill",
         Commands::Autospread(_) => "autospread",

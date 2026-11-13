@@ -136,14 +136,18 @@ PeacoQC, CytoScan and CompensAID against the R outputs in
 on `data/fixtures/pipeline` against per-event truth), `plot_cli.rs` (every
 plot type, masks, gates checked against `cytiq gate`, classes, batch output,
 determinism), `preflight_cli.rs`,
-`qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`. `tests/common/mod.rs` holds `assert_provenance`,
-`assert_provenance_chain` and `adjusted_rand_index`.
+`qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`, `events_cli.rs` (raw, compensated,
+transformed and externally processed layers, matrix verification against the producing run),
+`dataset_cli.rs` (the reference dataset with every object verified, report and exit 3).
+`tests/common/mod.rs` holds `assert_provenance`, `assert_provenance_chain` and
+`adjusted_rand_index`; `tests/common/dataset.rs` builds the reference dataset of
+`data/fixtures/dataset` with the real commands.
 `channels_cli.rs` pins the channel flag errors of every command.
 `orchestration_cli.rs` pins what workflow engines read: outcome artifacts,
 JSON log lines and the conflict reason. `overwrite_cli.rs` pins the output-conflict contract of every result-writing
 command (exit 4, `--overwrite`, `--reuse skip`/`reject`). `threads_cli.rs`
 checks that `--threads` never changes outputs. `memory_budget.rs` runs the PeacoQC,
-FlowSOM and CytoNorm apply library entry points on fixed 200k-event inputs
+FlowSOM, CytoNorm apply and events export library entry points on fixed 200k-event inputs
 under a counting allocator (its own test binary, one rayon thread) and holds
 each peak heap to a frozen budget; lower a budget with the change that lowers
 its peak, and raise one only with a reviewed reason. `src/cli_surface.rs` compares

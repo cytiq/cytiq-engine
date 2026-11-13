@@ -92,7 +92,8 @@ fn layer(
     std::fs::create_dir_all(output.parent().unwrap()).unwrap();
     let summary = events::export(input, &output, &ExportOptions::default()).unwrap();
     ArtifactEntry::signal_layer(
-        &summary,
+        &summary.descriptor,
+        &summary.values_sha256,
         Some(panel.into()),
         parents,
         location.into(),

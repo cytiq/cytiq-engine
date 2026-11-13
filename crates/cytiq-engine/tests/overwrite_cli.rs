@@ -73,6 +73,18 @@ fn cases() -> Vec<Case> {
     let cytoscan_channels = fs::read_to_string(cytoscan.join("channels.txt")).expect("channels");
     vec![
         Case {
+            name: "events export",
+            output: "events.parquet",
+            args: args(&[
+                "events",
+                "export",
+                "--input",
+                &sample,
+                "--output",
+                "events.parquet",
+            ]),
+        },
+        Case {
             name: "gate",
             output: "counts.json",
             args: args(&[

@@ -1885,6 +1885,270 @@
         "subcommand_required": false,
         "subcommands": {}
       },
+      "dataset": {
+        "args": [],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": true,
+        "subcommands": {
+          "validate": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "manifest",
+                "long": "manifest",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MANIFEST"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "root",
+                "long": "root",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "ROOT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "verify_objects",
+                "long": "verify-objects",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "VERIFY_OBJECTS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "structural"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "profile",
+                "long": "profile",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "structural",
+                  "miflowcyt-minimal"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "PROFILE"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
+      "events": {
+        "args": [],
+        "args_conflict_with_subcommands": false,
+        "subcommand_required": true,
+        "subcommands": {
+          "export": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "input",
+                "long": "input",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "INPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "raw"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "base_state",
+                "long": "base-state",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "raw",
+                  "compensated",
+                  "unmixed"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "BASE_STATE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "compensation_matrix",
+                "long": "compensation-matrix",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "COMPENSATION_MATRIX"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "unmixing_reference",
+                "long": "unmixing-reference",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "UNMIXING_REFERENCE"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          }
+        }
+      },
       "flowsom": {
         "args": [
           {
@@ -5633,6 +5897,24 @@
       "reference",
       "strict",
       "threads"
+    ],
+    "dataset validate": [
+      "Validate",
+      "Validate.manifest",
+      "Validate.output",
+      "Validate.overwrite",
+      "Validate.profile",
+      "Validate.root",
+      "Validate.verify_objects"
+    ],
+    "events export": [
+      "Export",
+      "Export.base_state",
+      "Export.compensation_matrix",
+      "Export.input",
+      "Export.output",
+      "Export.overwrite",
+      "Export.unmixing_reference"
     ],
     "flowsom": [
       "channel",

@@ -18,6 +18,7 @@
 
 mod descriptor;
 mod read;
+mod runner;
 mod write;
 
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,7 @@ use crate::serialization;
 
 pub use descriptor::{BaseState, Definition, ExportOptions};
 pub use read::{EventsSummary, verify, verify_file, verify_with_limits};
+pub use runner::{ExportConfig, ExportRunner};
 pub use write::{ExportSummary, export};
 
 /// Contract identifier of an events table.

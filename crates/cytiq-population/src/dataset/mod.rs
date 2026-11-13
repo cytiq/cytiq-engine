@@ -13,6 +13,7 @@ mod document;
 mod from_run;
 mod objects;
 mod profile;
+mod runner;
 
 use std::path::{Path, PathBuf};
 
@@ -32,6 +33,7 @@ pub use document::validate_document;
 pub use from_run::{acquisition_entry, panel_from_run};
 pub use objects::verify_objects;
 pub use profile::Profile;
+pub use runner::{ValidateConfig, ValidateRunner};
 
 pub const SCHEMA_VERSION: u32 = 1;
 pub const ARTIFACT_TYPE: &str = "cytiq_dataset_manifest";
@@ -274,11 +276,12 @@ pub struct ArtifactEntry {
 }
 
 impl ArtifactEntry {
-    /// The entry of an events table [`crate::events::export`] wrote; its
-    /// semantic id is the layer id.
+    /// The entry of an events table holding `descriptor`'s layer with
+    /// values digest `values_sha256`; its semantic id is the layer id.
     #[must_use]
     pub fn signal_layer(
-        summary: &crate::events::ExportSummary,
+        descriptor: &crate::events::LayerDescriptor,
+        values_sha256: &str,
         panel: Option<String>,
         parents: Vec<String>,
         location: String,
@@ -287,13 +290,13 @@ impl ArtifactEntry {
         Self {
             role: ArtifactRole::SignalLayer,
             contract: contracts::EVENTS.into(),
-            semantic_id: summary.layer_id.clone(),
-            acquisition: Some(summary.descriptor.acquisition_id.clone()),
+            semantic_id: descriptor.layer_id(),
+            acquisition: Some(descriptor.acquisition_id.clone()),
             panel,
             parents,
-            layer: Some(LayerSummary::of(&summary.descriptor)),
+            layer: Some(LayerSummary::of(descriptor)),
             content: ContentRef {
-                values_sha256: Some(summary.values_sha256.clone()),
+                values_sha256: Some(values_sha256.to_owned()),
                 ..content
             },
             location,
