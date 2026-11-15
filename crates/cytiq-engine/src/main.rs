@@ -105,5 +105,7 @@ fn run(
         Commands::Clean(args) => commands::clean::run(args, recorder),
         Commands::Flowsom(args) => commands::flowsom::run(args, recorder),
         Commands::Cytonorm(command) => commands::cytonorm::run(command, recorder),
+        Commands::Events(command) => commands::events::run(command, recorder),
+        Commands::Dataset(command) => commands::dataset::run(command, recorder),
     }
 }

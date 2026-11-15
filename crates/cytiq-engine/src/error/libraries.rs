@@ -37,6 +37,7 @@ pub(super) fn known(error: &(dyn Error + 'static)) -> Option<OutcomeReason> {
         ProvenanceError => ProvenanceError::outcome_reason,
         cytiq_manifest::ManifestError => manifest,
         cytiq_mask::MaskError => mask,
+        cytiq_population::PopulationError => population,
         csv::Error => |error| csv(error, INVALID),
         serde_json::Error => |error| json(error, RUNTIME),
         cytiq_autospectral::AutoSpectralError => autospectral,
@@ -114,6 +115,19 @@ fn manifest(error: &cytiq_manifest::ManifestError) -> OutcomeReason {
     match error {
         E::Read { source, .. } => io(source),
         E::UnsupportedFormat { .. } | E::Parse { .. } | E::Invalid { .. } => INVALID,
+    }
+}
+
+fn population(error: &cytiq_population::PopulationError) -> OutcomeReason {
+    use cytiq_population::PopulationError as E;
+    match error {
+        E::Missing(_) => MISSING,
+        E::Invalid(_) | E::Arrow(_) | E::Parquet(_) => INVALID,
+        E::Json(source) => json(source, INVALID),
+        E::Io(source) => io(source),
+        E::Fcs(source) => fcs(source),
+        E::Publish(source) => OutcomeReason::of_publish(source),
+        E::Provenance(source) => source.outcome_reason(),
     }
 }
 

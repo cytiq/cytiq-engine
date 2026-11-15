@@ -1,0 +1,12 @@
+{
+  "expect": "incompatible_signal_state",
+  "tier": "document",
+  "description": "A conventional panel cannot hold unmixed files.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/panels/0/signal_state",
+      "value": "unmixed"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "expect": "corrupt_artifact_hash",
+  "tier": "objects",
+  "description": "Recorded size differs from the stored object.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/artifacts/5/content/bytes",
+      "value": 1
+    }
+  ]
+}

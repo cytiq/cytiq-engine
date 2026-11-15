@@ -2,6 +2,9 @@
 //! too, so `cargo test` replays every saved input against the same checks.
 
 use cytiq_mask::parquet::ScalarParquetReader;
+use cytiq_population::dataset;
+use cytiq_population::events;
+use cytiq_population::issue::Issues;
 use cytiq_population::serialization::{self, DocumentFormat};
 use cytiq_population::table;
 
@@ -101,4 +104,82 @@ pub fn projected_parquet_accepts(bytes: &[u8]) -> bool {
     reader
         .project(&names)
         .is_ok_and(|reader| reader.into_iter().all(|batch| batch.is_ok()))
+}
+
+/// Any bytes as a `cytiq.events.v1` table: verification never panics, a
+/// rejection always names an error, and an accepted table is internally
+/// consistent and verifies the same way twice.
+pub fn events_parquet(bytes: &[u8]) {
+    let mut issues = Issues::new();
+    let summary = events::verify_with_limits(
+        bytes::Bytes::copy_from_slice(bytes),
+        LIMITS,
+        "",
+        &mut issues,
+    );
+    let Some(summary) = summary else {
+        assert!(issues.has_errors(), "a rejected table names an error");
+        return;
+    };
+    assert!(!issues.has_errors());
+    assert_eq!(summary.layer_id, summary.descriptor.layer_id());
+    assert_eq!(summary.values_sha256.len(), 64);
+    if let Some(raw_events) = summary.raw_events {
+        assert_eq!(raw_events, summary.rows);
+    }
+    assert_eq!(summary.rows == 0, summary.max_source_event_id.is_none());
+    let mut again = Issues::new();
+    let repeat =
+        events::verify_with_limits(bytes::Bytes::copy_from_slice(bytes), LIMITS, "", &mut again);
+    assert_eq!(
+        repeat.as_ref(),
+        Some(&summary),
+        "verification is deterministic"
+    );
+}
+
+/// Whether [`events_parquet`] accepts `bytes`.
+pub fn events_parquet_accepts(bytes: &[u8]) -> bool {
+    events::verify_with_limits(
+        bytes::Bytes::copy_from_slice(bytes),
+        LIMITS,
+        "",
+        &mut Issues::new(),
+    )
+    .is_some()
+}
+
+/// Any bytes as a dataset manifest: parsing and document validation never
+/// panic, and an accepted manifest has a stable identity and round-trips
+/// through its canonical JSON.
+pub fn dataset_json(bytes: &[u8]) {
+    let mut issues = Issues::new();
+    let Some(manifest) = dataset::parse(bytes, DocumentFormat::Json, &mut issues) else {
+        assert!(issues.has_errors(), "a rejected manifest names an error");
+        return;
+    };
+    for profile in [
+        dataset::Profile::Structural,
+        dataset::Profile::MiflowcytMinimal,
+    ] {
+        dataset::validate_document(&manifest, profile, &mut Issues::new());
+    }
+    let canonical = manifest.canonical_json();
+    let again = dataset::parse(
+        canonical.as_bytes(),
+        DocumentFormat::Json,
+        &mut Issues::new(),
+    )
+    .expect("canonical JSON of an accepted manifest parses");
+    assert_eq!(again, manifest);
+    assert_eq!(again.dataset_id(), manifest.dataset_id());
+}
+
+/// Whether [`dataset_json`] parses `bytes` and finds no document error.
+pub fn dataset_json_accepts(bytes: &[u8]) -> bool {
+    let mut issues = Issues::new();
+    dataset::parse(bytes, DocumentFormat::Json, &mut issues).is_some_and(|manifest| {
+        dataset::validate_document(&manifest, dataset::Profile::Structural, &mut issues);
+        !issues.has_errors()
+    })
 }

@@ -2,9 +2,15 @@
 
 pub mod annotations;
 pub mod artifact;
+mod bitmap;
+pub mod dataset;
 pub mod decision;
+pub mod events;
+pub mod identity;
+pub mod issue;
 pub mod knowledge;
 pub mod observation;
+pub mod privacy;
 pub mod serialization;
 pub mod table;
 
@@ -37,6 +43,8 @@ pub enum PopulationError {
     Publish(#[from] cytiq_publish::PublishError),
     #[error(transparent)]
     Provenance(#[from] cytiq_provenance::ProvenanceError),
+    #[error(transparent)]
+    Fcs(#[from] cytiq_fcs::Error),
 }
 
 pub type Result<T> = std::result::Result<T, PopulationError>;

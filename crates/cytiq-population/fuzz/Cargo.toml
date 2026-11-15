@@ -44,6 +44,20 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "events_parquet"
+path = "fuzz_targets/events_parquet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dataset_json"
+path = "fuzz_targets/dataset_json.rs"
+test = false
+doc = false
+bench = false
+
 # Not part of the parent workspace.
 [workspace]
 members = ["."]

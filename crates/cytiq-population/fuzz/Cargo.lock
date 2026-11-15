@@ -333,6 +333,7 @@ version = "0.4.1"
 dependencies = [
  "arrow-array",
  "arrow-schema",
+ "cytiq-fcs",
  "cytiq-manifest",
  "cytiq-mask",
  "cytiq-provenance",

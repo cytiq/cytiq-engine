@@ -1,0 +1,7 @@
+# Run manifest v2: mass cytometry requires schema_version 2.
+schema_version: 2
+cytometry: cytof
+panel:
+  markers: [{ marker: CD45, channel: Y89Di }]
+samples:
+  - { id: A01, file: a01.fcs }

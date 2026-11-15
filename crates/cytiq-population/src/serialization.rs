@@ -147,11 +147,20 @@ fn parse_document(
     Ok(payload)
 }
 
+/// The canonical text of `payload`: Python's `json.dumps(indent=2,
+/// sort_keys=True, ensure_ascii=True)` followed by a newline.
 #[must_use]
-pub fn digest(payload: &Value) -> String {
+pub fn canonical(payload: &Value) -> String {
     let mut text = String::new();
     encode(payload, 0, &mut text);
     text.push('\n');
+    text
+}
+
+/// SHA-256 of [`canonical`].
+#[must_use]
+pub fn digest(payload: &Value) -> String {
+    let text = canonical(payload);
     Sha256::digest(text.as_bytes())
         .iter()
         .fold(String::new(), |mut text, byte| {

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cytiq/cytiq-engine/contracts/dataset/v1/events-layer.schema.json",
+  "title": "cytiq.events.v1 layer descriptor",
+  "description": "The `cytiq.events.layer` key-value metadata of an events table. `layer_id` is the SHA-256 of its canonical JSON.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "cytiq.events.layer.v1"
+    },
+    "acquisition_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "state": {
+      "enum": [
+        "raw",
+        "compensated",
+        "unmixed",
+        "transformed",
+        "normalized"
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/channel"
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "acquisition_id",
+    "state",
+    "steps",
+    "channels"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "compensation",
+            "unmixing",
+            "transform",
+            "normalization"
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/text"
+        },
+        "origin": {
+          "enum": [
+            "recorded",
+            "verified",
+            "declared",
+            "external"
+          ]
+        },
+        "definition_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "method",
+        "origin",
+        "channels"
+      ]
+    },
+    "channel": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "value_type": {
+          "enum": [
+            "uint64",
+            "float32",
+            "float64"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name",
+        "value_type"
+      ]
+    }
+  }
+}

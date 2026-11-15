@@ -1,0 +1,160 @@
+{
+  "note": "Digests are SHA-256 over canonical JSON (sorted keys, indent 2, ASCII, Python float repr, trailing newline) unless stated; values_sha256 hashes the domain tag, layer id and little-endian rows.",
+  "schema_version": 1,
+  "vectors": [
+    {
+      "input": {
+        "acquisition": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "basis": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "contract": "cytiq.mask.v2",
+        "parents": [
+          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        ],
+        "role": "technical_mask"
+      },
+      "name": "semantic_id",
+      "sha256": "47c3f188f26ddd9476cb53eea07a6f56903ab285210480001f002c7fad19699d"
+    },
+    {
+      "input": {
+        "acquisition_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "channels": [
+          {
+            "index": 1,
+            "name": "FSC-A",
+            "value_type": "float32"
+          },
+          {
+            "index": 2,
+            "name": "FL1-A",
+            "value_type": "float32"
+          },
+          {
+            "index": 3,
+            "name": "Time",
+            "value_type": "uint64"
+          }
+        ],
+        "contract": "cytiq.events.layer.v1",
+        "state": "transformed",
+        "steps": [
+          {
+            "channels": [
+              "FL1-A"
+            ],
+            "definition_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "kind": "compensation",
+            "method": "spillover",
+            "origin": "recorded"
+          },
+          {
+            "channels": [
+              "FL1-A"
+            ],
+            "kind": "transform",
+            "method": "arcsinh",
+            "origin": "recorded",
+            "parameters": {
+              "cofactor": 150.0
+            }
+          }
+        ]
+      },
+      "name": "layer_id",
+      "sha256": "229b05194334e934abdad0b69188328303c60015834ecccccc407fdff764aef9"
+    },
+    {
+      "input": {
+        "acquisition_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "channels": [
+          {
+            "index": 1,
+            "name": "FSC-A",
+            "value_type": "float32"
+          },
+          {
+            "index": 2,
+            "name": "FL1-A",
+            "value_type": "float32"
+          },
+          {
+            "index": 3,
+            "name": "Time",
+            "value_type": "uint64"
+          }
+        ],
+        "contract": "cytiq.events.layer.v1",
+        "state": "transformed",
+        "steps": [
+          {
+            "channels": [
+              "FL1-A"
+            ],
+            "definition_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "kind": "compensation",
+            "method": "spillover",
+            "origin": "recorded"
+          },
+          {
+            "channels": [
+              "FL1-A"
+            ],
+            "kind": "transform",
+            "method": "arcsinh",
+            "origin": "recorded",
+            "parameters": {
+              "cofactor": 150.0
+            }
+          }
+        ]
+      },
+      "name": "recipe_id",
+      "sha256": "380ed2d91d366646313deb92c77159ce856dbf0f003145dbb836f988cf4d8daa"
+    },
+    {
+      "input": {
+        "domain": "cytiq.events.values.v1",
+        "layer_id": "229b05194334e934abdad0b69188328303c60015834ecccccc407fdff764aef9",
+        "rows": [
+          {
+            "source_event_id": 0,
+            "values": [
+              {
+                "bits": "3fc00000",
+                "type": "float32"
+              },
+              {
+                "bits": "c0000000",
+                "type": "float32"
+              },
+              {
+                "bits": "0000000000000007",
+                "type": "uint64"
+              }
+            ]
+          },
+          {
+            "source_event_id": 3,
+            "values": [
+              {
+                "bits": "00000000",
+                "type": "float32"
+              },
+              {
+                "bits": "33d6bf95",
+                "type": "float32"
+              },
+              {
+                "bits": "ffffffffffffffff",
+                "type": "uint64"
+              }
+            ]
+          }
+        ]
+      },
+      "name": "values_sha256",
+      "sha256": "59c1507f0cb168521d1bdfe79150e3abe1df87daf503fcc9514c6f991f9562c7"
+    }
+  ]
+}

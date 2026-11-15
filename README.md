@@ -118,6 +118,7 @@ under `crates/`.
 
 - [CLI commands and shared conventions](crates/cytiq-engine/README.md)
 - [Pipeline, stage order and signal-state checks](crates/cytiq-engine/PIPELINE.md)
+- [Dataset contract: `cytiq.events.v1`, dataset manifest, identities and privacy](docs/dataset-contract.md)
 - [Papers and upstream implementations](CITATIONS.md)
 - [Contributor guidelines](CONTRIBUTING.md)
 

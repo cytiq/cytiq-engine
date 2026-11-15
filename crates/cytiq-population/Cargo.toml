@@ -12,6 +12,7 @@ description = "Typed population observations and adapters for cytometry event an
 serde_arrow.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
+cytiq-fcs.workspace = true
 cytiq-provenance.workspace = true
 cytiq-publish.workspace = true
 cytiq-qc.workspace = true

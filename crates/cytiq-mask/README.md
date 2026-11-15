@@ -120,6 +120,10 @@ the declared page size. Only codecs with bounded output buffers may be enabled
 (Snappy, Zstd and LZ4_RAW). An independently generated GZIP fixture with a false
 page size permanently tests this fail-closed boundary.
 
+`BYTE_STREAM_SPLIT` pages are refused before decoding: parquet 60.1.0's decoder
+trusts a page's value count and indexes past a shorter buffer (found by the
+`projected_parquet` fuzz target). No cytiq writer emits that encoding.
+
 ## Dependencies
 
 - [`cytiq-fcs`](../cytiq-fcs) for event lineage (`source_event_ids`,

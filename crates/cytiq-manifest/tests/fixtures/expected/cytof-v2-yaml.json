@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "cytometry": "cytof",
+  "panels": [
+    {
+      "name": null,
+      "markers": [
+        {
+          "marker": "CD45",
+          "channel": "Y89Di",
+          "required": true
+        }
+      ],
+      "signal_state": "raw"
+    }
+  ],
+  "samples": [
+    {
+      "id": "A01",
+      "file": "a01.fcs"
+    }
+  ],
+  "controls": []
+}

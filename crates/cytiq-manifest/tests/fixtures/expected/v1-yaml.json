@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "cytometry": "conventional",
+  "panels": [
+    {
+      "name": "T-cell-8c",
+      "markers": [
+        {
+          "marker": "CD3",
+          "channel": "FL1-A",
+          "required": true
+        },
+        {
+          "marker": "CD4",
+          "channel": null,
+          "required": true
+        },
+        {
+          "marker": "Live/Dead",
+          "channel": null,
+          "required": false
+        }
+      ],
+      "signal_state": "raw",
+      "qc": {
+        "min_events": 1000,
+        "max_removed_fraction": 0.4,
+        "filters": {
+          "live": {
+            "required": false,
+            "min_assessed_fraction": 0.9,
+            "assessed_of": "eligible",
+            "severity": "warn"
+          },
+          "margin_pass": {
+            "required": true,
+            "assessed_of": "raw",
+            "max_removed_fraction": 0.1,
+            "severity": "fail"
+          }
+        }
+      }
+    }
+  ],
+  "samples": [
+    {
+      "id": "S01",
+      "file": "fcs/s01.fcs"
+    }
+  ],
+  "controls": [
+    {
+      "file": "fcs/unstained.fcs",
+      "dye": "Autofluorescence",
+      "primary_channel": null
+    },
+    {
+      "file": "fcs/cd3_fitc.fcs",
+      "dye": "FITC",
+      "primary_channel": "FL1-A"
+    }
+  ]
+}

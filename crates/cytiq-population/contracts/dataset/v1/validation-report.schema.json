@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cytiq/cytiq-engine/contracts/dataset/v1/validation-report.schema.json",
+  "title": "cytiq dataset validation report v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_type": {
+      "const": "cytiq_dataset_validation"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile": {
+      "enum": [
+        "structural",
+        "miflowcyt-minimal"
+      ]
+    },
+    "verified_objects": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "valid",
+        "invalid"
+      ]
+    },
+    "errors": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "warnings": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "enum": [
+              "unsupported_schema",
+              "malformed_document",
+              "missing_metadata",
+              "panel_mismatch",
+              "incompatible_signal_state",
+              "duplicate_event_identity",
+              "duplicate_acquisition",
+              "duplicate_identifier",
+              "invalid_reference",
+              "inconsistent_channel_order",
+              "missing_object",
+              "corrupt_artifact_hash",
+              "privacy_violation"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "pointer": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "pointer",
+          "message"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "dataset_id",
+    "manifest_sha256",
+    "profile",
+    "verified_objects",
+    "status",
+    "errors",
+    "warnings",
+    "truncated",
+    "issues"
+  ]
+}

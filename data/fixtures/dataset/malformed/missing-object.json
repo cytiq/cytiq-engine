@@ -1,0 +1,12 @@
+{
+  "expect": "missing_object",
+  "tier": "objects",
+  "description": "A listed table that is not stored.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/artifacts/0/location",
+      "value": "events/M/absent.parquet"
+    }
+  ]
+}

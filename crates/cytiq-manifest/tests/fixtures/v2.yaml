@@ -1,0 +1,21 @@
+# Run manifest v2: several panels, repeat acquisitions of one specimen.
+schema_version: 2
+cytometry: conventional
+panels:
+  - name: T
+    markers: [{ marker: CD3, channel: FL1-A }]
+    compensation: { source: matrix, matrix: autospill/t.csv, kind: compensation }
+  - name: B
+    markers: [{ marker: CD19 }]
+    compensation: { source: controls }
+  - name: C
+    markers: [{ marker: CD14 }]
+    signal_state: compensated
+samples:
+  - { id: S01-T, file: s01_t.fcs, panel: T, specimen: S01 }
+  - { id: S01-T-repeat, file: s01_t_2.fcs, panel: T, specimen: S01 }
+  - { id: S01-B, file: s01_b.fcs, panel: B, specimen: S01 }
+  - { id: S01-C, file: s01_c.fcs, panel: C, specimen: S01 }
+controls:
+  - { file: unstained.fcs, dye: Autofluorescence }
+  - { file: cd19.fcs, dye: PE, panel: B }

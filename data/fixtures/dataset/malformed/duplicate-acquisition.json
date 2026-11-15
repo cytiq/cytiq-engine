@@ -1,0 +1,12 @@
+{
+  "expect": "duplicate_acquisition",
+  "tier": "document",
+  "description": "One raw file listed as two acquisitions.",
+  "patch": [
+    {
+      "op": "copy",
+      "from": "/acquisitions/0",
+      "path": "/acquisitions/-"
+    }
+  ]
+}

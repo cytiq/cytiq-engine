@@ -13,6 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::bitmap::Bitmap;
 use crate::{
     ArtifactRef, Denominator, Measure, Method, ObservationStatus, PopulationObservation, Result,
     Target, TargetKind, knowledge::KnowledgeArtifact, observation::Lineage, require, serialization,
@@ -399,7 +400,7 @@ fn validate_producer(
     Ok(())
 }
 
-fn producer_record(path: &Path) -> Result<RunRecord> {
+pub(crate) fn producer_record(path: &Path) -> Result<RunRecord> {
     let record: RunRecord = serde_json::from_value(serialization::read(path)?)?;
     require(
         (cytiq_provenance::MIN_READ_SCHEMA_VERSION..=cytiq_provenance::SCHEMA_VERSION)
@@ -443,41 +444,6 @@ fn metadata(schema: &Schema, context: &ObservationContext) -> Result<()> {
     )
 }
 
-struct Bitmap {
-    words: Vec<u64>,
-    len: usize,
-}
-
-impl Bitmap {
-    fn get(&self, index: usize) -> bool {
-        self.words[index / 64] & (1_u64 << (index % 64)) != 0
-    }
-    fn set(&mut self, index: usize, value: bool) {
-        let bit = 1_u64 << (index % 64);
-        if value {
-            self.words[index / 64] |= bit;
-        } else {
-            self.words[index / 64] &= !bit;
-        }
-    }
-    fn len(&self) -> usize {
-        self.len
-    }
-}
-
-fn booleans(size: usize) -> Result<Bitmap> {
-    let mut values = Vec::new();
-    let words = size.div_ceil(64);
-    values.try_reserve_exact(words).map_err(|_| {
-        crate::PopulationError::Invalid("lineage bitmap exceeds memory budget".into())
-    })?;
-    values.resize(words, 0_u64);
-    Ok(Bitmap {
-        words: values,
-        len: size,
-    })
-}
-
 fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
     let reader = open_table(path)?;
     metadata(reader.schema(), context)?;
@@ -495,8 +461,8 @@ fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
     let size = usize::try_from(context.raw_events).map_err(|_| {
         crate::PopulationError::Invalid("raw event count overflows platform".into())
     })?;
-    let mut seen = booleans(size)?;
-    let mut eligible = booleans(size)?;
+    let mut seen = Bitmap::new(size)?;
+    let mut eligible = Bitmap::new(size)?;
     for batch in reader.project(&["source_event_id", "keep"])? {
         let batch = batch?;
         let sources = uint(&batch, "source_event_id")?;
@@ -516,7 +482,7 @@ fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
             eligible.set(source, keep.value(i));
         }
     }
-    require((0..size).all(|i| seen.get(i)), "incomplete raw mask")?;
+    require(seen.is_full(), "incomplete raw mask")?;
     Ok(eligible)
 }
 
@@ -573,7 +539,7 @@ fn count_annotations(
     }
     let mut result = AnnotationCounts::new(context);
     let parents = denominator_indices(&context.source.bindings);
-    let mut seen = booleans(eligible.len())?;
+    let mut seen = Bitmap::new(eligible.len())?;
     let mut rows = 0_u64;
     let names = columns.iter().map(String::as_str).collect::<Vec<_>>();
     for batch in reader.project(&names)? {

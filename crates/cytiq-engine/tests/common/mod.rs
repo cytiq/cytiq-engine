@@ -3,6 +3,8 @@
 // Each test crate uses a different subset of these helpers.
 #![allow(dead_code)]
 
+pub mod dataset;
+
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;

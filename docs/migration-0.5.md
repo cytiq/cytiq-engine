@@ -122,3 +122,38 @@ values used before, so default output is unchanged. They appear in the
 provenance `config` only when one differs from its default; `CYTIQ_TRANSFORM`
 always records the effective values.
 `cytiq_transform::DEFAULT_BIEXPONENTIAL_*` are now public.
+
+## Run manifest schema 3 (additive)
+
+`schema_version: 3` adds optional MIFlowCyt metadata to the run manifest:
+`experiment`, `instruments` (with `detectors`), `specimens`, a panel's
+`instrument`, a marker's `reporter`, `detector` and `reagent`, and a
+control's `role`. v1 and v2 manifests load and serialize unchanged; using a
+v3 field in one is an error. See the
+[cytiq-manifest README](../crates/cytiq-manifest/README.md).
+
+Rust API: `RunManifest` gains `experiment`, `instruments` and `specimens`,
+`Panel` gains `instrument`, `Marker` gains `reporter`, `detector` and
+`reagent`, and `ControlEntry` gains `role`. Struct literals need the new
+fields (`None` or empty). `RunManifest::migrate` raises a document to
+`cytiq_manifest::SCHEMA_VERSION`.
+
+## Lakehouse dataset contract (additive)
+
+Two commands and two contracts are new; nothing existing changes. See the
+[dataset contract](dataset-contract.md).
+
+- `cytiq events export` writes one FCS file as a `cytiq.events.v1` Parquet
+  table, keyed by acquisition, signal layer and raw event id in every row.
+  A file `cytiq compensate --matrix` produced needs `--compensation-matrix`,
+  and a file unmixed by `cytiq autospectral` needs `--unmixing-reference`:
+  the FCS records those definitions only by path, which is never exported.
+- `cytiq dataset validate` checks a dataset manifest v1 and writes a typed
+  report. Errors exit 3 after the report is written.
+
+Rust API:
+- `cytiq_population::PopulationError` gains `Fcs`; exhaustive matches need
+  an arm.
+- `cytiq-population` now depends on `cytiq-fcs` directly.
+- New modules: `events`, `dataset`, `identity`, `issue` and `privacy`.
+- `serialization::canonical` returns the canonical text that `digest` hashes.

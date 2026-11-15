@@ -423,9 +423,11 @@ fn population_reason(error: &cytiq_population::PopulationError) -> OutcomeReason
     use cytiq_population::PopulationError as P;
     match error {
         P::Missing(_) => OutcomeReason::Incomplete,
-        P::Invalid(_) | P::Arrow(_) | P::Parquet(_) => OutcomeReason::InvalidConfiguration,
+        P::Io(source) | P::Fcs(cytiq_fcs::Error::Io(source)) => OutcomeReason::of_io(source),
+        P::Invalid(_) | P::Arrow(_) | P::Parquet(_) | P::Fcs(_) => {
+            OutcomeReason::InvalidConfiguration
+        }
         P::Json(source) => json_reason(source),
-        P::Io(source) => OutcomeReason::of_io(source),
         P::Publish(source) => OutcomeReason::of_publish(source),
         P::Provenance(source) => source.outcome_reason(),
     }

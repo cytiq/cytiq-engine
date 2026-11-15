@@ -1,0 +1,12 @@
+{
+  "expect": "incompatible_signal_state",
+  "tier": "document",
+  "description": "Panel B's files were compensated by flowCore; declaring them raw contradicts their layer.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/panels/1/signal_state",
+      "value": "raw"
+    }
+  ]
+}

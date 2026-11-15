@@ -36,6 +36,67 @@ UInt64 and Float64 value columns. `target`, `denominator`, `method` and `lineage
 carry structured JSON; `target_id` and `target_kind` are checked against it.
 Each row has a content identity and table metadata pins schema version 1.
 
+## Events tables (`cytiq.events.v1`)
+
+`events::export` writes one Parquet table per acquisition and signal layer;
+`events::verify` checks one. Every row carries `acquisition_id` (the
+SHA-256 acquisition identity), `layer_id` and `source_event_id` (the raw
+row, strictly increasing), then one column per FCS channel named `$PnN` in
+`$Pn` order, typed as the FCS stores it (`UInt64`, `Float32`, `Float64`)
+and bit-exact. `Original_ID` becomes `source_event_id`. Events of two
+acquisitions never share an identity, even with equal rows.
+
+The layer descriptor (key-value `cytiq.events.layer`) lists the steps that
+produced the values (compensation or unmixing, transform, normalization),
+each with its method, parameters, channels, definition digest and origin:
+`recorded` (from the file's own keywords), `verified` (a supplied digest
+matched against the producing run's provenance), `declared` or `external`
+(processing by other software). `layer_id` is its canonical digest;
+`recipe_id` drops the acquisition and per-file definitions, so layers that
+may share one lakehouse table share it. `cytiq.events.values_sha256` is a
+digest of keys and values that does not depend on the Parquet encoding.
+Field metadata (`cytiq.channel.*`) keeps the detector (`$PnDET`), marker
+(`$PnS`, `$PnANALYTE`) and reporter (`$PnTAG`) apart. No other FCS TEXT is
+written: file names, operators and dates never reach the table.
+
+## Dataset manifest v1
+
+`dataset::DatasetManifest` describes an analytical dataset in one canonical
+JSON document (`schema_version: 1`, `artifact_type: cytiq_dataset_manifest`):
+- **Metadata:** the privacy contract, the study, instruments and detectors,
+  and specimens, all after MIFlowCyt.
+- **Panels:** each panel's ordered channels, with detector, marker, reporter
+  and reagent kept as separate fields.
+- **Samples, acquisitions and controls.** An acquisition is identified by the
+  SHA-256 of its raw FCS file and exports only allowlisted keywords.
+- **Knowledge references** by canonical digest.
+- **Artifacts:** signal layers, technical masks, annotations, observations,
+  definitions and provenance records. Each artifact has a role, a contract, a
+  path-free `semantic_id`, its acquisition, parents, content digest and size,
+  a relative object key and an optional execution reference.
+
+`dataset_id` is the digest of the manifest without locations, contents and
+executions, so moving or re-encoding a dataset keeps its identity.
+
+`dataset::validate` collects typed issues in two tiers.
+- **Document rules (no I/O):** unsupported contracts, missing metadata,
+  panel mismatches, incompatible signal states (step order, base state,
+  cytometry, recipes within a panel × state), duplicate event identities,
+  acquisitions and ids, invalid references, inconsistent channel order and
+  privacy violations.
+- **Object verification (opt-in):** missing objects, size and digest
+  mismatches, events tables, masks, predictions, observations and provenance
+  records against the manifest.
+
+Profiles: `structural`, and `miflowcyt-minimal`, which also requires the
+study purpose, instruments, detectors and reporters of marked channels, and
+specimen organism and material.
+
+JSON Schemas of the manifest, the layer descriptor and the validation report
+are published in `contracts/dataset/v1/`, pinned by
+`contracts/dataset/v1.lock.json`, with identity vectors for other
+implementations.
+
 ## Knowledge and limits
 
 `knowledge::KnowledgeArtifact` validates the six upstream v2 artifact kinds

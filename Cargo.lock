@@ -879,6 +879,7 @@ dependencies = [
  "serde",
  "serde-saphyr",
  "serde_json",
+ "tempfile",
  "thiserror",
 ]
 
@@ -946,6 +947,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "bytes",
+ "cytiq-fcs",
  "cytiq-manifest",
  "cytiq-mask",
  "cytiq-provenance",
