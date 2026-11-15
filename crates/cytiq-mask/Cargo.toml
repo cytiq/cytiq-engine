@@ -18,6 +18,9 @@ parquet.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+# Snappy decoding is compiled in wherever cytiq-population writes it; the
+# tests prove its pages stay bounded by their declared sizes.
+parquet = { workspace = true, features = ["snap"] }
 proptest.workspace = true
 tempfile.workspace = true
 
