@@ -113,12 +113,14 @@ dictionary-encoded data without a dictionary, and an excessive schema child
 count. The observation fuzz target uses smaller limits: 4 MiB input, 1 MiB
 metadata, 8 MiB pages, 64 MiB decoded allocations, 100,000 rows and 10,000 pages.
 
-Compression features remain disabled in the workspace. Even if another crate
-enables them through Cargo feature unification, GZIP, Brotli and legacy LZ4 are
-rejected before decompression: their upstream decoders do not bound output by
-the declared page size. Only codecs with bounded output buffers may be enabled
-(Snappy, Zstd and LZ4_RAW). An independently generated GZIP fixture with a false
-page size permanently tests this fail-closed boundary.
+The workspace enables only the Zstd and Snappy decoders (`cytiq-population`
+writes both). Even if another crate enables more through Cargo feature
+unification, GZIP, Brotli and legacy LZ4 are rejected before decompression:
+their upstream decoders do not bound output by the declared page size. Only
+codecs with bounded output buffers may be enabled (Snappy, Zstd and LZ4_RAW).
+An independently generated GZIP fixture with a false page size permanently tests
+this fail-closed boundary. Snappy decodes into a buffer of the page's declared
+size; a frame longer than that is refused (`snappy_frames_longer_than_their_declared_page_are_refused`).
 
 `BYTE_STREAM_SPLIT` pages are refused before decoding: parquet 60.1.0's decoder
 trusts a page's value count and indexes past a shorter buffer (found by the

@@ -33,7 +33,7 @@ chain and signal-state checks.
 | `cytiq flowsom train/apply` | [`cytiq-flowsom`](../cytiq-flowsom/README.md) | Persist and reuse SOM models, with optional consensus metaclustering |
 | `cytiq cytonorm train/apply` | [`cytiq-cytonorm`](../cytiq-cytonorm/README.md) | Panel-specific batch normalization, controls/aggregates and QC |
 | `cytiq plot` | [`cytiq-plot`](../cytiq-plot/README.md) | 2-D density, scatter and contour plots and 1-D histograms as vector SVG (or Plotly JSON), with removed events, gates and classes overlaid |
-| `cytiq events export` | [`cytiq-population::events`](../cytiq-population/README.md#events-tables-cytiqeventsv1) | One FCS file's events as a `cytiq.events.v1` lakehouse table: acquisition, signal layer and raw event id in every row, channels bit-exact, no identifying keywords |
+| `cytiq export events` | [`cytiq-population::events`](../cytiq-population/README.md#events-tables-cytiqeventsv1) | One FCS file's events as a `cytiq.events.v1` lakehouse table, or parts of one: acquisition, asserted signal layer and raw event id in every row, every raw event, channels bit-exact and verified before publication, no identifying keywords |
 | `cytiq dataset validate` | [`cytiq-population::dataset`](../cytiq-population/README.md#dataset-manifest-v1) | Validate a dataset manifest (identities, panels, signal states, metadata, privacy, object digests); exits 3 after writing the report when it has errors |
 | `cytiq meta` | [`cytiq-inspect::meta`](../cytiq-inspect/docs/meta.md) | FCS metadata export as JSON |
 | `cytiq stats` | [`cytiq-inspect::stats`](../cytiq-inspect/docs/stats.md) | Per-channel statistics for technical QC: distribution, detector-limit and zero counts, histograms, Time channel |
