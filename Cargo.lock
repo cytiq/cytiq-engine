@@ -778,6 +778,7 @@ name = "cytiq-engine"
 version = "0.4.1"
 dependencies = [
  "arrow-array",
+ "arrow-schema",
  "clap",
  "csv",
  "cytiq-autospectral",

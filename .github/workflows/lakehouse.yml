@@ -1,0 +1,73 @@
+name: Lakehouse interop
+
+# Exports FCS events with the release binary and reads them back with the
+# pinned DuckDB and PyArrow (parity/lakehouse): every value bit for bit,
+# parts, the channel dictionary, provenance checksums and refused inputs.
+# One million events on pull requests that change the export or its readers,
+# ten million weekly and on demand. Not a required check.
+
+on:
+  pull_request:
+    paths:
+      - crates/cytiq-population/src/events/**
+      - crates/cytiq-fcs/src/**
+      - crates/cytiq-mask/src/parquet.rs
+      - crates/cytiq-engine/src/commands/export.rs
+      - crates/cytiq-engine/examples/events_layouts.rs
+      - parity/lakehouse/**
+      - Cargo.lock
+      - mise.toml
+      - mise.lock
+      - justfile
+      - .github/workflows/lakehouse.yml
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      events:
+        description: Events of the large mixed-type case
+        type: number
+        required: false
+        default: 10000000
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EVENTS: ${{ github.event_name == 'pull_request' && '1000000' || inputs.events || '10000000' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust, Python and uv
+        uses: cytiq/cytiq-ci/.github/actions/mise@0.5.0
+        with:
+          tools: rust,python,uv
+
+      - name: Cache release build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: lakehouse
+          save-if: ${{ github.event_name != 'pull_request' }}
+
+      - name: Interop
+        run: |
+          [[ "$EVENTS" =~ ^[1-9][0-9]*$ ]]
+          just lakehouse-interop --events "$EVENTS"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lakehouse-interop
+          path: target/lakehouse/interop/interop.json
+          if-no-files-found: ignore
+          retention-days: 35

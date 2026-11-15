@@ -92,6 +92,26 @@ benchmark-spillqc:
 performance *args:
     python3 performance/run.py {{ args }}
 
+# ---- Events export benchmark: wide vs list layout, codecs, row groups (see performance/README.md)
+[group('validation')]
+performance-events *args: lakehouse-setup
+    cargo build --release --locked -p {{ CLI_PACKAGE }} --example events_layouts
+    cargo build --release --locked -p {{ CLI_PACKAGE }}
+    target/lakehouse/py/bin/python performance/events.py {{ args }}
+
+# ---- Pinned DuckDB and PyArrow for the lakehouse checks, in target/lakehouse/py
+[group('validation')]
+lakehouse-setup:
+    uv venv -q --allow-existing target/lakehouse/py --python "$(command -v python3)"
+    uv pip sync -q --python target/lakehouse/py/bin/python --require-hashes parity/lakehouse/requirements.lock
+
+# ---- Exported events read by DuckDB and PyArrow, bit for bit (`--events 10000000` weekly)
+[group('validation')]
+lakehouse-interop *args: lakehouse-setup
+    cargo build --release --locked -p {{ CLI_PACKAGE }} --example events_layouts
+    cargo build --release --locked -p {{ CLI_PACKAGE }}
+    target/lakehouse/py/bin/python parity/lakehouse/interop.py {{ args }}
+
 # ---- Fast benchmark-runner checks; no performance workloads
 [group('quality')]
 performance-check:
