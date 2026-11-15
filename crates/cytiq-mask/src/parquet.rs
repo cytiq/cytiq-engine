@@ -400,6 +400,14 @@ impl PageReader for CheckedPages {
     #[allow(deprecated)]
     fn get_next_page(&mut self) -> Result<Option<Page>> {
         let page = self.inner.get_next_page()?;
+        // parquet 60.1.0's byte-stream-split decoder trusts the page's value
+        // count and indexes past a shorter buffer. No cytiq writer emits it.
+        if page
+            .as_ref()
+            .is_some_and(|page| page.encoding() == Encoding::BYTE_STREAM_SPLIT)
+        {
+            return Err(invalid("byte-stream-split pages are not supported"));
+        }
         if let Some(page) = &page {
             if let Page::DictionaryPage {
                 num_values,
@@ -1063,6 +1071,34 @@ mod tests {
                 Arc::new(Float64Array::from(vec![1.0, 2.0, 3.0])),
             ],
         )
+    }
+
+    #[test]
+    fn rejects_byte_stream_split_pages_before_decoding() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "value",
+            DataType::Float32,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Float32Array::from(vec![0.25_f32, 0.5, 0.75]))],
+        )
+        .unwrap();
+        let properties = parquet::file::properties::WriterProperties::builder()
+            .set_dictionary_enabled(false)
+            .set_encoding(Encoding::BYTE_STREAM_SPLIT)
+            .build();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut writer =
+            ArrowWriter::try_new(file.reopen().unwrap(), schema, Some(properties)).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+        let error = ScalarParquetReader::new(file.reopen().unwrap(), ParquetReadLimits::default())
+            .unwrap()
+            .collect::<Result<Vec<_>>>()
+            .expect_err("byte-stream-split pages must be refused");
+        assert!(error.to_string().contains("byte-stream-split"), "{error}");
     }
 
     #[test]
