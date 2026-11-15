@@ -128,6 +128,13 @@ pub fn events_parquet(bytes: &[u8]) {
         assert_eq!(raw_events, summary.rows);
     }
     assert_eq!(summary.rows == 0, summary.max_source_event_id.is_none());
+    assert_eq!(summary.rows == 0, summary.min_source_event_id.is_none());
+    assert!(summary.min_source_event_id <= summary.max_source_event_id);
+    assert_ne!(summary.channels.len(), 0, "a table stores a channel");
+    assert_eq!(
+        summary.all_columns,
+        summary.channels.len() == summary.descriptor.channels.len()
+    );
     let mut again = Issues::new();
     let repeat =
         events::verify_with_limits(bytes::Bytes::copy_from_slice(bytes), LIMITS, "", &mut again);

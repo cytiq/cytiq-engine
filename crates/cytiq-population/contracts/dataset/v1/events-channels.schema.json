@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cytiq/cytiq-engine/contracts/dataset/v1/events-channels.schema.json",
+  "title": "cytiq.events.v1 channel dictionary",
+  "description": "The `cytiq.events.channels` key-value metadata of an events table: one entry per stored channel column, in column order. Keyword fields repeat the channel's `$Pn` keywords and are absent when the file leaves them out.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/channel"
+  },
+  "minItems": 1,
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "channel": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "value_type": {
+          "enum": [
+            "uint64",
+            "float32",
+            "float64"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/text"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "compensation",
+              "unmixing",
+              "transform",
+              "normalization"
+            ]
+          }
+        },
+        "label": {
+          "$ref": "#/$defs/text"
+        },
+        "analyte": {
+          "$ref": "#/$defs/text"
+        },
+        "reporter": {
+          "$ref": "#/$defs/text"
+        },
+        "detector": {
+          "$ref": "#/$defs/text"
+        },
+        "feature": {
+          "$ref": "#/$defs/text"
+        },
+        "excitation": {
+          "$ref": "#/$defs/text"
+        },
+        "filter": {
+          "$ref": "#/$defs/text"
+        },
+        "voltage": {
+          "$ref": "#/$defs/text"
+        },
+        "gain": {
+          "$ref": "#/$defs/text"
+        },
+        "range": {
+          "$ref": "#/$defs/text"
+        },
+        "amplification": {
+          "$ref": "#/$defs/text"
+        },
+        "bits": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name",
+        "value_type",
+        "kind"
+      ]
+    }
+  }
+}

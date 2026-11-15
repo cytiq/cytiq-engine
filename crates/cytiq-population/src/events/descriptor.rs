@@ -42,6 +42,11 @@ pub struct ExportOptions {
     pub compensation_matrix: Option<Definition>,
     /// Required when `cytiq autospectral` unmixed the file.
     pub unmixing_reference: Option<Definition>,
+    /// The layer the caller expects; a file holding another is refused.
+    pub layer: LayerState,
+    /// Accept a file whose rows are a subset of the acquisition's events
+    /// (it has `Original_ID`). Without it, filtering must stay a mask.
+    pub allow_subset: bool,
 }
 
 fn invalid(message: impl Into<String>) -> PopulationError {

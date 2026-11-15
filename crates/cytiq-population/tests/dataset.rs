@@ -5,7 +5,7 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{Built, build};
+use common::{Built, Storage, build, build_storing};
 use cytiq_population::dataset::{
     self, ArtifactEntry, ArtifactRole, DatasetManifest, Profile, ReportStatus, ValidateOptions,
     contracts,
@@ -487,4 +487,37 @@ fn dataset_ids_are_reproducible_from_canonical_json() {
         "canonical JSON round-trips byte for byte"
     );
     let _: PathBuf = built.root.path().to_path_buf();
+}
+
+#[test]
+fn layers_split_into_parts_validate_like_one_table() {
+    let whole = build();
+    let built = build_storing(Storage::Parts);
+    for profile in [Profile::Structural, Profile::MiflowcytMinimal] {
+        let issues = check(&built, profile, true);
+        assert!(!issues.has_errors(), "{profile:?}: {:?}", issues.items());
+    }
+    let (table, parts) = (&whole.manifest.artifacts[0], &built.manifest.artifacts[0]);
+    assert_eq!(parts.contract, contracts::EVENTS_PARTS);
+    assert_eq!(parts.semantic_id, table.semantic_id);
+    assert_eq!(parts.content.values_sha256, table.content.values_sha256);
+    // The dataset id covers each artifact's contract, so it does change.
+    assert_ne!(built.manifest.dataset_id, whole.manifest.dataset_id);
+    let manifest = built.root.path().join(&parts.location);
+    let document: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    dataset::conforms(&document, "events-parts.schema.json").unwrap();
+    assert_eq!(document["parts"].as_array().unwrap().len(), 3);
+
+    let directory = manifest.parent().unwrap();
+    std::fs::remove_file(directory.join(cytiq_population::events::part_name(2))).unwrap();
+    expect(&built, true, IssueCode::MissingObject);
+}
+
+#[test]
+fn a_projection_is_not_a_signal_layer() {
+    let built = build_storing(Storage::Projection);
+    let issues = check(&built, Profile::Structural, false);
+    assert!(!issues.has_errors(), "{:?}", issues.items());
+    expect(&built, true, IssueCode::PanelMismatch);
 }

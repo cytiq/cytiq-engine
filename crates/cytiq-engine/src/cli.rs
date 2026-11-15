@@ -66,7 +66,7 @@ pub(crate) enum Commands {
     Cytonorm(CytoNormCommand),
     /// Export FCS events as `cytiq.events.v1` lakehouse tables.
     #[command(subcommand)]
-    Events(crate::commands::events::EventsCommand),
+    Export(crate::commands::export::ExportCommand),
     /// Validate dataset manifests: identities, references, signal states,
     /// metadata, privacy and object digests.
     #[command(subcommand)]
@@ -154,7 +154,7 @@ impl Commands {
             ) => *threads,
             Self::Population(_)
             | Self::Specimen(_)
-            | Self::Events(_)
+            | Self::Export(_)
             | Self::Dataset(_)
             | Self::Classify(_)
             | Self::Mask(_)
@@ -482,7 +482,7 @@ pub(crate) const fn command_name(command: &Commands) -> &'static str {
         Commands::Specimen(crate::commands::specimen::SpecimenCommand::Report(_)) => {
             "specimen report"
         }
-        Commands::Events(crate::commands::events::EventsCommand::Export(_)) => "events export",
+        Commands::Export(crate::commands::export::ExportCommand::Events(_)) => "export events",
         Commands::Dataset(crate::commands::dataset::DatasetCommand::Validate(_)) => {
             "dataset validate"
         }

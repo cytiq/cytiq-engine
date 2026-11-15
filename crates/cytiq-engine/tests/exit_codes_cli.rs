@@ -330,19 +330,21 @@ fn lakehouse_commands_follow_the_exit_contract() {
     fs::write(&input, b"FCS3.1    garbage").expect("write");
     let outcome = directory.path().join("export.json");
     let output = cytiq(&[
-        "events",
         "export",
+        "events",
         "--input",
         utf8(&input),
         "--output",
         utf8(&directory.path().join("events.parquet")),
+        "--layer",
+        "raw",
         "--outcome",
         utf8(&outcome),
     ]);
     assert_eq!(output.status.code(), Some(2));
     assert_outcome(
         &outcome,
-        "cytiq events export",
+        "cytiq export events",
         "invalid_configuration",
         2,
         false,

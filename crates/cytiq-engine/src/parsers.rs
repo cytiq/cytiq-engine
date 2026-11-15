@@ -27,6 +27,36 @@ pub(crate) fn parse_positive_usize(raw: &str) -> Result<usize, String> {
     }
 }
 
+/// A byte count: an integer with an optional unit `B`, `KiB`, `MiB`, `GiB`
+/// or `TiB` (powers of 1024), greater than zero.
+pub(crate) fn parse_byte_size(raw: &str) -> Result<u64, String> {
+    let text = raw.trim();
+    let split = text
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(text.len());
+    let (digits, unit) = (&text[..split], text[split..].trim());
+    let multiplier: u64 = match unit {
+        "" | "B" => 1,
+        "KiB" => 1 << 10,
+        "MiB" => 1 << 20,
+        "GiB" => 1 << 30,
+        "TiB" => 1 << 40,
+        _ => {
+            return Err(format!(
+                "unknown unit `{unit}` in `{raw}`; use B, KiB, MiB, GiB or TiB"
+            ));
+        }
+    };
+    let value = digits
+        .parse::<u64>()
+        .map_err(|_| format!("expected a byte size such as `512MiB`, got `{raw}`"))?;
+    match value.checked_mul(multiplier) {
+        Some(0) => Err("byte size must be greater than zero".to_owned()),
+        Some(bytes) => Ok(bytes),
+        None => Err(format!("byte size `{raw}` overflows")),
+    }
+}
+
 pub(crate) fn parse_positive_f64(raw: &str) -> Result<f64, String> {
     let value = raw
         .parse::<f64>()

@@ -2018,12 +2018,12 @@
           }
         }
       },
-      "events": {
+      "export": {
         "args": [],
         "args_conflict_with_subcommands": false,
         "subcommand_required": true,
         "subcommands": {
-          "export": {
+          "events": {
             "args": [
               {
                 "action": "set",
@@ -2059,6 +2059,30 @@
                 "short": null,
                 "value_names": [
                   "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "layer",
+                "long": "layer",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "raw",
+                  "compensated",
+                  "unmixed",
+                  "transformed",
+                  "normalized"
+                ],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "LAYER"
                 ]
               },
               {
@@ -2119,6 +2143,160 @@
                 "short": null,
                 "value_names": [
                   "UNMIXING_REFERENCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "channels",
+                "long": "channels",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "CHANNELS"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "channel",
+                "long": "channel",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "CHANNEL"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "batch_size",
+                "long": "batch-size",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "BATCH_SIZE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "131072"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "row_group_size",
+                "long": "row-group-size",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "ROW_GROUP_SIZE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [
+                  "zstd"
+                ],
+                "global": false,
+                "hidden": false,
+                "id": "compression",
+                "long": "compression",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "zstd",
+                  "snappy"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "COMPRESSION"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "compression_level",
+                "long": "compression-level",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "COMPRESSION_LEVEL"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "max_file_bytes",
+                "long": "max-file-bytes",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "MAX_FILE_BYTES"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "allow_subset",
+                "long": "allow-subset",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "ALLOW_SUBSET"
                 ]
               },
               {
@@ -5907,14 +6085,23 @@
       "Validate.root",
       "Validate.verify_objects"
     ],
-    "events export": [
-      "Export",
-      "Export.base_state",
-      "Export.compensation_matrix",
-      "Export.input",
-      "Export.output",
-      "Export.overwrite",
-      "Export.unmixing_reference"
+    "export events": [
+      "Events",
+      "Events.allow_subset",
+      "Events.base_state",
+      "Events.batch_size",
+      "Events.channel",
+      "Events.channels",
+      "Events.compensation_matrix",
+      "Events.compression",
+      "Events.compression_level",
+      "Events.input",
+      "Events.layer",
+      "Events.max_file_bytes",
+      "Events.output",
+      "Events.overwrite",
+      "Events.row_group_size",
+      "Events.unmixing_reference"
     ],
     "flowsom": [
       "channel",

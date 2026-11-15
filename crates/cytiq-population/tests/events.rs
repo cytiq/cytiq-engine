@@ -118,6 +118,16 @@ fn rewrite(
     writer.close().unwrap();
 }
 
+/// The acquisition a cytiq stage records in the files it derives.
+const ACQUISITION: &str = "1111111111111111111111111111111111111111111111111111111111111111";
+
+fn layer(state: LayerState) -> ExportOptions {
+    ExportOptions {
+        layer: state,
+        ..ExportOptions::default()
+    }
+}
+
 fn errors(issues: &Issues) -> std::collections::BTreeSet<IssueCode> {
     issues.codes(Severity::Error)
 }
@@ -265,7 +275,21 @@ fn original_ids_become_source_event_ids_of_a_subset() {
         &[vec![1.0, 2.0, 3.0], vec![2.0, 5.0, 9.0]],
         &[],
     );
-    let (output, summary) = export(&input, &ExportOptions::default());
+    let error = events::export(
+        &input,
+        &directory.path().join("refused.parquet"),
+        &ExportOptions::default(),
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("keep the filter as a mask"),
+        "{error}"
+    );
+    let subset = ExportOptions {
+        allow_subset: true,
+        ..ExportOptions::default()
+    };
+    let (output, summary) = export(&input, &subset);
     assert_eq!(summary.raw_events, None);
     assert_eq!(
         summary.descriptor.channels.len(),
@@ -294,12 +318,8 @@ fn original_ids_become_source_event_ids_of_a_subset() {
         &[vec![1.0, 2.0], vec![5.0, 2.0]],
         &[],
     );
-    let error = events::export(
-        &unordered,
-        &directory.path().join("u.parquet"),
-        &ExportOptions::default(),
-    )
-    .unwrap_err();
+    let error =
+        events::export(&unordered, &directory.path().join("u.parquet"), &subset).unwrap_err();
     assert!(error.to_string().contains("increase strictly"), "{error}");
 }
 
@@ -355,6 +375,7 @@ fn compensation_with_the_files_own_spillover_is_recorded() {
     let input = standard(
         directory.path(),
         &[
+            ("CYTIQ_ACQUISITION", ACQUISITION),
             (
                 "CYTIQ_COMPENSATION",
                 r#"{"source":"fcs","channels":["FL1-A","FL2-A"]}"#,
@@ -362,7 +383,13 @@ fn compensation_with_the_files_own_spillover_is_recorded() {
             ("CYTIQ_SOURCE_SPILL", SPILL),
         ],
     );
-    let (output, summary) = export(&input, &ExportOptions::default());
+    let (output, summary) = export(&input, &layer(LayerState::Compensated));
+    assert_eq!(summary.descriptor.acquisition_id, ACQUISITION);
+    assert_eq!(
+        summary.source_sha256,
+        cytiq_provenance::hash_file(&input).unwrap().1,
+        "the source is the derived file, the acquisition its raw file"
+    );
     let step = &summary.descriptor.steps[0];
     assert_eq!(summary.descriptor.state, LayerState::Compensated);
     assert_eq!(
@@ -392,13 +419,16 @@ fn a_matrix_file_needs_its_definition_and_its_path_is_never_stored() {
     let directory = tempfile::tempdir().unwrap();
     let input = standard(
         directory.path(),
-        &[(
-            "CYTIQ_COMPENSATION",
-            r#"{"source":"/home/alice/study/matrix.csv","channels":["FL1-A"]}"#,
-        )],
+        &[
+            ("CYTIQ_ACQUISITION", ACQUISITION),
+            (
+                "CYTIQ_COMPENSATION",
+                r#"{"source":"/home/alice/study/matrix.csv","channels":["FL1-A"]}"#,
+            ),
+        ],
     );
     let output = directory.path().join("m.parquet");
-    let error = events::export(&input, &output, &ExportOptions::default()).unwrap_err();
+    let error = events::export(&input, &output, &layer(LayerState::Compensated)).unwrap_err();
     assert!(
         error.to_string().contains("supply the compensation matrix"),
         "{error}"
@@ -409,7 +439,7 @@ fn a_matrix_file_needs_its_definition_and_its_path_is_never_stored() {
             sha256: "e".repeat(64),
             verified: false,
         }),
-        ..ExportOptions::default()
+        ..layer(LayerState::Compensated)
     };
     let summary = events::export(&input, &output, &options).unwrap();
     assert_eq!(summary.descriptor.steps[0].origin, Origin::Declared);
@@ -426,6 +456,7 @@ fn processing_cannot_be_applied_twice_or_out_of_order() {
     let compensated = standard(
         directory.path(),
         &[
+            ("CYTIQ_ACQUISITION", ACQUISITION),
             (
                 "CYTIQ_COMPENSATION",
                 r#"{"source":"fcs","channels":["FL1-A"]}"#,
@@ -436,7 +467,7 @@ fn processing_cannot_be_applied_twice_or_out_of_order() {
     let output = directory.path().join("x.parquet");
     let declared = ExportOptions {
         base_state: BaseState::Compensated,
-        ..ExportOptions::default()
+        ..layer(LayerState::Compensated)
     };
     let error = events::export(&compensated, &output, &declared).unwrap_err();
     assert!(
@@ -446,16 +477,19 @@ fn processing_cannot_be_applied_twice_or_out_of_order() {
 
     let normalized = standard(
         directory.path(),
-        &[(
-            "CYTIQ_NORMALIZATION",
-            &format!(
-                r#"{{"schema_version":1,"model_sha256":"{}","batch":"B1","panel_sha256":"{}","channels":["FL1-A"]}}"#,
-                "a".repeat(64),
-                "b".repeat(64)
+        &[
+            ("CYTIQ_ACQUISITION", ACQUISITION),
+            (
+                "CYTIQ_NORMALIZATION",
+                &format!(
+                    r#"{{"schema_version":1,"model_sha256":"{}","batch":"B1","panel_sha256":"{}","channels":["FL1-A"]}}"#,
+                    "a".repeat(64),
+                    "b".repeat(64)
+                ),
             ),
-        )],
+        ],
     );
-    let error = events::export(&normalized, &output, &ExportOptions::default()).unwrap_err();
+    let error = events::export(&normalized, &output, &layer(LayerState::Normalized)).unwrap_err();
     assert!(error.to_string().contains("transformed first"), "{error}");
 
     let unrelated = ExportOptions {
@@ -479,7 +513,7 @@ fn externally_processed_files_carry_an_external_step() {
     let input = standard(directory.path(), &[]);
     let options = ExportOptions {
         base_state: BaseState::Compensated,
-        ..ExportOptions::default()
+        ..layer(LayerState::Compensated)
     };
     let (_, summary) = export(&input, &options);
     assert_eq!(summary.descriptor.state, LayerState::Compensated);
@@ -493,14 +527,24 @@ const ARCSINH: &str = r#"{"method":"arcsinh","parameters":{"cofactor":150},"file
 fn layers_of_different_acquisitions_never_share_an_identity() {
     let first = tempfile::tempdir().unwrap();
     let second = tempfile::tempdir().unwrap();
-    let a = standard(first.path(), &[("CYTIQ_TRANSFORM", ARCSINH)]);
-    // Same events, another acquisition: its TEXT differs, so its digest does.
+    let a = standard(
+        first.path(),
+        &[
+            ("CYTIQ_ACQUISITION", ACQUISITION),
+            ("CYTIQ_TRANSFORM", ARCSINH),
+        ],
+    );
+    // Same events, another acquisition.
+    let other = "2".repeat(64);
     let b = standard(
         second.path(),
-        &[("CYTIQ_TRANSFORM", ARCSINH), ("$SMNO", "other")],
+        &[
+            ("CYTIQ_ACQUISITION", other.as_str()),
+            ("CYTIQ_TRANSFORM", ARCSINH),
+        ],
     );
-    let (output_a, summary_a) = export(&a, &ExportOptions::default());
-    let (output_b, summary_b) = export(&b, &ExportOptions::default());
+    let (output_a, summary_a) = export(&a, &layer(LayerState::Transformed));
+    let (output_b, summary_b) = export(&b, &layer(LayerState::Transformed));
     assert_ne!(
         summary_a.descriptor.acquisition_id,
         summary_b.descriptor.acquisition_id

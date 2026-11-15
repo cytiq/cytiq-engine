@@ -497,7 +497,9 @@ fn check_knowledge(manifest: &DatasetManifest, issues: &mut Issues) {
 /// Which contracts each role takes.
 fn role_takes(role: ArtifactRole, contract: &str) -> bool {
     match role {
-        ArtifactRole::SignalLayer => contract == contracts::EVENTS,
+        ArtifactRole::SignalLayer => {
+            contract == contracts::EVENTS || contract == contracts::EVENTS_PARTS
+        }
         ArtifactRole::TechnicalMask => contract == contracts::MASK,
         ArtifactRole::Annotation => {
             contract == contracts::MASK
