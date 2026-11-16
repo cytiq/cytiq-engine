@@ -101,6 +101,11 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           key: scientific
+      # The Rust cache holds all of target/, including the evidence directories
+      # of the run that saved it. Evidence comes only from this run, and the
+      # scientific scripts refuse an existing output directory.
+      - name: Clear cached evidence
+        run: rm -rf target/scientific/results target/scientific/environment
       - name: Restore and verify reference packages
         id: setup
         run: just parity-setup
