@@ -121,6 +121,9 @@ codecs with bounded output buffers may be enabled (Snappy, Zstd and LZ4_RAW).
 An independently generated GZIP fixture with a false page size permanently tests
 this fail-closed boundary. Snappy decodes into a buffer of the page's declared
 size; a frame longer than that is refused (`snappy_frames_longer_than_their_declared_page_are_refused`).
+A shorter frame is zero-filled up to the declared size, which the limits are
+charged with, and the decoder reads only the page's values, so the padding never
+becomes a value (`snappy_headers_overstating_their_frame_add_no_value`).
 
 `BYTE_STREAM_SPLIT` pages are refused before decoding: parquet 60.1.0's decoder
 trusts a page's value count and indexes past a shorter buffer (found by the

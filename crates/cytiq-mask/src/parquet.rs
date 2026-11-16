@@ -1055,6 +1055,50 @@ mod tests {
     }
 
     #[test]
+    fn snappy_headers_overstating_their_frame_add_no_value() {
+        let file = snappy_table();
+        let offset = {
+            let reader = SerializedFileReader::new(file.reopen().unwrap()).unwrap();
+            usize::try_from(reader.metadata().row_group(0).column(0).data_page_offset()).unwrap()
+        };
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        assert_eq!(bytes[offset..offset + 4], [0x15, 0x00, 0x15, 48]);
+        bytes[offset + 3] = 64; // 32 bytes declared for the 24-byte frame.
+        std::fs::write(file.path(), &bytes).unwrap();
+        // parquet 60 zero-fills a Snappy page up to its declared size and the
+        // decoder reads only the page's values, so the page either fails or
+        // yields exactly the frame's values; the padding is never a value.
+        let read = ScalarParquetReader::new(file.reopen().unwrap(), ParquetReadLimits::default())
+            .unwrap()
+            .collect::<Result<Vec<_>>>();
+        if let Ok(batches) = read {
+            let rows: usize = batches.iter().map(RecordBatch::num_rows).sum();
+            assert_eq!(rows, 3);
+            let values = batches[0]
+                .column(0)
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap();
+            let bits: Vec<u64> = values.values().iter().map(|v| v.to_bits()).collect();
+            assert_eq!(
+                bits,
+                [0.25_f64.to_bits(), (-0.0_f64).to_bits(), f64::MAX.to_bits()]
+            );
+        }
+        // The overstated size is what the limits are charged with.
+        let error = ScalarParquetReader::new(
+            file.reopen().unwrap(),
+            ParquetReadLimits {
+                page_bytes: 31,
+                ..ParquetReadLimits::default()
+            },
+        )
+        .err()
+        .expect("the declared size, not the frame, is checked against the limit");
+        assert!(error.to_string().contains("exceeds limit"), "{error}");
+    }
+
+    #[test]
     fn preserves_nulls_and_unsigned_counts_and_enforces_budgets() {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "count",
