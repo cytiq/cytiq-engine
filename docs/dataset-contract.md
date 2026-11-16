@@ -211,8 +211,8 @@ could not read. The limits per table are 2^30 rows, 8 GiB decoded (keys included
 - the codec state of each column (about 1.5 MiB per channel with zstd level 1,
   less with Snappy; see [Physical layout](#physical-layout)).
 
-The input is hashed before the export (`source_sha256`). It is refused if its
-TEXT or file stamp (length, modification time, inode) changed by the end.
+The input is hashed before the export (`source_sha256`) and again after it. It
+is refused if its TEXT or its bytes changed in between.
 
 **Determinism**: the same input, settings and writer give the same bytes. Rows
 are in raw order (`source_event_id` strictly increasing) and channels in `$Pn`
@@ -296,6 +296,10 @@ Environment:
 
 \* An outlier run; the same variant took 20.0 s on 10M mixed-type events.
 † The list writer does not hash, verify or record provenance; a wide export does all three.
+
+The table predates hashing the input a second time at the end of the export.
+That second read of the 1.2 GB input adds about 0.8 s to a 10M-event export on
+the same machine.
 
 Findings:
 - **Layout.** In SQL, wide was 10–70× faster for one channel and 2–4× faster

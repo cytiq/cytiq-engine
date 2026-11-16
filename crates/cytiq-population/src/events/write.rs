@@ -74,8 +74,8 @@ pub fn export(input: &Path, output: &Path, options: &ExportOptions) -> Result<Ex
 /// Memory holds one batch of decoded events, the row group being encoded
 /// and one batch read back. Every table is read back through the bounded
 /// reader within `limits` and must hold exactly the exported values. The
-/// input is hashed before the export, and refused if its TEXT or its file
-/// stamp (length, modification time, inode) differ afterwards.
+/// input is hashed before the export and again after it, and refused if its
+/// TEXT or its bytes changed in between.
 ///
 /// # Errors
 /// Returns FCS read errors, descriptor refusals (see
@@ -93,7 +93,6 @@ pub fn export_with(
     settings: &WriteSettings,
     limits: ParquetReadLimits,
 ) -> Result<ExportSummary> {
-    let stamp = FileStamp::of(input)?;
     let source_sha256 = cytiq_provenance::hash_file(input)?.1;
     let layout = Layout::describe(input, options, settings, &limits, &source_sha256)?;
     let mut sink = Sink::new(
@@ -110,8 +109,10 @@ pub fn export_with(
         },
     )?;
     let written = layout.stream(input, &mut sink)?;
+    // A modification time can stay the same through a rewrite (coarse
+    // clocks, network shares), so the bytes themselves are compared.
     require(
-        FileStamp::of(input)? == stamp,
+        cytiq_provenance::hash_file(input)?.1 == source_sha256,
         "the input changed while it was exported",
     )?;
     let (values_sha256, parts) = sink.finish()?;
@@ -263,32 +264,6 @@ impl Layout {
             "the input's events disagree with its `$TOT`",
         )?;
         Ok(written)
-    }
-}
-
-/// What identifies a file's content without reading it: its length,
-/// modification time and, on Unix, device and inode. A write during the
-/// export changes it.
-#[derive(Debug, PartialEq, Eq)]
-struct FileStamp {
-    len: u64,
-    modified: std::time::SystemTime,
-    #[cfg(unix)]
-    inode: (u64, u64),
-}
-
-impl FileStamp {
-    fn of(path: &Path) -> Result<Self> {
-        let metadata = std::fs::metadata(path)?;
-        Ok(Self {
-            len: metadata.len(),
-            modified: metadata.modified()?,
-            #[cfg(unix)]
-            inode: {
-                use std::os::unix::fs::MetadataExt as _;
-                (metadata.dev(), metadata.ino())
-            },
-        })
     }
 }
 

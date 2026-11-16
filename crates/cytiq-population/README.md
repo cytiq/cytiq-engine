@@ -77,8 +77,8 @@ The export streams with `FcsReader::stream`. Memory holds one batch, the
 encoded row group, one read-back batch, and the codec state of each column.
 It reads every table back through the bounded reader and publishes it only
 when the values digest matches. It records the input's digest
-(`cytiq.events.source_sha256`) and refuses an input whose TEXT or file stamp
-changed during the export.
+(`cytiq.events.source_sha256`), hashes it again at the end and refuses an
+input whose TEXT or bytes changed during the export.
 
 A split layer is a directory of `part-NNNNN.parquet` tables and `parts.json`
 (`PartsManifest`, `cytiq.events.parts.v1`), whose layer digest equals the
