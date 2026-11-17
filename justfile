@@ -111,6 +111,9 @@ lakehouse-interop *args: lakehouse-setup
     cargo build --release --locked -p {{ CLI_PACKAGE }} --example events_layouts
     cargo build --release --locked -p {{ CLI_PACKAGE }}
     target/lakehouse/py/bin/python parity/lakehouse/interop.py {{ args }}
+    rm -rf target/lakehouse/analytics
+    CYTIQ_LAKEHOUSE_DATASET="$PWD/target/lakehouse/analytics" cargo test --release --locked -p {{ CLI_PACKAGE }} --test lakehouse_dataset -- --ignored
+    target/lakehouse/py/bin/python parity/lakehouse/labels.py
 
 # ---- Fast benchmark-runner checks; no performance workloads
 [group('quality')]

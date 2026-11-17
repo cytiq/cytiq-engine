@@ -238,9 +238,9 @@ fn label_views(b: &mut Builder, labels: &[LabelTable]) {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!(
-                "  SELECT * FROM (UNPIVOT INCLUDE NULLS (SELECT acquisition_id, annotation_id, \
-                 source_event_id, state, {columns} FROM read_parquet({})) ON {columns} \
-                 INTO NAME gate VALUE member)",
+                "  SELECT * FROM (SELECT acquisition_id, annotation_id, source_event_id, state, \
+                 {columns} FROM read_parquet({})) UNPIVOT INCLUDE NULLS (member FOR gate IN \
+                 ({columns}))",
                 literal(&t.location)
             )
         })
@@ -281,10 +281,10 @@ fn sample_views(b: &mut Builder) {
          \x20 UNION ALL\n\
          \x20 SELECT annotation_id, 'label', class FROM label_classes\n\
          \x20 UNION ALL\n\
-         \x20 SELECT annotation_id, 'metacluster', CAST(unnest(range(1, metaclusters + 1)) AS VARCHAR)\n\
+         \x20 SELECT annotation_id, 'metacluster', CAST(unnest(range(1, CAST(metaclusters AS BIGINT) + 1)) AS VARCHAR)\n\
          \x20 FROM labels WHERE kind = 'cluster' AND metaclusters IS NOT NULL\n\
          )\n\
-         SELECT s.sample_id, s.subject_id, l.acquisition_id, l.annotation_id, l.definition_id, l.kind,\n\
+         SELECT s.sample_id, s.subject_id, s.panel_id, l.acquisition_id, l.annotation_id, l.definition_id, l.kind,\n\
          \x20 cells.label_column, cells.label_value,\n\
          \x20 coalesce(n.count, 0) AS count,\n\
          \x20 CASE l.kind WHEN 'gate' THEN t.assessed WHEN 'classifier' THEN t.predicted ELSE t.classified END AS denominator,\n\
@@ -357,14 +357,15 @@ fn cohort_views(b: &mut Builder, manifest: &DatasetManifest) {
         "cohort_labels",
         &format!(
             "WITH per_subject AS (\n\
-             \x20 SELECT d.subject_id, {factors}f.definition_id, f.kind, f.label_column, f.label_value,\n\
+             \x20 SELECT d.subject_id, {factors}f.panel_id, f.definition_id, f.kind, f.label_column,\n\
+             \x20   f.label_value,\n\
              \x20   count(DISTINCT f.annotation_id) FILTER (WHERE f.fraction IS NOT NULL) AS usable,\n\
              \x20   0 AS qc_rejected,\n\
              \x20   max(f.fraction) AS value\n\
-             \x20 FROM sample_label_fractions f JOIN sample_design d USING (sample_id)\n\
+             \x20 FROM sample_label_fractions f JOIN sample_design d USING (sample_id, panel_id)\n\
              \x20 GROUP BY ALL\n\
              )\n\
-             SELECT {factors}definition_id, kind, label_column, label_value,\n\
+             SELECT {factors}panel_id, definition_id, kind, label_column, label_value,\n\
              {statistics}\n\
              FROM per_subject GROUP BY ALL"
         ),
@@ -398,7 +399,7 @@ fn diffcyt_views(b: &mut Builder, manifest: &DatasetManifest, labels: &[LabelTab
         "diffcyt_counts",
         "SELECT l.definition_id, CAST(l.m AS VARCHAR) AS cluster_id, s.sample_id,\n\
          \x20 coalesce(c.count, 0) AS n_cells\n\
-         FROM (SELECT annotation_id, acquisition_id, definition_id, unnest(range(1, metaclusters + 1)) AS m\n\
+         FROM (SELECT annotation_id, acquisition_id, definition_id, unnest(range(1, CAST(metaclusters AS BIGINT) + 1)) AS m\n\
          \x20     FROM labels WHERE kind = 'cluster' AND definition_id IS NOT NULL AND metaclusters IS NOT NULL) l\n\
          JOIN samples s USING (acquisition_id)\n\
          LEFT JOIN label_counts c ON c.annotation_id = l.annotation_id AND c.label_column = 'metacluster'\n\

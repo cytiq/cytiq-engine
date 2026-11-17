@@ -50,3 +50,47 @@ Each input is exported as one table and as Snappy parts, and checked:
 
 A zero-event FCS file has no DATA segment, and `cytiq-fcs` requires one, so
 export refuses it.
+
+## Event labels and the analytics product
+
+`labels.py` queries the analytics product (`cytiq dataset export`) with the
+pinned DuckDB and checks each answer against an independent oracle: PyArrow
+reading the label tables and the native masks, memberships and predictions,
+and Python reading FlowSOM's CSV. `just lakehouse-interop` first builds the
+cohort it queries with the real commands
+(`crates/cytiq-engine/tests/lakehouse_dataset.rs`, an ignored test run with
+`CYTIQ_LAKEHOUSE_DATASET`):
+- four subjects in two groups, one also measured on a second panel;
+- per acquisition, a combined QC mask (`compensate` margins and `clean`),
+  gate membership of `specimen/gates.xml` within it, FlowSOM clusters of one
+  shared model, and a `population observe` package;
+- a classifier acquisition whose legacy binary margin gives abstentions.
+
+It also exports the reference dataset of `data/fixtures/dataset`, whose
+gates are nested, overlapping and empty.
+
+Checked, on both products where they apply:
+- every view of `views.sql` runs;
+- label counts are `UBIGINT` and equal the oracle's per state and value,
+  and SQL row counts;
+- each raw event has exactly one row per label table, and no event twice;
+- joins on (`acquisition_id`, `source_event_id`) survive shuffled events,
+  and QC-accepted events are exactly the gate-assessed ones;
+- a membership naming one raw event twice is refused (exit 2, nothing
+  written);
+- no gate member is outside its parent; gate cells are null exactly when
+  not assessed; the reference's overlapping and empty gates count right;
+- legacy `unknown` predictions are margin abstentions with probabilities and
+  no class; unassessed rows hold only nulls; classifier fractions keep
+  abstentions in the denominator;
+- `population observe` counts equal the SQL label counts, and its fractions
+  are count / denominator exactly;
+- row numbers repeat across panels, and only the acquisition key keeps them
+  apart;
+- cohort statistics count subjects (one per panel), never events, with no
+  ambiguous subject, and their means equal the oracle's;
+- diffcyt counts are zero-filled per metacluster and sample and equal
+  FlowSOM's assignments;
+- a second export gives the same `product.json` and `views.sql`.
+
+The report is `target/lakehouse/labels/labels.json`.
