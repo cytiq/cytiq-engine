@@ -9,6 +9,7 @@ pub mod events;
 pub mod identity;
 pub mod issue;
 pub mod knowledge;
+pub mod labels;
 mod native;
 pub mod observation;
 pub mod privacy;

@@ -467,6 +467,10 @@ pub const PUBLISHED_SCHEMAS: &[(&str, &str)] = &[
         include_str!("../../contracts/dataset/v1/events-parts.schema.json"),
     ),
     (
+        "labels-descriptor.schema.json",
+        include_str!("../../contracts/dataset/v1/labels-descriptor.schema.json"),
+    ),
+    (
         "validation-report.schema.json",
         include_str!("../../contracts/dataset/v1/validation-report.schema.json"),
     ),

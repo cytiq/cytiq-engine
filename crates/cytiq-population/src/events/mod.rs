@@ -46,6 +46,7 @@ pub use settings::{
     BATCH_BYTES_MAX, Codec, DEFAULT_BATCH_BYTES, DEFAULT_ROW_GROUP_ROWS, DEFAULT_ZSTD_LEVEL,
     ROW_GROUP_BYTES_MAX, WriteSettings,
 };
+pub(crate) use settings::{TableShape, check_table};
 pub use write::{ExportSummary, export, export_with};
 
 /// Contract identifier of an events table.

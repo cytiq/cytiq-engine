@@ -200,13 +200,18 @@ impl WriteSettings {
             TableShape {
                 rows: table_rows,
                 columns: stored.len() as u64 + 3,
+                dictionaries: 2,
                 value_bytes: value_bytes as u64,
                 decoded_row: decoded_row as u64,
                 row_group_rows: self.row_group_rows.get() as u64,
                 metadata_bytes,
             },
             limits,
-            part_rows.is_some(),
+            if part_rows.is_some() {
+                "lower `--max-file-bytes`"
+            } else {
+                "split the layer with `--max-file-bytes`"
+            },
         )?;
         Ok(Plan {
             batch_rows,
@@ -219,13 +224,19 @@ impl WriteSettings {
 
 /// The largest table of an export.
 #[derive(Clone, Copy, Debug)]
-struct TableShape {
-    rows: u64,
-    columns: u64,
-    value_bytes: u64,
-    decoded_row: u64,
-    row_group_rows: u64,
-    metadata_bytes: u64,
+pub(crate) struct TableShape {
+    pub rows: u64,
+    pub columns: u64,
+    /// Dictionary-encoded columns, each adding a dictionary page per row
+    /// group.
+    pub dictionaries: u64,
+    /// Uncompressed bytes of one row, as stored.
+    pub value_bytes: u64,
+    /// Bytes of one row once decoded, with the reader's allocation slack.
+    pub decoded_row: u64,
+    pub row_group_rows: u64,
+    /// Footer key-value bytes, including the Arrow schema.
+    pub metadata_bytes: u64,
 }
 
 impl TableShape {
@@ -248,23 +259,25 @@ impl TableShape {
     }
 
     /// Data pages per column chunk follow the writer's row limit per page,
-    /// plus one for a page cut short; both keys add a dictionary page.
+    /// plus one for a page cut short; each dictionary column adds a
+    /// dictionary page.
     fn pages(self) -> u64 {
         let per_chunk = self
             .group_rows()
             .div_ceil(DEFAULT_DATA_PAGE_ROW_COUNT_LIMIT as u64)
             + 1;
         self.groups()
-            .saturating_mul(self.columns.saturating_mul(per_chunk) + 2)
+            .saturating_mul(self.columns.saturating_mul(per_chunk) + self.dictionaries)
     }
 }
 
-fn check_table(shape: TableShape, limits: &ParquetReadLimits, split: bool) -> Result<()> {
-    let split_hint = if split {
-        "lower `--max-file-bytes`"
-    } else {
-        "split the layer with `--max-file-bytes`"
-    };
+/// Refuse a table the bounded verifier could not read within `limits`;
+/// refusals end with `split_hint`, what would make the table smaller.
+pub(crate) fn check_table(
+    shape: TableShape,
+    limits: &ParquetReadLimits,
+    split_hint: &str,
+) -> Result<()> {
     let rows = shape.rows;
     require(
         rows <= limits.rows,

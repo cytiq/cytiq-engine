@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cytiq/cytiq-engine/contracts/dataset/v1/labels-descriptor.schema.json",
+  "title": "cytiq.events.labels.descriptor.v1",
+  "description": "Footer `cytiq.labels.descriptor` of a `cytiq.events.labels.v1` table: where its per-event labels come from. `annotation_id` is the canonical digest of this document; `definition_id`, present when `definition` is not null, the canonical digest of {contract: cytiq.events.labels.definition.v1, kind, tool, definition, labels}.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "cytiq.events.labels.descriptor.v1"
+    },
+    "kind": {
+      "enum": [
+        "qc",
+        "gate",
+        "cluster",
+        "classifier"
+      ]
+    },
+    "acquisition_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "raw_events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "producer": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_contract": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "input_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "input_layer_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "native_contract",
+        "native_sha256",
+        "input_sha256",
+        "input_layer_id"
+      ]
+    },
+    "definition": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "inputs": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "parameters": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inputs",
+            "parameters"
+          ]
+        }
+      ]
+    },
+    "eligibility": {
+      "type": "object",
+      "properties": {
+        "masks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        },
+        "verified": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "masks",
+        "verified"
+      ]
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "class": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "kind",
+    "acquisition_id",
+    "raw_events",
+    "producer",
+    "definition",
+    "eligibility",
+    "labels"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

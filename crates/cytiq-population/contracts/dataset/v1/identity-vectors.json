@@ -1,5 +1,5 @@
 {
-  "note": "Digests are SHA-256 over canonical JSON (sorted keys, indent 2, ASCII, Python float repr, trailing newline) unless stated; values_sha256 hashes the domain tag, layer id and little-endian rows.",
+  "note": "Digests are SHA-256 over canonical JSON (sorted keys, indent 2, ASCII, Python float repr, trailing newline) unless stated; values_sha256 hashes the domain tag, layer id and little-endian rows; labels_values_sha256 hashes the domain tag, annotation id and each row as a little-endian u64 id, a u32-length-prefixed state, then per cell a null tag (0) or 1 and the value.",
   "schema_version": 1,
   "vectors": [
     {
@@ -155,6 +155,124 @@
       },
       "name": "values_sha256",
       "sha256": "59c1507f0cb168521d1bdfe79150e3abe1df87daf503fcc9514c6f991f9562c7"
+    },
+    {
+      "input": {
+        "acquisition_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "contract": "cytiq.events.labels.descriptor.v1",
+        "definition": {
+          "inputs": {
+            "gating_ml": [
+              "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            ]
+          },
+          "parameters": {}
+        },
+        "eligibility": {
+          "masks": [
+            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          ],
+          "verified": true
+        },
+        "kind": "gate",
+        "labels": [
+          {
+            "name": "cells"
+          },
+          {
+            "name": "CD3+",
+            "parent": "cells"
+          }
+        ],
+        "producer": {
+          "input_layer_id": null,
+          "input_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "native_contract": "cytiq.mask.v2",
+          "native_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tool": "cytiq gate"
+        },
+        "raw_events": 3
+      },
+      "name": "annotation_id",
+      "sha256": "7efd0c338c85d8ea0132b512c8336533fe8be4018ef18443d40555352f72fcba"
+    },
+    {
+      "input": {
+        "contract": "cytiq.events.labels.definition.v1",
+        "definition": {
+          "inputs": {
+            "gating_ml": [
+              "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            ]
+          },
+          "parameters": {}
+        },
+        "kind": "gate",
+        "labels": [
+          {
+            "name": "cells"
+          },
+          {
+            "name": "CD3+",
+            "parent": "cells"
+          }
+        ],
+        "tool": "cytiq gate"
+      },
+      "name": "definition_id",
+      "sha256": "2319892c2367526be835c735e41bf36743b3c8d4c7e77d3ff6fabb2d7bae2190"
+    },
+    {
+      "input": {
+        "annotation_id": "7efd0c338c85d8ea0132b512c8336533fe8be4018ef18443d40555352f72fcba",
+        "domain": "cytiq.events.labels.values.v1",
+        "rows": [
+          {
+            "cells": [
+              {
+                "type": "boolean",
+                "value": true
+              },
+              {
+                "type": "boolean",
+                "value": true
+              }
+            ],
+            "source_event_id": 0,
+            "state": "assessed"
+          },
+          {
+            "cells": [
+              {
+                "type": "boolean",
+                "value": true
+              },
+              {
+                "type": "boolean",
+                "value": false
+              }
+            ],
+            "source_event_id": 1,
+            "state": "assessed"
+          },
+          {
+            "cells": [
+              {
+                "type": "boolean",
+                "value": null
+              },
+              {
+                "type": "boolean",
+                "value": null
+              }
+            ],
+            "source_event_id": 2,
+            "state": "qc_rejected"
+          }
+        ]
+      },
+      "name": "labels_values_sha256",
+      "sha256": "11e325cede7d573ec8d323c7f78fdddd2c28b036cb80b83c123180c4cc63d230"
     }
   ]
 }
