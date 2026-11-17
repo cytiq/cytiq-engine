@@ -9,7 +9,12 @@ and their machine-readable form lives in `crates/cytiq-population/contracts/data
   `cytiq.events.parts.v1` manifest.
 - **Dataset manifest v1** is one canonical JSON document. It lists the
   acquisitions, panels and artifacts, with their identities, checksums and
-  scientific metadata.
+  scientific metadata, and optionally the study design.
+
+[Event labels](event-labels.md) (`cytiq.events.labels.v1`) carry what QC,
+gating, FlowSOM and classification decided about each event, keyed like
+events tables. The [analytics product](analytics.md) (`cytiq dataset
+export`) turns a dataset into tables and views for SQL and cohort analysis.
 
 Scope: these are lakehouse-ready files, not a lakehouse. Iceberg tables,
 object storage and catalogs are out of scope.
@@ -169,7 +174,9 @@ panel × layer state × `recipe_id`, and union files by column name.
 
 Technical masks (`cytiq.mask.v2`) and biological annotations (gate
 membership, classifier predictions) keep their own formats. They join an
-events table on (`acquisition_id`, `source_event_id`).
+events table on (`acquisition_id`, `source_event_id`). `cytiq export labels`
+converts each of them, and FlowSOM assignments, into a label table with one
+row per raw event and an explicit state ([event labels](event-labels.md)).
 
 ## Export
 
@@ -351,6 +358,7 @@ Sections:
 | `controls` | Control acquisitions with role and reporter |
 | `knowledge` | cytiq-tree artifacts by canonical digest |
 | `artifacts` | Each artifact's role, contract, `semantic_id`, acquisition, panel, `parents`, layer summary, `content` (`sha256`, `bytes`, `values_sha256`), `location` (relative object key) and optional `execution` |
+| `design` | Optional: subjects, the subject of each specimen, and experimental factors ([below](#study-design)) |
 
 Artifact roles: `signal_layer`, `technical_mask`, `annotation`,
 `observations`, `model`, `gating`, `knowledge` and `provenance`.
@@ -364,6 +372,7 @@ Supported contracts:
 - `cytiq.events.v1`
 - `cytiq.events.parts.v1`
 - `cytiq.mask.v2`
+- `cytiq.events.labels.v1` (role `annotation`)
 - `cytiq.classify.predictions.v2` … `v5`
 - `cytiq.population.annotations.v1`/`v2`
 - `cytiq.population.observations.v1`
@@ -377,6 +386,7 @@ Supported contracts:
 1. **Semantic**: what an artifact is. It is path-free and stable when a
    dataset moves.
    - Signal layer: `layer_id`.
+   - Label table: its `annotation_id`, the digest of its descriptor.
    - Knowledge: the canonical cytiq-tree digest.
    - Other artifacts: the digest of contract, role, acquisition, parents and
      content digest (`identity::semantic_id`).
@@ -388,10 +398,40 @@ Supported contracts:
 
 `dataset_id` is the canonical digest of the manifest without `dataset_id`
 and without every `content`, `location`, `execution` and acquisition
-`source`. The canonical form is sorted keys, two-space indent, ASCII,
+`source`. It covers the design. The canonical form is sorted keys, two-space indent, ASCII,
 Python float repr and a trailing newline (`serialization::canonical`).
 `contracts/dataset/v1/identity-vectors.json` lets other implementations
 check their digests.
+
+### Study design
+
+Cohort statistics count subjects, not events or samples: millions of cells
+of one patient are one observation. The `design` section says who is who:
+
+```json
+"design": {
+  "factors": [{"name": "group", "level": "subject"},
+              {"name": "timepoint", "level": "specimen"},
+              {"name": "batch", "level": "sample"}],
+  "subjects": [{"id": "P01", "factors": {"group": "case"}}],
+  "specimens": [{"specimen": "SP01", "subject": "P01", "factors": {"timepoint": "D0"}}],
+  "samples": [{"sample": "S12-M", "factors": {"batch": "B1"}}]
+}
+```
+
+- Subject ids are study pseudonyms. A date-shaped id or value warns
+  (`privacy_violation`); a SHA-256-shaped subject id warns
+  (`duplicate_identifier`).
+- A factor is declared once, with the level it varies at, and given only at
+  that level (`invalid_reference` otherwise). Every listed entity of a level
+  carries each factor of its level (`missing_metadata`).
+- Names are lowercase identifiers of at most 32 characters; values are
+  short codes (letters, digits and `_.:+-`, at most 64), never free text
+  (`malformed_document`).
+- Each specimen and sample is designed once, and names a specimen, sample
+  and subject that exist.
+
+Values are strings: the manifest holds no floats.
 
 ## Validation
 
@@ -413,12 +453,12 @@ Every issue has a code, a severity and a JSON pointer.
 | `incompatible_signal_state` | document, objects | Steps out of order or repeated; compensation and unmixing; normalization without transform; base state contradicting the panel; a step the cytometry forbids; different recipes in one panel × state; a parent that is not a step prefix |
 | `duplicate_event_identity` | document, objects | A layer listed twice; non-increasing or out-of-range `source_event_id`; parts out of order, overlapping or with a gap; an event twice in a mask |
 | `duplicate_acquisition` | document | An acquisition listed twice or bound to two samples |
-| `duplicate_identifier` | document | Repeated sample, panel, specimen, instrument, detector or location; a SHA-256-shaped sample id (warning) |
-| `invalid_reference` | document, objects | Unknown panel, specimen, acquisition or parent; a parent or table of another acquisition; a mask not covering every raw event; a provenance record not listing the object |
+| `duplicate_identifier` | document | Repeated sample, panel, specimen, instrument, detector, location, subject or factor; a SHA-256-shaped sample or subject id (warning) |
+| `invalid_reference` | document, objects | Unknown panel, specimen, acquisition, parent or subject; a parent or table of another acquisition; a mask not covering every raw event; a label table of another acquisition or event count; a factor given at another level; a provenance record not listing the object |
 | `inconsistent_channel_order` | document, objects | Indices out of `$Pn` order; repeated or reserved names; table columns in another order |
 | `missing_object` | objects | Absent object or part |
-| `corrupt_artifact_hash` | objects | Size, digest, values digest or layer id mismatch; unreadable table or parts manifest; a part of another layer; channel dictionary or column set inconsistent with the table |
-| `privacy_violation` | document | Undisclosed keyword; absolute path, URI, user-info; source FCS or provenance record without a disclosure |
+| `corrupt_artifact_hash` | objects | Size, digest, values digest, layer id or annotation id mismatch; unreadable table or parts manifest; a part of another layer; channel dictionary or column set inconsistent with the table; a label table breaking its kind's rules |
+| `privacy_violation` | document | Undisclosed keyword; absolute path, URI, user-info; source FCS, provenance record or population annotation descriptor without a disclosure; a date-shaped subject id or factor value (warning) |
 
 The `miflowcyt-minimal` profile also requires:
 - the study purpose;
@@ -449,6 +489,12 @@ A disclosure has this shape:
    "source_locations": false, "provenance_records": false}]}
 ```
 
+Population annotation descriptors (`event-annotations.json`,
+`cytiq.population.annotations.*`) record the absolute paths of their inputs,
+so a dataset lists them only under a disclosure with `provenance_records`,
+like provenance records. The analytics product copies their digests and
+counts, never their paths.
+
 The following are never exported verbatim, not even under a disclosure:
 - spillover matrices and `CYTIQ_*` signal keywords, which can contain paths;
   they enter only as digests and descriptors;
@@ -471,6 +517,7 @@ not know.
 ## Reference fixtures
 
 `data/fixtures/dataset` holds a three-panel reference dataset, built from
-existing FCS fixtures with the real commands. It has 20 malformed variants,
-one or more per issue code. See its
+existing FCS fixtures with the real commands, with QC and gate label tables
+and a study design. It has 26 malformed variants, one or more per issue
+code. See its
 [README](../data/fixtures/dataset/README.md).
