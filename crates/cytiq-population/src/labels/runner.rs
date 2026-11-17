@@ -133,23 +133,7 @@ impl LabelsRunner {
             }
         }
         let native_sha256 = hash_file(&config.input)?.1;
-        let record = producer_record(&config.producer_provenance)?;
-        require(
-            producers(config.kind).contains(&record.tool.as_str()),
-            format!(
-                "`{}` does not write {} labels",
-                record.tool,
-                config.kind.as_str()
-            ),
-        )?;
-        require(
-            record.outputs.iter().any(|f| f.sha256 == native_sha256),
-            format!(
-                "the producer record does not list `{}` among the outputs of `{}`",
-                config.input.display(),
-                record.tool
-            ),
-        )?;
+        let record = producer(config, &native_sha256)?;
         let anchor = anchor(&config.events)?;
         let raw_events = anchor.raw_events.ok_or_else(|| {
             PopulationError::Invalid(
@@ -158,7 +142,17 @@ impl LabelsRunner {
             )
         })?;
         let acquisition = anchor.descriptor.acquisition_id.clone();
-        let input_sha256 = single(&record, "input")?;
+        // `cytiq mask combine` reads masks only; every other producer reads
+        // one FCS file.
+        let input_sha256 = match (config.kind, digests(&record, "input").as_slice()) {
+            (_, [digest]) => Some(digest.clone()),
+            (LabelKind::Qc, []) => None,
+            _ => {
+                return Err(PopulationError::Invalid(
+                    "the producer record must name exactly one `input` input".into(),
+                ));
+            }
+        };
         let eligibility = Eligibility {
             masks: digests(&record, "mask"),
             verified: !config.qc_masks.is_empty(),
@@ -173,8 +167,9 @@ impl LabelsRunner {
             // be the events table's file, the raw file itself, or read with
             // QC masks of this acquisition.
             require(
-                anchor.source_sha256 == input_sha256
-                    || input_sha256 == acquisition
+                input_sha256
+                    .as_ref()
+                    .is_some_and(|input| *input == anchor.source_sha256 || *input == acquisition)
                     || eligible.is_some(),
                 "FlowSOM assignments name no acquisition: give the events table exported from \
                  the FCS file FlowSOM read, or the QC masks it read",
@@ -190,7 +185,7 @@ impl LabelsRunner {
                 tool: record.tool.clone(),
                 native_contract: source.contract.clone(),
                 native_sha256: native_sha256.clone(),
-                input_layer_id: (anchor.source_sha256 == input_sha256)
+                input_layer_id: (input_sha256.as_ref() == Some(&anchor.source_sha256))
                     .then(|| anchor.layer_id.clone()),
                 input_sha256,
             },
@@ -219,6 +214,29 @@ impl LabelsRunner {
         publication.commit()?;
         written.ok_or_else(|| PopulationError::Invalid("the export wrote nothing".into()))
     }
+}
+
+/// The record of the run that wrote the native file: its tool writes this
+/// kind, and it lists the file among its outputs.
+fn producer(config: &ExportLabelsConfig, native_sha256: &str) -> Result<RunRecord> {
+    let record = producer_record(&config.producer_provenance)?;
+    require(
+        producers(config.kind).contains(&record.tool.as_str()),
+        format!(
+            "`{}` does not write {} labels",
+            record.tool,
+            config.kind.as_str()
+        ),
+    )?;
+    require(
+        record.outputs.iter().any(|f| f.sha256 == native_sha256),
+        format!(
+            "the producer record does not list `{}` among the outputs of `{}`",
+            config.input.display(),
+            record.tool
+        ),
+    )?;
+    Ok(record)
 }
 
 /// The events table or parts manifest `path` names.

@@ -1,7 +1,8 @@
 //! `FlowSOM` assignments: the CSV `cytiq flowsom` writes, one record per
 //! assigned event, `event_index,source_event_id,flowsom_node,
-//! flowsom_metacluster`, nodes and metaclusters numbered from 1. Masked
-//! events have no record, and the file names no acquisition.
+//! flowsom_metacluster`. `event_index` is the event's row in the input FCS,
+//! nodes and metaclusters are numbered from 1. Masked events have no
+//! record, and the file names no acquisition.
 
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
@@ -26,6 +27,7 @@ pub(crate) fn stream(path: &Path, rows: &mut Rows<'_>) -> Result<()> {
         format!("FlowSOM assignments must start with the header `{HEADER}`"),
     )?;
     let mut row = 0_u64;
+    let mut previous: Option<u64> = None;
     while next_line(&mut reader, &mut line)? {
         let fields = record(&line).ok_or_else(|| {
             PopulationError::Invalid(format!(
@@ -34,9 +36,10 @@ pub(crate) fn stream(path: &Path, rows: &mut Rows<'_>) -> Result<()> {
         })?;
         let [index, id, node, metacluster] = fields;
         require(
-            index == row,
-            format!("FlowSOM assignment {row} has event index {index}"),
+            previous.is_none_or(|last| index > last),
+            format!("FlowSOM assignment {row} is not in input row order"),
         )?;
+        previous = Some(index);
         row += 1;
         rows.at(id)?;
         rows.assessed(id)?;

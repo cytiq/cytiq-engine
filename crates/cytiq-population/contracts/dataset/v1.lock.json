@@ -5,7 +5,7 @@
     "events-layer.schema.json": "b7f7c171a14edd65800902dcc61a4e20946a6cd2f869177baf4bea8cd6e7b956",
     "events-parts.schema.json": "f1064c6d519580952fc00337c5f132ac60074a0c980ea62d121ec7cbb4185d66",
     "identity-vectors.json": "9c34aad7d4bcf87883be44798e49c3d7bba543b64ac65df13e5e6ccf8480107b",
-    "labels-descriptor.schema.json": "7f19c3aa083fcbb3d4eebaf58839025b1de1e55cf319fe5a7696811c18ac0a06",
+    "labels-descriptor.schema.json": "e6e3952f376bd7423ce4ba340c1cd5d33b19bddeba5d7b449c572cbe6b56fd39",
     "validation-report.schema.json": "7ef86dc2fde8a9e5daa2dfdcedf20f3937ad72740c1fecc84454727535d082d5"
   },
   "schema_version": 1

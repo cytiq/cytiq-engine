@@ -44,8 +44,9 @@ pub struct Producer {
     pub native_contract: String,
     /// SHA-256 of the native file.
     pub native_sha256: String,
-    /// SHA-256 of the FCS file the producer read (its `input`).
-    pub input_sha256: String,
+    /// SHA-256 of the FCS file the producer read (its `input`); `None` only
+    /// for a QC mask combined from other masks.
+    pub input_sha256: Option<String>,
     /// The signal layer of that input, when its events table was given and
     /// verified to be the export of exactly that file.
     pub input_layer_id: Option<String>,
@@ -157,7 +158,7 @@ impl LabelDescriptor {
         require(
             is_sha256(&self.acquisition_id)
                 && is_sha256(&self.producer.native_sha256)
-                && is_sha256(&self.producer.input_sha256)
+                && self.producer.input_sha256.as_deref().is_none_or(is_sha256)
                 && self
                     .producer
                     .input_layer_id
@@ -168,6 +169,10 @@ impl LabelDescriptor {
         require(
             !self.producer.tool.is_empty() && !self.producer.native_contract.is_empty(),
             "the label producer needs a tool and a native contract",
+        )?;
+        require(
+            self.kind == LabelKind::Qc || self.producer.input_sha256.is_some(),
+            "only QC labels may come from a producer without an FCS input",
         )?;
         require(
             sorted_digests(&self.eligibility.masks),
@@ -307,7 +312,7 @@ mod tests {
                 tool: "cytiq gate".into(),
                 native_contract: "cytiq.mask.v2".into(),
                 native_sha256: "b".repeat(64),
-                input_sha256: "c".repeat(64),
+                input_sha256: Some("c".repeat(64)),
                 input_layer_id: None,
             },
             definition: Some(Definition {
@@ -339,7 +344,7 @@ mod tests {
         let mut other = one.clone();
         other.acquisition_id = "f".repeat(64);
         other.producer.native_sha256 = "0".repeat(64);
-        other.producer.input_sha256 = "1".repeat(64);
+        other.producer.input_sha256 = Some("1".repeat(64));
         other.eligibility.verified = false;
         assert_ne!(one.annotation_id(), other.annotation_id());
         assert_eq!(one.definition_id(), other.definition_id());

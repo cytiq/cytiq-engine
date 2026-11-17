@@ -35,7 +35,7 @@ fn producer(tool: &str, native_contract: &str) -> Producer {
         tool: tool.into(),
         native_contract: native_contract.into(),
         native_sha256: digest('b'),
-        input_sha256: digest('c'),
+        input_sha256: Some(digest('c')),
         input_layer_id: None,
     }
 }

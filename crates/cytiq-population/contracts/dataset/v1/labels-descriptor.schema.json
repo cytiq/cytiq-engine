@@ -38,7 +38,14 @@
           "$ref": "#/$defs/sha256"
         },
         "input_sha256": {
-          "$ref": "#/$defs/sha256"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "input_layer_id": {
           "oneOf": [

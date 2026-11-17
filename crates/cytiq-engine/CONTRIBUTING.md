@@ -140,7 +140,9 @@ determinism), `preflight_cli.rs`,
 transformed and externally processed layers, matrix verification against the producing run,
 the asserted `--layer`, malformed or truncated files publishing nothing, parts directories with
 their provenance checksums, channel selection and write-setting refusals),
-`dataset_cli.rs` (the reference dataset with every object verified, report and exit 3).
+`dataset_cli.rs` (the reference dataset with every object verified, report and exit 3),
+`export_labels_cli.rs` (every label kind on the pipeline chain and the classifier fixtures, refusals that
+publish nothing, and the output-conflict contract, which `overwrite_cli.rs` cannot run without producers).
 `tests/common/mod.rs` holds `assert_provenance`, `assert_provenance_chain` and
 `adjusted_rand_index`; `tests/common/dataset.rs` builds the reference dataset of
 `data/fixtures/dataset` with the real commands.
@@ -149,11 +151,11 @@ their provenance checksums, channel selection and write-setting refusals),
 JSON log lines and the conflict reason. `overwrite_cli.rs` pins the output-conflict contract of every result-writing
 command (exit 4, `--overwrite`, `--reuse skip`/`reject`). `threads_cli.rs`
 checks that `--threads` never changes outputs. `memory_budget.rs` runs the PeacoQC,
-FlowSOM, CytoNorm apply and events export library entry points on fixed 200k-event inputs
+FlowSOM, CytoNorm apply, events export and label export library entry points on fixed 200k-event inputs
 under a counting allocator (its own test binary, one rayon thread) and holds
 each peak heap to a frozen budget; lower a budget with the change that lowers
-its peak, and raise one only with a reviewed reason. It also requires the export
-peak at 1.2M events to stay within 10% of the peak at 300k. The counting allocator
+its peak, and raise one only with a reviewed reason. It also requires both export
+peaks at 1.2M events to stay within 10% of their peaks at 300k. The counting allocator
 does not see memory that C libraries allocate (zstd's per-column contexts); the
 events benchmark (`performance/events.py`) measures it as RSS.
 `examples/events_layouts.rs` generates the benchmark and interop inputs and writes
