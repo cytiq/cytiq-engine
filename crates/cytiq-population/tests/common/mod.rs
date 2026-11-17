@@ -338,6 +338,7 @@ pub fn build_storing(storage: Storage) -> Built {
         controls: vec![],
         knowledge: vec![],
         artifacts,
+        design: None,
     }
     .sealed();
     Built { root, manifest }

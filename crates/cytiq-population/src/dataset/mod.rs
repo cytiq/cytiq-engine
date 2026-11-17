@@ -15,6 +15,7 @@ mod objects;
 mod profile;
 mod runner;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use cytiq_manifest::{
@@ -428,6 +429,81 @@ pub struct DatasetManifest {
     pub knowledge: Vec<KnowledgeEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifacts: Vec<ArtifactEntry>,
+    /// Subjects and experimental factors, for cohort statistics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design: Option<Design>,
+}
+
+/// The study design. Subjects are the biological units cohort statistics
+/// count: many events, samples or specimens of one subject are still one
+/// subject. Factors (group, timepoint, batch...) are declared once, at the
+/// level they vary: a subject's group, a specimen's timepoint, a sample's
+/// batch. Ids and values are study pseudonyms, never names or dates.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Design {
+    pub factors: Vec<Factor>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subjects: Vec<SubjectEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub specimens: Vec<SpecimenDesign>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub samples: Vec<SampleDesign>,
+}
+
+/// One experimental factor and the level it is given at.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Factor {
+    pub name: String,
+    pub level: FactorLevel,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FactorLevel {
+    Subject,
+    Specimen,
+    Sample,
+}
+
+impl FactorLevel {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Subject => "subject",
+            Self::Specimen => "specimen",
+            Self::Sample => "sample",
+        }
+    }
+}
+
+/// A subject (donor, patient, animal) and its subject-level factors.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SubjectEntry {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub factors: BTreeMap<String, String>,
+}
+
+/// The subject a specimen comes from, and its specimen-level factors.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpecimenDesign {
+    pub specimen: String,
+    pub subject: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub factors: BTreeMap<String, String>,
+}
+
+/// A sample's sample-level factors.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SampleDesign {
+    pub sample: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub factors: BTreeMap<String, String>,
 }
 
 /// Fields that depend on where and how objects are stored, not on what the

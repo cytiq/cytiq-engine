@@ -660,3 +660,165 @@ fn population_annotation_descriptors_need_a_provenance_disclosure() {
         issues.items()
     );
 }
+
+/// Subject P01 in group AML; specimen SP01 at timepoint D0; both samples in
+/// batch B1.
+fn design() -> dataset::Design {
+    use dataset::{Design, Factor, FactorLevel, SampleDesign, SpecimenDesign, SubjectEntry};
+    let factors = |pairs: &[(&str, &str)]| {
+        pairs
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect()
+    };
+    Design {
+        factors: vec![
+            Factor {
+                name: "group".into(),
+                level: FactorLevel::Subject,
+            },
+            Factor {
+                name: "timepoint".into(),
+                level: FactorLevel::Specimen,
+            },
+            Factor {
+                name: "batch".into(),
+                level: FactorLevel::Sample,
+            },
+        ],
+        subjects: vec![SubjectEntry {
+            id: "P01".into(),
+            factors: factors(&[("group", "AML")]),
+        }],
+        specimens: vec![SpecimenDesign {
+            specimen: "SP01".into(),
+            subject: "P01".into(),
+            factors: factors(&[("timepoint", "D0")]),
+        }],
+        samples: ["SP01-T", "SP01-B"]
+            .into_iter()
+            .map(|sample| SampleDesign {
+                sample: sample.into(),
+                factors: factors(&[("batch", "B1")]),
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn a_design_is_part_of_the_dataset_identity() {
+    let built = mutated(|m| m.design = Some(design()));
+    let issues = check(&built, Profile::MiflowcytMinimal, false);
+    assert!(!issues.has_errors(), "{:?}", issues.items());
+    let mut regrouped = built.manifest.clone();
+    regrouped.design.as_mut().unwrap().subjects[0]
+        .factors
+        .insert("group".into(), "CLL".into());
+    assert_ne!(regrouped.dataset_id(), built.manifest.dataset_id());
+    let text = built.manifest.canonical_json();
+    let mut issues = Issues::new();
+    let parsed = dataset::parse(text.as_bytes(), DocumentFormat::Json, &mut issues).unwrap();
+    assert_eq!(parsed.design, Some(design()));
+    dataset::conforms(
+        &serde_json::from_str(&text).unwrap(),
+        "dataset-manifest.schema.json",
+    )
+    .unwrap();
+}
+
+#[test]
+fn design_subjects_are_unique_pseudonyms() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects.push(design.subjects[0].clone());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::DuplicateIdentifier,
+    );
+    let dated = mutated(|m| {
+        let mut design = design();
+        design.subjects[0].id = "1984-03-07".into();
+        design.specimens[0].subject = "1984-03-07".into();
+        m.design = Some(design);
+    });
+    let issues = check(&dated, Profile::Structural, false);
+    assert!(
+        issues
+            .codes(Severity::Warning)
+            .contains(&IssueCode::PrivacyViolation),
+        "{:?}",
+        issues.items()
+    );
+}
+
+#[test]
+fn a_specimen_of_an_unknown_subject_is_invalid() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.specimens[0].subject = "P02".into();
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::InvalidReference,
+    );
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.samples[0].sample = "SP09-T".into();
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::InvalidReference,
+    );
+}
+
+#[test]
+fn a_factor_given_at_the_wrong_level_is_invalid() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects[0]
+                .factors
+                .insert("timepoint".into(), "D0".into());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::InvalidReference,
+    );
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.samples[1].factors.clear();
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::MissingMetadata,
+    );
+}
+
+#[test]
+fn undeclared_factors_and_free_text_are_malformed() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects[0].factors.insert("sex".into(), "F".into());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::MalformedDocument,
+    );
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects[0]
+                .factors
+                .insert("group".into(), "acute myeloid leukemia".into());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::MalformedDocument,
+    );
+}

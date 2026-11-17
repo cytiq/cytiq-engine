@@ -262,6 +262,7 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
         controls: vec![],
         knowledge,
         artifacts,
+        design: None,
     }
     .sealed();
     fs::write(root.join("manifest.json"), manifest.canonical_json()).unwrap();

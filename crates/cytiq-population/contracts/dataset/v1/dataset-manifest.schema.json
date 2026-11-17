@@ -74,6 +74,9 @@
       "items": {
         "$ref": "#/$defs/artifact"
       }
+    },
+    "design": {
+      "$ref": "#/$defs/design"
     }
   },
   "additionalProperties": false,
@@ -629,6 +632,107 @@
       "additionalProperties": false,
       "required": [
         "profile"
+      ]
+    },
+    "factors": {
+      "description": "Factor name to value. Names are declared factors (lowercase identifiers of at most 32 characters); values are short codes of at most 64 characters from letters, digits and `_.:+-`, starting with a letter or digit, never dates or free text.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "design": {
+      "description": "Subjects, the biological units cohort statistics count, and experimental factors declared at the level they vary.",
+      "type": "object",
+      "properties": {
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "description": "A lowercase identifier of at most 32 characters.",
+                "type": "string",
+                "minLength": 1
+              },
+              "level": {
+                "enum": [
+                  "subject",
+                  "specimen",
+                  "sample"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "level"
+            ]
+          }
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/text"
+              },
+              "factors": {
+                "$ref": "#/$defs/factors"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "id"
+            ]
+          }
+        },
+        "specimens": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "specimen": {
+                "$ref": "#/$defs/text"
+              },
+              "subject": {
+                "$ref": "#/$defs/text"
+              },
+              "factors": {
+                "$ref": "#/$defs/factors"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "specimen",
+              "subject"
+            ]
+          }
+        },
+        "samples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sample": {
+                "$ref": "#/$defs/text"
+              },
+              "factors": {
+                "$ref": "#/$defs/factors"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "sample"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "factors"
       ]
     }
   }
