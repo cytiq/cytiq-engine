@@ -360,12 +360,7 @@ impl<'h> Scan<'h> {
             distinct: 0,
             assessed_shape: None,
             parents: header.descriptor.parents(),
-            classes: header
-                .descriptor
-                .labels
-                .iter()
-                .filter_map(|label| label.class.clone())
-                .collect(),
+            classes: header.descriptor.classes(),
             header,
         }
     }

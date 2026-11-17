@@ -77,7 +77,10 @@ fn classifier_descriptor(raw_events: u64) -> LabelDescriptor {
         producer: producer("cytiq classify", "cytiq.classify.predictions.v5"),
         definition: Some(Definition {
             inputs: BTreeMap::from([("model".into(), vec![digest('d')])]),
-            parameters: BTreeMap::new(),
+            parameters: BTreeMap::from([(
+                "classes".into(),
+                serde_json::json!(["blast", "normal"]),
+            )]),
         }),
         labels: ["blast", "normal"]
             .iter()

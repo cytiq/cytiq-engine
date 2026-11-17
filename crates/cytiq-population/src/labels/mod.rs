@@ -26,7 +26,8 @@
 mod descriptor;
 mod digest;
 mod read;
-pub mod sources;
+mod runner;
+mod sources;
 mod write;
 
 use serde::{Deserialize, Serialize};
@@ -35,6 +36,7 @@ pub use descriptor::{Definition, Eligibility, LabelColumn, LabelDescriptor, Prod
 pub use read::{
     ABSTAIN_REASONS, CellCount, LabelsSummary, verify, verify_file, verify_with_limits,
 };
+pub use runner::{ClusterModel, ExportLabelsConfig, GatingDefinition, LabelsRunner};
 pub use write::{LabelBatch, LabelSettings, LabelWriter, WrittenLabels};
 
 /// Contract identifier of a label table.

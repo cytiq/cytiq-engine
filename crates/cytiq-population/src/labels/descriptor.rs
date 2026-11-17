@@ -244,15 +244,48 @@ impl LabelDescriptor {
                 self.labels.is_empty(),
                 "cluster labels have no label columns",
             ),
-            LabelKind::Gate | LabelKind::Classifier => require(
+            LabelKind::Gate => require(
                 !self.labels.is_empty(),
-                format!(
-                    "{} labels need at least one label column",
-                    self.kind.as_str()
-                ),
+                "gate labels need at least one gate",
             ),
+            LabelKind::Classifier => self.validate_classes(),
             LabelKind::Qc => Ok(()),
         }
+    }
+}
+
+impl LabelDescriptor {
+    /// The classifier's classes, in vocabulary order: the definition's
+    /// `classes` parameter.
+    #[must_use]
+    pub fn classes(&self) -> Vec<String> {
+        self.definition
+            .as_ref()
+            .and_then(|definition| definition.parameters.get("classes"))
+            .and_then(|classes| serde_json::from_value(classes.clone()).ok())
+            .unwrap_or_default()
+    }
+
+    /// A classifier names its classes, and its probability columns are
+    /// either absent or exactly one per class, in order.
+    fn validate_classes(&self) -> Result<()> {
+        let classes = self.classes();
+        require(
+            !classes.is_empty()
+                && classes.iter().all(|class| !class.is_empty())
+                && classes.iter().collect::<BTreeSet<_>>().len() == classes.len(),
+            "classifier labels need the model's distinct classes as the `classes` parameter",
+        )?;
+        require(
+            self.labels.is_empty()
+                || (self.labels.len() == classes.len()
+                    && self
+                        .labels
+                        .iter()
+                        .zip(&classes)
+                        .all(|(label, class)| label.class.as_ref() == Some(class))),
+            "probability columns must be one per class, in class order",
+        )
     }
 }
 

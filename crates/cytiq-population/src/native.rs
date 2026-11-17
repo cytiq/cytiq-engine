@@ -7,7 +7,7 @@
 
 use std::{fs::File, path::Path};
 
-use arrow_array::{Array, BooleanArray, RecordBatch, StringArray, UInt64Array};
+use arrow_array::{Array, BooleanArray, Float32Array, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::Schema;
 use cytiq_mask::parquet::{ParquetReadLimits, ScalarParquetReader};
 use cytiq_provenance::RunRecord;
@@ -113,6 +113,10 @@ pub(crate) fn strings<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a Stri
     column(batch, name, "Utf8")
 }
 
+pub(crate) fn float32<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a Float32Array> {
+    column(batch, name, "Float32")
+}
+
 fn column<'a, T: 'static>(batch: &'a RecordBatch, name: &str, kind: &str) -> Result<&'a T> {
     batch
         .column_by_name(name)
@@ -135,6 +139,14 @@ impl AbstainReason {
             "ood" => Some(Self::Ood),
             "low_confidence_and_ood" => Some(Self::LowConfidenceAndOod),
             _ => None,
+        }
+    }
+
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::LowConfidence => "low_confidence",
+            Self::Ood => "ood",
+            Self::LowConfidenceAndOod => "low_confidence_and_ood",
         }
     }
 
