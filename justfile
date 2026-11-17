@@ -130,8 +130,9 @@ parity-smoke-fixture:
 
 # ---- Fuzz one target of crates/<crate>/fuzz on the pinned nightly
 # Targets: cytiq-fcs read_fcs|spillover_keyword, cytiq-population
-# document_json|document_yaml|observations_parquet, cytiq-specimen
-# specimen_documents. Saved regressions seed every target; read_fcs also takes
+# document_json|document_yaml|observations_parquet|projected_parquet|
+# events_parquet|dataset_json|labels_parquet|flowsom_csv, cytiq-specimen
+# specimen_documents, cytiq-gating gatingml. Saved regressions seed every target; read_fcs also takes
 # the FCS fixtures and $CYTIQ_REAL_DATA, the document targets the JSON
 # fixtures and vendored contracts. Seeds are named after their path, so
 # fixtures that share a file name do not overwrite each other.

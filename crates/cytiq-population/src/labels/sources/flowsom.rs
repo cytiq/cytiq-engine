@@ -17,35 +17,103 @@ const HEADER: &str = "event_index,source_event_id,flowsom_node,flowsom_metaclust
 /// Longest record: four 20-digit numbers, three commas and a CRLF.
 const LINE_MAX: u64 = 4 * 20 + 3 + 2;
 
+/// One `FlowSOM` assignment record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Assignment {
+    /// The event's row in the input FCS.
+    pub event_index: u64,
+    pub source_event_id: u64,
+    pub node: u64,
+    pub metacluster: u64,
+}
+
+/// The records of `FlowSOM` assignments read from `reader`: the exact
+/// header, then four canonical unsigned integers per line, nodes and
+/// metaclusters from 1, input rows strictly increasing. Each line is bounded
+/// before it is buffered; the first malformed line ends the records with an
+/// error.
+pub fn read_flowsom_assignments<R: Read>(reader: R) -> Assignments<R> {
+    Assignments {
+        reader: BufReader::new(reader),
+        line: Vec::new(),
+        row: 0,
+        previous: None,
+        state: Some(false),
+    }
+}
+
+/// Iterator of [`read_flowsom_assignments`].
+pub struct Assignments<R> {
+    reader: BufReader<R>,
+    line: Vec<u8>,
+    row: u64,
+    previous: Option<u64>,
+    /// Whether the header was read; `None` once the records ended.
+    state: Option<bool>,
+}
+
+impl<R: Read> Assignments<R> {
+    fn next_record(&mut self) -> Result<Option<Assignment>> {
+        if self.state == Some(false) {
+            self.state = Some(true);
+            require(
+                next_line(&mut self.reader, &mut self.line)? && self.line == HEADER.as_bytes(),
+                format!("FlowSOM assignments must start with the header `{HEADER}`"),
+            )?;
+        }
+        if !next_line(&mut self.reader, &mut self.line)? {
+            return Ok(None);
+        }
+        let row = self.row;
+        let [event_index, source_event_id, node, metacluster] =
+            record(&self.line).ok_or_else(|| {
+                PopulationError::Invalid(format!(
+                    "FlowSOM assignment {row} is not four unsigned integers"
+                ))
+            })?;
+        require(
+            self.previous.is_none_or(|last| event_index > last),
+            format!("FlowSOM assignment {row} is not in input row order"),
+        )?;
+        require(
+            node > 0 && metacluster > 0,
+            format!("FlowSOM assignment {row} numbers nodes or metaclusters from 0"),
+        )?;
+        self.previous = Some(event_index);
+        self.row += 1;
+        Ok(Some(Assignment {
+            event_index,
+            source_event_id,
+            node,
+            metacluster,
+        }))
+    }
+}
+
+impl<R: Read> Iterator for Assignments<R> {
+    type Item = Result<Assignment>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.state?;
+        let record = self.next_record().transpose();
+        if !matches!(record, Some(Ok(_))) {
+            self.state = None;
+        }
+        record
+    }
+}
+
 /// Stream the assignments at `path` into `rows`: every record is a
 /// classified event with its metacluster and node.
 pub(crate) fn stream(path: &Path, rows: &mut Rows<'_>) -> Result<()> {
-    let mut reader = BufReader::new(std::fs::File::open(path)?);
-    let mut line = Vec::new();
-    require(
-        next_line(&mut reader, &mut line)? && line == HEADER.as_bytes(),
-        format!("FlowSOM assignments must start with the header `{HEADER}`"),
-    )?;
-    let mut row = 0_u64;
-    let mut previous: Option<u64> = None;
-    while next_line(&mut reader, &mut line)? {
-        let fields = record(&line).ok_or_else(|| {
-            PopulationError::Invalid(format!(
-                "FlowSOM assignment {row} is not four unsigned integers"
-            ))
-        })?;
-        let [index, id, node, metacluster] = fields;
-        require(
-            previous.is_none_or(|last| index > last),
-            format!("FlowSOM assignment {row} is not in input row order"),
-        )?;
-        previous = Some(index);
-        row += 1;
+    for assignment in read_flowsom_assignments(std::fs::File::open(path)?) {
+        let assignment = assignment?;
+        let id = assignment.source_event_id;
         rows.at(id)?;
         rows.assessed(id)?;
         rows.push(LabelState::Classified, |builders| {
-            builders[0].uint(Some(metacluster));
-            builders[1].uint(Some(node));
+            builders[0].uint(Some(assignment.metacluster));
+            builders[1].uint(Some(assignment.node));
         })?;
     }
     Ok(())

@@ -5,7 +5,7 @@
 //! file omits their state and hands full batches to the writer.
 
 pub(crate) mod classify;
-pub(crate) mod flowsom;
+pub mod flowsom;
 pub(crate) mod mask;
 
 use std::sync::Arc;

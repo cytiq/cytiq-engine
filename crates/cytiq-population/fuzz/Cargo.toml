@@ -58,6 +58,20 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "labels_parquet"
+path = "fuzz_targets/labels_parquet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "flowsom_csv"
+path = "fuzz_targets/flowsom_csv.rs"
+test = false
+doc = false
+bench = false
+
 # Not part of the parent workspace.
 [workspace]
 members = ["."]

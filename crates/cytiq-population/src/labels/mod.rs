@@ -37,6 +37,7 @@ pub use read::{
     ABSTAIN_REASONS, CellCount, LabelsSummary, verify, verify_file, verify_with_limits,
 };
 pub use runner::{ClusterModel, ExportLabelsConfig, GatingDefinition, LabelsRunner};
+pub use sources::flowsom::{Assignment, Assignments, read_flowsom_assignments};
 pub use write::{LabelBatch, LabelSettings, LabelWriter, WrittenLabels};
 
 /// Contract identifier of a label table.
