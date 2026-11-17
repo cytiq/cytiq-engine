@@ -259,7 +259,7 @@ fn check_event_table(
     at: &str,
     issues: &mut Issues,
 ) {
-    let reader = match crate::annotations::open_table(path) {
+    let reader = match crate::native::open_table(path) {
         Ok(reader) => reader,
         Err(error) => {
             issues.error(
@@ -433,7 +433,7 @@ fn check_provenance(root: &Path, artifact: &ArtifactEntry, at: &str, issues: &mu
         return;
     }
     let at = format!("{at}/execution");
-    let record = match crate::annotations::producer_record(&path) {
+    let record = match crate::native::producer_record(&path) {
         Ok(record) => record,
         Err(error) => {
             issues.error(

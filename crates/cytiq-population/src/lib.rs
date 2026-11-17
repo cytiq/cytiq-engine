@@ -9,6 +9,7 @@ pub mod events;
 pub mod identity;
 pub mod issue;
 pub mod knowledge;
+mod native;
 pub mod observation;
 pub mod privacy;
 pub mod serialization;

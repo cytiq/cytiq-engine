@@ -157,7 +157,7 @@ fn producer(input: &Path) -> Result<Option<RunRecord>> {
     let Some(path) = producer_record_path(input) else {
         return Ok(None);
     };
-    let record = crate::annotations::producer_record(&path)?;
+    let record = crate::native::producer_record(&path)?;
     let input_sha = hash_file(input)?.1;
     Ok(record
         .outputs
