@@ -54,6 +54,11 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
                     check_event_table(artifact, acquisition, &path, &at, issues);
                 }
             }
+            ArtifactRole::Annotation if artifact.contract == contracts::LABELS => {
+                if let Some(acquisition) = acquisition {
+                    check_labels(artifact, acquisition, &path, &at, issues);
+                }
+            }
             ArtifactRole::Observations => {
                 check_observations(&acquisitions, artifact, &path, &at, issues);
             }
@@ -82,7 +87,7 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
 }
 
 /// The object's path when it exists with the recorded size and digest.
-fn present(
+pub(crate) fn present(
     root: &Path,
     location: &str,
     content: &crate::identity::ContentRef,
@@ -259,7 +264,7 @@ fn check_event_table(
     at: &str,
     issues: &mut Issues,
 ) {
-    let reader = match crate::annotations::open_table(path) {
+    let reader = match crate::native::open_table(path) {
         Ok(reader) => reader,
         Err(error) => {
             issues.error(
@@ -294,6 +299,55 @@ fn check_event_table(
             "a mask covers every raw event of its acquisition",
         );
     }
+}
+
+/// A label table verifies, labels every raw event of its acquisition, and
+/// is listed under its `annotation_id` and values digest.
+fn check_labels(
+    artifact: &ArtifactEntry,
+    acquisition: &AcquisitionEntry,
+    path: &Path,
+    at: &str,
+    issues: &mut Issues,
+) {
+    verified_labels(artifact, acquisition, path, at, issues);
+}
+
+/// [`check_labels`], returning the table's summary when it has no error.
+pub(crate) fn verified_labels(
+    artifact: &ArtifactEntry,
+    acquisition: &AcquisitionEntry,
+    path: &Path,
+    at: &str,
+    issues: &mut Issues,
+) -> Option<crate::labels::LabelsSummary> {
+    let errors = issues.errors();
+    let summary = crate::labels::verify_file(path, at, issues)?;
+    let descriptor = &summary.descriptor;
+    if descriptor.acquisition_id != acquisition.id
+        || descriptor.raw_events != acquisition.raw_events
+    {
+        issues.error(
+            IssueCode::InvalidReference,
+            at,
+            "the label table is of another acquisition or event count than the artifact's",
+        );
+    }
+    if artifact.semantic_id != summary.annotation_id {
+        issues.error(
+            IssueCode::CorruptArtifactHash,
+            format!("{at}/semantic_id"),
+            "a label table's semantic id is its `annotation_id`",
+        );
+    }
+    if artifact.content.values_sha256.as_ref() != Some(&summary.values_sha256) {
+        issues.error(
+            IssueCode::CorruptArtifactHash,
+            format!("{at}/content/values_sha256"),
+            "the label table's values digest differs from the manifest's",
+        );
+    }
+    (issues.errors() == errors).then_some(summary)
 }
 
 /// The table's contract version, acquisition and event base.
@@ -433,7 +487,7 @@ fn check_provenance(root: &Path, artifact: &ArtifactEntry, at: &str, issues: &mu
         return;
     }
     let at = format!("{at}/execution");
-    let record = match crate::annotations::producer_record(&path) {
+    let record = match crate::native::producer_record(&path) {
         Ok(record) => record,
         Err(error) => {
             issues.error(

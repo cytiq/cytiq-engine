@@ -5,6 +5,7 @@ use cytiq_mask::parquet::ScalarParquetReader;
 use cytiq_population::dataset;
 use cytiq_population::events;
 use cytiq_population::issue::Issues;
+use cytiq_population::labels;
 use cytiq_population::serialization::{self, DocumentFormat};
 use cytiq_population::table;
 
@@ -189,4 +190,82 @@ pub fn dataset_json_accepts(bytes: &[u8]) -> bool {
         dataset::validate_document(&manifest, dataset::Profile::Structural, &mut issues);
         !issues.has_errors()
     })
+}
+
+/// Any bytes as a `cytiq.events.labels.v1` table: verification never panics,
+/// a rejection always names an error, and an accepted table is internally
+/// consistent, counts every row of every counted column once, and verifies
+/// the same way twice.
+pub fn labels_parquet(bytes: &[u8]) {
+    let mut issues = Issues::new();
+    let summary = labels::verify_with_limits(
+        bytes::Bytes::copy_from_slice(bytes),
+        LIMITS,
+        "",
+        &mut issues,
+    );
+    let Some(summary) = summary else {
+        assert!(issues.has_errors(), "a rejected table names an error");
+        return;
+    };
+    assert!(!issues.has_errors());
+    let descriptor = &summary.descriptor;
+    assert_eq!(summary.annotation_id, descriptor.annotation_id());
+    assert_eq!(summary.definition_id, descriptor.definition_id());
+    assert_eq!(summary.rows, descriptor.raw_events);
+    assert_eq!(summary.states.values().sum::<u64>(), summary.rows);
+    assert!(
+        summary
+            .states
+            .keys()
+            .all(|state| descriptor.kind.states().contains(state))
+    );
+    let mut per_column = std::collections::BTreeMap::<&str, u64>::new();
+    for count in &summary.counts {
+        *per_column.entry(count.column.as_str()).or_default() += count.count;
+    }
+    assert!(per_column.values().all(|rows| *rows == summary.rows));
+    let mut again = Issues::new();
+    let repeat =
+        labels::verify_with_limits(bytes::Bytes::copy_from_slice(bytes), LIMITS, "", &mut again);
+    assert_eq!(
+        repeat.as_ref(),
+        Some(&summary),
+        "verification is deterministic"
+    );
+}
+
+/// Whether [`labels_parquet`] accepts `bytes`.
+pub fn labels_parquet_accepts(bytes: &[u8]) -> bool {
+    labels::verify_with_limits(
+        bytes::Bytes::copy_from_slice(bytes),
+        LIMITS,
+        "",
+        &mut Issues::new(),
+    )
+    .is_some()
+}
+
+/// Any bytes as `FlowSOM` assignments: reading never panics, accepted records
+/// number nodes and metaclusters from 1 in increasing input rows, and the
+/// records end at the first error.
+pub fn flowsom_csv(bytes: &[u8]) {
+    let mut previous: Option<u64> = None;
+    let mut failed = false;
+    for record in labels::read_flowsom_assignments(bytes) {
+        assert!(!failed, "no record follows an error");
+        match record {
+            Ok(assignment) => {
+                assert!(assignment.node > 0 && assignment.metacluster > 0);
+                assert!(previous < Some(assignment.event_index));
+                previous = Some(assignment.event_index);
+            }
+            Err(_) => failed = true,
+        }
+    }
+}
+
+/// Whether [`flowsom_csv`] reads every record of `bytes`.
+pub fn flowsom_csv_accepts(bytes: &[u8]) -> bool {
+    labels::read_flowsom_assignments(bytes).all(|record| record.is_ok())
 }

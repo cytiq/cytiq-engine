@@ -3,6 +3,9 @@ name: Lakehouse interop
 # Exports FCS events with the release binary and reads them back with the
 # pinned DuckDB and PyArrow (parity/lakehouse): every value bit for bit,
 # parts, the channel dictionary, provenance checksums and refused inputs.
+# Then builds a labelled cohort and checks its analytics product in SQL
+# (parity/lakehouse/labels.py): label counts, joins, abstentions, parity
+# with population observe, cohort statistics and diffcyt counts.
 # One million events on pull requests that change the export or its readers,
 # ten million weekly and on demand. Not a required check.
 
@@ -10,6 +13,11 @@ on:
   pull_request:
     paths:
       - crates/cytiq-population/src/events/**
+      - crates/cytiq-population/src/labels/**
+      - crates/cytiq-population/src/analytics/**
+      - crates/cytiq-population/src/dataset/**
+      - crates/cytiq-engine/src/commands/dataset.rs
+      - crates/cytiq-engine/tests/lakehouse_dataset.rs
       - crates/cytiq-fcs/src/**
       - crates/cytiq-mask/src/parquet.rs
       - crates/cytiq-engine/src/commands/export.rs
@@ -68,6 +76,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: lakehouse-interop
-          path: target/lakehouse/interop/interop.json
+          path: |
+            target/lakehouse/interop/interop.json
+            target/lakehouse/labels/labels.json
           if-no-files-found: ignore
           retention-days: 35

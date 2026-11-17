@@ -170,3 +170,33 @@ Rust API:
 - `cytiq-population` now depends on `cytiq-fcs` directly.
 - New modules: `events`, `dataset`, `identity`, `issue` and `privacy`.
 - `serialization::canonical` returns the canonical text that `digest` hashes.
+
+## Event labels and the analytics product (additive, one privacy rule)
+
+Two commands and one contract are new. See [event labels](event-labels.md)
+and the [analytics product](analytics.md).
+
+- `cytiq export labels --kind qc|gate|cluster|classifier` converts a QC
+  mask, a gate membership, FlowSOM assignments or classifier predictions
+  into a `cytiq.events.labels.v1` table: one row per raw event with an
+  explicit state, keyed like events tables. It needs the producer's
+  provenance record (`--producer-provenance`) and an events table of every
+  raw event (`--events`); gates need `--gating-ml`, FlowSOM `apply` needs
+  `--flowsom-model`, and `--qc-mask` (every mask the producer read) turns
+  excluded events from `not_assessed` into `qc_rejected`.
+- `cytiq dataset export` writes a dataset's analytics product: Parquet
+  tables, `views.sql` for DuckDB and `product.json`. Observations that
+  disagree with the label tables of the same native output publish nothing.
+- Dataset manifest v1 gains an optional `design` (subjects, the subject of
+  each specimen, experimental factors). Manifests without one keep their
+  canonical JSON and `dataset_id`.
+- **Privacy.** A dataset that lists a `cytiq.population.annotations.v1` or
+  `v2` artifact (`event-annotations.json`) now needs a disclosure with
+  `provenance_records`: those descriptors record absolute paths. Add the
+  disclosure, or leave the descriptor out of the dataset.
+
+Rust API:
+- New modules `labels` and `analytics` in `cytiq-population`.
+- `dataset::ArtifactEntry::labels` lists a label table; `dataset::contracts::LABELS`.
+- `DatasetManifest` gains the field `design`; struct literals need
+  `design: None`.

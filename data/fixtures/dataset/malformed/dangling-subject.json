@@ -1,0 +1,12 @@
+{
+  "expect": "invalid_reference",
+  "tier": "document",
+  "description": "A specimen of a subject the design does not list.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/design/specimens/0/subject",
+      "value": "P09"
+    }
+  ]
+}

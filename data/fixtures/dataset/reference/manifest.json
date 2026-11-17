@@ -94,7 +94,7 @@
       "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
       "content": {
         "bytes": 20635,
-        "sha256": "ff7dd12e3070a0e8f0b75f9b3b221f988c26b4921ca4fcdf564baf4fd0220d43",
+        "sha256": "d4ed429141c21e604c75dfc2f8baf050ce7c7530b248493ef52a70035bd92b7e",
         "values_sha256": "c669f6b780ebed68602439f74677c508ebc2651dff161aa4e00da57158a681a5"
       },
       "contract": "cytiq.events.v1",
@@ -188,14 +188,124 @@
       "location": "definitions/gates.xml",
       "role": "gating",
       "semantic_id": "63f4ddd21e48423e24f94a4e0fc72be3c5d58d34d74a003cb587b9d0ae4adefb"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 3129,
+        "sha256": "7f7fcbd70b038b2a5096db0859442d11680f6731ab4846c4b5da1f58815517a2",
+        "values_sha256": "1b4a83013c1903a44775729bf45190906f51a65c1c57d4a7af778c87c6fd0e2b"
+      },
+      "contract": "cytiq.events.labels.v1",
+      "location": "labels/M/S12-M.qc.parquet",
+      "panel": "M",
+      "parents": [
+        "3e6f083f74d2ee1d2275d0f888e32862be7683c41cabd59d2f15013334406031"
+      ],
+      "role": "annotation",
+      "semantic_id": "7c24208730dc03b054b05d61597ccc5619ea3ba7b1319293bbb10c923badea2f"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 4325,
+        "sha256": "70c91461fee5e13c46fdb686bdb40e4f1a618815eb31eac6ee0b33e512517295",
+        "values_sha256": "f32f8109819aa838ff60d765e18e40b85be4e104c80f10812f76b629b35b1ecc"
+      },
+      "contract": "cytiq.events.labels.v1",
+      "location": "labels/M/S12-M.gates.parquet",
+      "panel": "M",
+      "parents": [
+        "0e1381bce9af4f95eef21ad6764792d3e857306c997072933f5e133c057cf829",
+        "3e6f083f74d2ee1d2275d0f888e32862be7683c41cabd59d2f15013334406031"
+      ],
+      "role": "annotation",
+      "semantic_id": "84cc0681658c59c9bcc25eb09cff520ec65c32450c352d20d2b04392edb1570b"
+    },
+    {
+      "content": {
+        "bytes": 1680,
+        "sha256": "1e52242c8b4bc761eb80c6a13a706e5d40e0d94e280ca4e2e6c9adb718f5206a"
+      },
+      "contract": "gating-ml.v2",
+      "location": "definitions/case12-gates.xml",
+      "role": "gating",
+      "semantic_id": "8a00cc48ad59106a155b24a0f08725955c1d5411ca33743acd0790a214a2fc22"
     }
   ],
   "contracts": [
     "cytiq.events.v1",
     "cytiq.mask.v2",
+    "cytiq.events.labels.v1",
     "gating-ml.v2"
   ],
-  "dataset_id": "98415cfc1de4ae0a1e4128d889f377f3320ab31fa5691c07bc601f3258fbfcbc",
+  "dataset_id": "78cbbcec941187e250e5a54130c48ace68901cd9525c78c7df16d9ef5158652f",
+  "design": {
+    "factors": [
+      {
+        "level": "subject",
+        "name": "group"
+      },
+      {
+        "level": "specimen",
+        "name": "timepoint"
+      },
+      {
+        "level": "sample",
+        "name": "batch"
+      }
+    ],
+    "samples": [
+      {
+        "factors": {
+          "batch": "B1"
+        },
+        "sample": "S12-M"
+      },
+      {
+        "factors": {
+          "batch": "B1"
+        },
+        "sample": "S30-B"
+      },
+      {
+        "factors": {
+          "batch": "B2"
+        },
+        "sample": "SX-X"
+      }
+    ],
+    "specimens": [
+      {
+        "factors": {
+          "timepoint": "D0"
+        },
+        "specimen": "SP01",
+        "subject": "P01"
+      },
+      {
+        "factors": {
+          "timepoint": "D0"
+        },
+        "specimen": "SP02",
+        "subject": "P02"
+      }
+    ],
+    "subjects": [
+      {
+        "factors": {
+          "group": "case"
+        },
+        "id": "P01"
+      },
+      {
+        "factors": {
+          "group": "control"
+        },
+        "id": "P02"
+      }
+    ]
+  },
   "instruments": [
     {
       "detectors": [

@@ -12,6 +12,7 @@ use cytiq_population::dataset::{self, Profile, ValidateOptions};
 use cytiq_population::events::{self, ColumnValues, LayerDescriptor, ValuesHasher};
 use cytiq_population::identity;
 use cytiq_population::issue::Issues;
+use cytiq_population::labels::{self, LabelBatch, LabelDescriptor, LabelState, LabelWriter};
 use serde_json::{Value, json};
 
 fn contracts() -> PathBuf {
@@ -86,9 +87,81 @@ fn descriptor() -> LayerDescriptor {
     .unwrap()
 }
 
+fn label_descriptor() -> LabelDescriptor {
+    serde_json::from_value(json!({
+        "contract": labels::DESCRIPTOR_CONTRACT,
+        "kind": "gate",
+        "acquisition_id": "a".repeat(64),
+        "raw_events": 3,
+        "producer": {
+            "tool": "cytiq gate", "native_contract": "cytiq.mask.v2",
+            "native_sha256": "b".repeat(64), "input_sha256": "c".repeat(64),
+            "input_layer_id": null
+        },
+        "definition": {"inputs": {"gating_ml": ["d".repeat(64)]}, "parameters": {}},
+        "eligibility": {"masks": ["e".repeat(64)], "verified": true},
+        "labels": [{"name": "cells"}, {"name": "CD3+", "parent": "cells"}]
+    }))
+    .unwrap()
+}
+
+/// The values digest of a three-event gate table, and the rows it covers.
+fn label_values(descriptor: &LabelDescriptor) -> (Value, String) {
+    let cells = [
+        (LabelState::Assessed, [Some(true), Some(true)]),
+        (LabelState::Assessed, [Some(true), Some(false)]),
+        (LabelState::QcRejected, [None, None]),
+    ];
+    let directory = tempfile::tempdir().unwrap();
+    let mut writer = LabelWriter::create(
+        &directory.path().join("labels.parquet"),
+        descriptor.clone(),
+        &labels::LabelSettings::default(),
+        cytiq_mask::parquet::ParquetReadLimits::default(),
+    )
+    .unwrap();
+    let column = |gate: usize| -> arrow_array::ArrayRef {
+        std::sync::Arc::new(arrow_array::BooleanArray::from(
+            cells
+                .iter()
+                .map(|(_, gates)| gates[gate])
+                .collect::<Vec<_>>(),
+        ))
+    };
+    writer
+        .write(LabelBatch {
+            first: 0,
+            states: cells.iter().map(|(state, _)| *state).collect(),
+            columns: vec![column(0), column(1)],
+        })
+        .unwrap();
+    let written = writer.finish().unwrap();
+    let rows: Vec<Value> = cells
+        .iter()
+        .enumerate()
+        .map(|(id, (state, gates))| {
+            json!({
+                "source_event_id": id,
+                "state": state.as_str(),
+                "cells": gates.iter().map(|cell| json!({"type": "boolean", "value": cell})).collect::<Vec<_>>()
+            })
+        })
+        .collect();
+    (
+        json!({
+            "domain": labels::VALUES_DOMAIN,
+            "annotation_id": descriptor.annotation_id(),
+            "rows": rows
+        }),
+        written.values_sha256,
+    )
+}
+
 /// Each vector names its inputs and the digest cytiq computes from them.
 fn vectors() -> Value {
     let layer = descriptor();
+    let labels_descriptor = label_descriptor();
+    let (label_rows, label_digest) = label_values(&labels_descriptor);
     let semantic = json!({
         "contract": "cytiq.mask.v2", "role": "technical_mask", "acquisition": "a".repeat(64),
         "parents": ["e".repeat(64), "d".repeat(64)], "basis": "b".repeat(64)
@@ -135,14 +208,23 @@ fn vectors() -> Value {
         .collect();
     json!({
         "schema_version": 1,
-        "note": "Digests are SHA-256 over canonical JSON (sorted keys, indent 2, ASCII, Python float repr, trailing newline) unless stated; values_sha256 hashes the domain tag, layer id and little-endian rows.",
+        "note": "Digests are SHA-256 over canonical JSON (sorted keys, indent 2, ASCII, Python float repr, trailing newline) unless stated; values_sha256 hashes the domain tag, layer id and little-endian rows; labels_values_sha256 hashes the domain tag, annotation id and each row as a little-endian u64 id, a u32-length-prefixed state, then per cell a null tag (0) or 1 and the value.",
         "vectors": [
             {"name": "semantic_id", "input": semantic, "sha256": semantic_id},
             {"name": "layer_id", "input": layer, "sha256": layer.layer_id()},
             {"name": "recipe_id", "input": layer, "sha256": layer.recipe_id()},
             {"name": "values_sha256", "input": {
                 "domain": events::VALUES_DOMAIN, "layer_id": layer.layer_id(), "rows": values_rows
-            }, "sha256": hasher.finish()}
+            }, "sha256": hasher.finish()},
+            {"name": "annotation_id", "input": labels_descriptor, "sha256": labels_descriptor.annotation_id()},
+            {"name": "definition_id", "input": {
+                "contract": labels::DEFINITION_CONTRACT,
+                "kind": labels_descriptor.kind,
+                "tool": labels_descriptor.producer.tool,
+                "definition": labels_descriptor.definition,
+                "labels": labels_descriptor.labels
+            }, "sha256": labels_descriptor.definition_id()},
+            {"name": "labels_values_sha256", "input": label_rows, "sha256": label_digest}
         ]
     })
 }

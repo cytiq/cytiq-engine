@@ -1890,6 +1890,88 @@
         "args_conflict_with_subcommands": false,
         "subcommand_required": true,
         "subcommands": {
+          "export": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "manifest",
+                "long": "manifest",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MANIFEST"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "root",
+                "long": "root",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "ROOT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
           "validate": {
             "args": [
               {
@@ -2297,6 +2379,204 @@
                 "short": null,
                 "value_names": [
                   "ALLOW_SUBSET"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
+          "labels": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "kind",
+                "long": "kind",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "qc",
+                  "gate",
+                  "cluster",
+                  "classifier"
+                ],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "KIND"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "input",
+                "long": "input",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "INPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "producer_provenance",
+                "long": "producer-provenance",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "PRODUCER_PROVENANCE"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "events",
+                "long": "events",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "EVENTS"
+                ]
+              },
+              {
+                "action": "append",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "qc_masks",
+                "long": "qc-mask",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "QC_MASKS"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "gating_ml",
+                "long": "gating-ml",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "GATING_ML"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "flowsom_model",
+                "long": "flowsom-model",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "FLOWSOM_MODEL"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "no_probabilities",
+                "long": "no-probabilities",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "NO_PROBABILITIES"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
                 ]
               },
               {
@@ -6076,6 +6356,13 @@
       "strict",
       "threads"
     ],
+    "dataset export": [
+      "Export",
+      "Export.manifest",
+      "Export.output",
+      "Export.overwrite",
+      "Export.root"
+    ],
     "dataset validate": [
       "Validate",
       "Validate.manifest",
@@ -6102,6 +6389,19 @@
       "Events.overwrite",
       "Events.row_group_size",
       "Events.unmixing_reference"
+    ],
+    "export labels": [
+      "Labels",
+      "Labels.events",
+      "Labels.flowsom_model",
+      "Labels.gating_ml",
+      "Labels.input",
+      "Labels.kind",
+      "Labels.no_probabilities",
+      "Labels.output",
+      "Labels.overwrite",
+      "Labels.producer_provenance",
+      "Labels.qc_masks"
     ],
     "flowsom": [
       "channel",

@@ -1,19 +1,21 @@
 //! Streaming adapters for existing membership and classifier Parquet files.
 
-use arrow_array::{Array, BooleanArray, RecordBatch, StringArray, UInt64Array};
+use arrow_array::{Array, BooleanArray};
 use cytiq_provenance::{RunRecord, hash_file};
 mod definition;
 use arrow_schema::Schema;
-use cytiq_mask::parquet::{ParquetReadLimits, ScalarParquetReader};
 use definition::validate_classifier_definition;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::File,
     path::{Path, PathBuf},
 };
 
 use crate::bitmap::Bitmap;
+use crate::native::{
+    ClassifierColumns, ClassifierRow, boolean, check_acquisition, check_gate_row, open_table,
+    producer_record, read_raw_mask, uint,
+};
 use crate::{
     ArtifactRef, Denominator, Measure, Method, ObservationStatus, PopulationObservation, Result,
     Target, TargetKind, knowledge::KnowledgeArtifact, observation::Lineage, require, serialization,
@@ -400,16 +402,6 @@ fn validate_producer(
     Ok(())
 }
 
-pub(crate) fn producer_record(path: &Path) -> Result<RunRecord> {
-    let record: RunRecord = serde_json::from_value(serialization::read(path)?)?;
-    require(
-        (cytiq_provenance::MIN_READ_SCHEMA_VERSION..=cytiq_provenance::SCHEMA_VERSION)
-            .contains(&record.schema_version),
-        "unsupported producer provenance version",
-    )?;
-    Ok(record)
-}
-
 fn check_single_mask(record: &RunRecord, mask: &ArtifactRef) -> Result<()> {
     let masks = record
         .inputs
@@ -420,70 +412,6 @@ fn check_single_mask(record: &RunRecord, mask: &ArtifactRef) -> Result<()> {
         masks.len() == 1 && masks[0].sha256 == mask.sha256,
         "P1 requires one identical final combined mask for annotations and technical QC",
     )
-}
-
-/// Masks and annotation tables are external inputs: read them through the
-/// bounded scalar reader, which rejects malformed or over-budget pages before
-/// the decoder allocates from their declared sizes.
-pub(crate) fn open_table(path: &Path) -> Result<ScalarParquetReader<File>> {
-    Ok(ScalarParquetReader::new(
-        File::open(path)?,
-        ParquetReadLimits::default(),
-    )?)
-}
-
-fn metadata(schema: &Schema, context: &ObservationContext) -> Result<()> {
-    require(
-        schema.metadata().get("cytiq.acquisition_sha256") == Some(&context.acquisition_sha256)
-            && schema
-                .metadata()
-                .get("cytiq.event_id_base")
-                .map(String::as_str)
-                == Some("0"),
-        "annotation acquisition or event-base mismatch",
-    )
-}
-
-fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
-    let reader = open_table(path)?;
-    metadata(reader.schema(), context)?;
-    require(
-        reader
-            .schema()
-            .metadata()
-            .get("cytiq.mask.schema_version")
-            .map(String::as_str)
-            == Some("2")
-            && reader.metadata().file_metadata().num_rows()
-                == i64::try_from(context.raw_events).unwrap_or(-1),
-        "QC mask must cover every raw event with schema v2",
-    )?;
-    let size = usize::try_from(context.raw_events).map_err(|_| {
-        crate::PopulationError::Invalid("raw event count overflows platform".into())
-    })?;
-    let mut seen = Bitmap::new(size)?;
-    let mut eligible = Bitmap::new(size)?;
-    for batch in reader.project(&["source_event_id", "keep"])? {
-        let batch = batch?;
-        let sources = uint(&batch, "source_event_id")?;
-        let keep = boolean(&batch, "keep")?;
-        for i in 0..batch.num_rows() {
-            require(
-                !sources.is_null(i) && !keep.is_null(i),
-                "null mask lineage or eligibility",
-            )?;
-            let source = usize::try_from(sources.value(i))
-                .map_err(|_| crate::PopulationError::Invalid("invalid event id".into()))?;
-            require(
-                source < size && !seen.get(source),
-                "duplicate or out-of-range raw mask id",
-            )?;
-            seen.set(source, true);
-            eligible.set(source, keep.value(i));
-        }
-    }
-    require(seen.is_full(), "incomplete raw mask")?;
-    Ok(eligible)
 }
 
 #[derive(Default)]
@@ -509,13 +437,17 @@ impl AnnotationCounts {
     }
 }
 
+fn read_mask(path: &Path, context: &ObservationContext) -> Result<Bitmap> {
+    read_raw_mask(path, &context.acquisition_sha256, context.raw_events)
+}
+
 fn count_annotations(
     path: &Path,
     context: &ObservationContext,
     eligible: &Bitmap,
 ) -> Result<AnnotationCounts> {
     let reader = open_table(path)?;
-    metadata(reader.schema(), context)?;
+    check_acquisition(reader.schema(), &context.acquisition_sha256)?;
     let classifier = validate_source_metadata(reader.schema(), context)?;
     let policy = context
         .source
@@ -524,17 +456,14 @@ fn count_annotations(
         .map(|reference| crate::decision::DecisionPolicy::load(&reference.path))
         .transpose()?;
     let mut columns = vec!["event_id".into(), "source_event_id".into()];
-    columns.push(if classifier { "assessed" } else { "keep" }.into());
     if classifier {
-        columns.push("label".into());
-        if policy.is_some() {
-            columns.extend([
-                "decision_status".into(),
-                "abstain_reason".into(),
-                "is_ood".into(),
-            ]);
-        }
+        columns.extend(
+            ClassifierColumns::names(policy.is_some())
+                .iter()
+                .map(|name| (*name).to_owned()),
+        );
     } else {
+        columns.push("keep".into());
         columns.extend(context.source.bindings.iter().map(|b| b.label.clone()));
     }
     let mut result = AnnotationCounts::new(context);
@@ -547,8 +476,8 @@ fn count_annotations(
         let ids = uint(&batch, "event_id")?;
         let sources = uint(&batch, "source_event_id")?;
         let keep = boolean(&batch, if classifier { "assessed" } else { "keep" })?;
-        let labels = if classifier {
-            Some(strings(&batch, "label")?)
+        let predictions = if classifier {
+            Some(ClassifierColumns::of(&batch, policy.is_some())?)
         } else {
             None
         };
@@ -582,16 +511,8 @@ fn count_annotations(
             if keep.value(i) {
                 result.assessed += 1;
             }
-            if let Some(labels) = labels {
-                count_classifier_row(
-                    context,
-                    &batch,
-                    labels,
-                    policy.as_ref(),
-                    i,
-                    keep.value(i),
-                    &mut result,
-                )?;
+            if let Some(predictions) = &predictions {
+                count_classifier_row(context, predictions, policy.as_ref(), i, &mut result)?;
             } else {
                 count_gate_row(
                     context,
@@ -613,62 +534,27 @@ fn count_annotations(
 
 fn count_classifier_row(
     context: &ObservationContext,
-    batch: &RecordBatch,
-    labels: &StringArray,
+    predictions: &ClassifierColumns<'_>,
     policy: Option<&crate::decision::DecisionPolicy>,
     i: usize,
-    kept: bool,
     result: &mut AnnotationCounts,
 ) -> Result<()> {
-    if let Some(policy) = policy {
-        let statuses = strings(batch, "decision_status")?;
-        let reasons = strings(batch, "abstain_reason")?;
-        let flags = boolean(batch, "is_ood")?;
-        require(!statuses.is_null(i), "missing classifier decision status")?;
-        let status = statuses.value(i);
-        let is_ood = !flags.is_null(i) && flags.value(i);
+    let row = predictions.row(i)?;
+    if let Some(policy) = policy
+        && row != ClassifierRow::NotAssessed
+    {
         require(
-            flags.is_null(i) == (!kept || policy.ood.is_none()),
+            predictions.ood(i).is_none() == policy.ood.is_none(),
             "OOD assessment/null mismatch",
         )?;
-        if !kept {
-            require(
-                status == "not_assessed" && labels.is_null(i) && reasons.is_null(i),
-                "excluded event has a classification decision",
-            )?;
-            return Ok(());
-        }
-        if status == "abstained" {
-            require(
-                labels.is_null(i) && !reasons.is_null(i),
-                "abstention requires a null label and a reason",
-            )?;
-            let reason = reasons.value(i);
-            require(
-                ["low_confidence", "ood", "low_confidence_and_ood"].contains(&reason)
-                    && is_ood == (reason != "low_confidence"),
-                "inconsistent abstention reason/OOD",
-            )?;
-            result.abstained += 1;
-            result.ood += u64::from(is_ood);
-            return Ok(());
-        }
-        require(
-            status == "classified" && reasons.is_null(i) && !is_ood,
-            "invalid accepted classification",
-        )?;
     }
-    require(
-        labels.is_null(i) != kept,
-        "classification assessment/label mismatch",
-    )?;
-    if kept {
-        let label = labels.value(i);
-        if label == "unknown" {
-            require(
-                policy.is_none(),
-                "policy abstention must not become an unknown population",
-            )?;
+    match row {
+        ClassifierRow::NotAssessed => {}
+        ClassifierRow::Abstained(_) => {
+            result.abstained += 1;
+            result.ood += u64::from(predictions.ood(i) == Some(true));
+        }
+        ClassifierRow::LegacyUnknown => {
             require(
                 context
                     .source
@@ -678,32 +564,14 @@ fn count_classifier_row(
                 "unknown is unsupported for multiclass predictions",
             )?;
             result.unknown += 1;
-        } else {
+        }
+        ClassifierRow::Classified(label) => {
             *result.counts.get_mut(label).ok_or_else(|| {
                 crate::PopulationError::Invalid("unknown classifier label".into())
             })? += 1;
         }
     }
     Ok(())
-}
-
-fn uint<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a UInt64Array> {
-    batch
-        .column_by_name(name)
-        .and_then(|c| c.as_any().downcast_ref())
-        .ok_or_else(|| crate::PopulationError::Invalid(format!("expected UInt64: {name}")))
-}
-fn boolean<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a BooleanArray> {
-    batch
-        .column_by_name(name)
-        .and_then(|c| c.as_any().downcast_ref())
-        .ok_or_else(|| crate::PopulationError::Invalid(format!("expected Boolean: {name}")))
-}
-fn strings<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a StringArray> {
-    batch
-        .column_by_name(name)
-        .and_then(|c| c.as_any().downcast_ref())
-        .ok_or_else(|| crate::PopulationError::Invalid(format!("expected Utf8: {name}")))
 }
 
 fn observations(
@@ -928,18 +796,9 @@ fn count_gate_row(
     i: usize,
     kept: bool,
 ) -> Result<()> {
-    for ((binding, gate), parent) in context.source.bindings.iter().zip(gates).zip(parents) {
-        require(
-            gate.is_null(i) != kept,
-            "membership assessment/keep mismatch",
-        )?;
+    check_gate_row(gates, parents, i, kept)?;
+    for (binding, gate) in context.source.bindings.iter().zip(gates) {
         if kept && gate.value(i) {
-            if let Some(parent) = parent {
-                require(
-                    !gates[*parent].is_null(i) && gates[*parent].value(i),
-                    "gate membership exceeds its denominator",
-                )?;
-            }
             *counts.get_mut(&binding.label).expect("binding counter") += 1;
         }
     }

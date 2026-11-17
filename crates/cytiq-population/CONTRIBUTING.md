@@ -43,6 +43,10 @@ All documents reject unknown versions and invalid references. Keep measured inte
     widens what untrusted masks may contain.
   - Changing the columns, the key metadata, the descriptor or the values
     digest is a new contract version.
+- `tests/labels.rs` covers the writer and verifier (order, digest,
+  identities, tampering, classifier rules), `tests/labels_export.rs` the
+  runner on synthetic natives and producer records (every refusal), and
+  `tests/analytics.rs` the product (parity, refusals, cohorts, determinism).
 - `tests/events.rs` builds synthetic FCS files with the cytiq-fcs writer;
   every refusal and every verification code has a test.
   `tests/events_export.rs` covers the settings:
@@ -53,6 +57,33 @@ All documents reject unknown versions and invalid references. Keep measured inte
   - codecs;
   - verifier limits;
   - parts and their tampering.
+- `native.rs` interprets cytiq's native per-event tables (mask v2,
+  predictions): the bounded table reader, the producer record, the raw mask
+  and the classifier and gate row rules. `annotations.rs`, `dataset/` and
+  `labels/` all use it, so they read natives identically.
+- `labels/` is `cytiq.events.labels.v1`. `mod.rs` holds the kinds, states
+  and column rules, `descriptor.rs` the descriptor and both identities,
+  `digest.rs` the values digest, `write.rs` the writer, `read.rs` the
+  verifier and its counts, `sources/` the readers of each native output and
+  `runner.rs` the binding checks and publication.
+
+  Invariants:
+  - One row per raw event, in raw order; a native event a producer omitted
+    gets a row with its state, never silence.
+  - Never derive a value the native file does not hold (confidence of
+    legacy predictions, a QC verdict without the producer's masks).
+  - The descriptor is path-free: record an input by its layer id when the
+    events table proves it, by digest only otherwise.
+  - Every table is read back through `read::verify_with_limits` before the
+    export returns. The verifier, not the writer, owns each kind's rules.
+  - Only flat Boolean, `UInt64`, `Float32` and Utf8 columns, Utf8 with
+    Parquet dictionaries; never what the bounded reader would need to
+    widen for.
+- `analytics/` is `cytiq dataset export`: `inputs.rs` verifies what it
+  reads, `dimensions.rs`, `counts.rs` and `observations.rs` build the
+  tables, `parity.rs` checks observations against label counts and
+  `views.rs` writes `views.sql`. Cohort views aggregate per subject; never
+  pool events or average replicates. No path or plan label reaches a table.
 - `dataset/` is the dataset manifest v1. `mod.rs` holds its types, identity
   and parsing, `document.rs` the rules that need no I/O (one function per
   rule family), `objects.rs` the rules that read objects, `profile.rs` the
@@ -99,6 +130,13 @@ Targets:
   set, column set) and verifies identically twice. Seeds include zstd, Snappy
   and projected tables, and a table from before the channel dictionary
   (`missing-dictionary`), which must be refused.
+- `labels_parquet` (`labels::verify_with_limits`): never panics, a
+  rejection names an error, and an accepted table is consistent (identities,
+  one state per row, every row counted once per counted column) and
+  verifies identically twice.
+- `flowsom_csv` (`labels::read_flowsom_assignments`): never panics; accepted
+  records number nodes from 1 in increasing input rows, and none follows an
+  error.
 - `projected_parquet` (`cytiq_mask::parquet::ScalarParquetReader` with a
   projection, as `annotations.rs` reads QC masks and classify or membership
   tables): accepted batches carry exactly the projected columns and the
@@ -106,8 +144,8 @@ Targets:
 
 Every Parquet input goes through the bounded scalar reader, not Arrow's
 packed decoder, which panics on corrupt definition levels in parquet 60.1.0.
-The saved `crash-*` inputs replay against both Parquet targets; all four
-targets run in the CI fuzz matrix (`.github/workflows/fuzz.yml`).
+The saved `crash-*` inputs replay against the Parquet targets; every
+target runs in the CI fuzz matrix (`.github/workflows/fuzz.yml`).
 
 ## Contracts
 

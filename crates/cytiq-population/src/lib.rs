@@ -1,5 +1,6 @@
 //! Population contracts independent of specimen reconciliation and model inference.
 
+pub mod analytics;
 pub mod annotations;
 pub mod artifact;
 mod bitmap;
@@ -9,6 +10,8 @@ pub mod events;
 pub mod identity;
 pub mod issue;
 pub mod knowledge;
+pub mod labels;
+mod native;
 pub mod observation;
 pub mod privacy;
 pub mod serialization;

@@ -125,6 +125,48 @@ are published in `contracts/dataset/v1/`, pinned by
 `contracts/dataset/v1.lock.json`, with identity vectors for other
 implementations.
 
+Dataset manifests may carry a `design`: pseudonymous subjects, the subject
+of each specimen, and experimental factors declared at the subject,
+specimen or sample level. Label tables are listed as annotations under their
+`annotation_id`; listing an `event-annotations.json` needs a disclosure with
+`provenance_records`, since it records absolute paths.
+
+## Label tables (`cytiq.events.labels.v1`)
+
+`labels::LabelsRunner` (`cytiq export labels`) converts one native per-event
+output, never recomputing it, into a table of one row per raw event, in raw
+order, keyed by `acquisition_id`, `annotation_id` and `source_event_id`:
+
+| Kind | Native output | `state` | Columns |
+| --- | --- | --- | --- |
+| `qc` | mask v2 | `accepted`, `qc_rejected`, `not_assessed` | a nullable Boolean per filter |
+| `gate` | gate membership | `assessed`, `qc_rejected`, `not_assessed` | a nullable Boolean per gate |
+| `cluster` | FlowSOM CSV | `classified`, `qc_rejected`, `not_assessed` | `metacluster`, `node` |
+| `classifier` | predictions v2–v5 | `classified`, `abstained`, `qc_rejected`, `not_assessed` | `label`, `abstain_reason`, `confidence`, `uncertainty`, `ood_score`, `is_ood`, `p_<class>` |
+
+The footer `LabelDescriptor` gives the path-free `annotation_id` and, when a
+definition artifact exists, the `definition_id` that makes labels of
+different acquisitions comparable. Before any row is read, the runner
+requires the producer's provenance record to list the native file, an events
+table of every raw event of its acquisition, and the producer's own
+Gating-ML, FlowSOM model and QC masks; events the producer excluded are
+`qc_rejected` only against verified masks. `labels::LabelWriter` plans each
+table against the bounded verifier, and `labels::verify_with_limits` checks
+identities, columns, each kind's rules and the values digest, counting every
+label value exactly (`LabelsSummary`). See
+[event labels](../../docs/event-labels.md).
+
+## Analytics product
+
+`analytics::AnalyticsRunner` (`cytiq dataset export`) publishes a dataset's
+analytics product: path-free Parquet tables of the manifest's dimensions and
+design, the label tables' catalog and exact counts, flattened observations
+and the sources and bindings of listed annotation descriptors; `views.sql`
+with stacked events and labels, per-sample fractions, cohort statistics per
+subject and diffcyt inputs; and `product.json`. It verifies the objects it
+reads, and refuses observations that disagree with the label tables of the
+same native output. See [analytics](../../docs/analytics.md).
+
 ## Knowledge and limits
 
 `knowledge::KnowledgeArtifact` validates the six upstream v2 artifact kinds

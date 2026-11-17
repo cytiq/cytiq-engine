@@ -521,3 +521,304 @@ fn a_projection_is_not_a_signal_layer() {
     assert!(!issues.has_errors(), "{:?}", issues.items());
     expect(&built, true, IssueCode::PanelMismatch);
 }
+
+/// Add a QC label table of panel T's acquisition, listed like `cytiq export
+/// labels` output, and return its artifact index.
+fn with_labels(built: &mut Built) -> usize {
+    use cytiq_population::labels::{
+        DESCRIPTOR_CONTRACT, Eligibility, LabelBatch, LabelColumn, LabelDescriptor, LabelKind,
+        LabelSettings, LabelState, LabelWriter, Producer,
+    };
+    let acquisition = built.manifest.artifacts[4].acquisition.clone().unwrap();
+    let descriptor = LabelDescriptor {
+        contract: DESCRIPTOR_CONTRACT.into(),
+        kind: LabelKind::Qc,
+        acquisition_id: acquisition,
+        raw_events: 5,
+        producer: Producer {
+            tool: "cytiq compensate".into(),
+            native_contract: contracts::MASK.into(),
+            native_sha256: built.manifest.artifacts[4].content.sha256.clone(),
+            input_sha256: Some("c".repeat(64)),
+            input_layer_id: None,
+        },
+        definition: None,
+        eligibility: Eligibility {
+            masks: vec![],
+            verified: false,
+        },
+        labels: vec![LabelColumn {
+            name: "margin_pass".into(),
+            parent: None,
+            class: None,
+        }],
+    };
+    let location = "labels/T/SP01-T.qc.parquet";
+    let path = built.root.path().join(location);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let mut writer = LabelWriter::create(
+        &path,
+        descriptor,
+        &LabelSettings::default(),
+        cytiq_mask::parquet::ParquetReadLimits::default(),
+    )
+    .unwrap();
+    let kept = [true, true, false, true, true];
+    writer
+        .write(LabelBatch {
+            first: 0,
+            states: kept
+                .iter()
+                .map(|keep| {
+                    if *keep {
+                        LabelState::Accepted
+                    } else {
+                        LabelState::QcRejected
+                    }
+                })
+                .collect(),
+            columns: vec![std::sync::Arc::new(arrow_array::BooleanArray::from(
+                kept.iter().map(|keep| Some(*keep)).collect::<Vec<_>>(),
+            ))],
+        })
+        .unwrap();
+    let written = writer.finish().unwrap();
+    let parents = vec![built.manifest.artifacts[4].semantic_id.clone()];
+    built.manifest.artifacts.push(ArtifactEntry::labels(
+        &written.summary,
+        Some("T".into()),
+        parents,
+        location.into(),
+        dataset::content_of(&path).unwrap(),
+    ));
+    built.manifest.contracts.push(contracts::LABELS.into());
+    built.manifest.dataset_id = None;
+    built.manifest.artifacts.len() - 1
+}
+
+#[test]
+fn a_labels_table_is_an_annotation_of_one_acquisition() {
+    let mut built = build();
+    with_labels(&mut built);
+    let issues = check(&built, Profile::Structural, true);
+    assert!(!issues.has_errors(), "{:?}", issues.items());
+
+    let mut foreign = build();
+    let index = with_labels(&mut foreign);
+    let other = foreign.manifest.artifacts[3].acquisition.clone();
+    foreign.manifest.artifacts[index].acquisition = other;
+    expect(&foreign, true, IssueCode::InvalidReference);
+}
+
+#[test]
+fn labels_semantic_id_is_the_annotation_id() {
+    let mut built = build();
+    let index = with_labels(&mut built);
+    built.manifest.artifacts[index].semantic_id = "0".repeat(64);
+    expect(&built, true, IssueCode::CorruptArtifactHash);
+
+    let mut built = build();
+    let index = with_labels(&mut built);
+    built.manifest.artifacts[index].content.values_sha256 = Some("0".repeat(64));
+    expect(&built, true, IssueCode::CorruptArtifactHash);
+}
+
+#[test]
+fn population_annotation_descriptors_need_a_provenance_disclosure() {
+    let descriptor = |m: &mut DatasetManifest| {
+        let acquisition = m.artifacts[4].acquisition.clone();
+        m.artifacts.push(ArtifactEntry::object(
+            ArtifactRole::Annotation,
+            contracts::ANNOTATIONS[0],
+            acquisition,
+            vec![],
+            "observations/T/event-annotations.json".into(),
+            m.artifacts[4].content.clone(),
+        ));
+        m.contracts.push(contracts::ANNOTATIONS[0].into());
+    };
+    expect(&mutated(descriptor), false, IssueCode::PrivacyViolation);
+    let disclosed = mutated(|m| {
+        descriptor(m);
+        m.privacy = PrivacyPolicy {
+            profile: PrivacyProfile::Controlled,
+            disclosures: vec![Disclosure {
+                contract: "DUA-2026-014".into(),
+                purpose: "cohort analysis".into(),
+                keywords: vec![],
+                source_locations: false,
+                provenance_records: true,
+            }],
+        };
+    });
+    let issues = check(&disclosed, Profile::Structural, false);
+    assert!(
+        !issues
+            .codes(Severity::Error)
+            .contains(&IssueCode::PrivacyViolation),
+        "{:?}",
+        issues.items()
+    );
+}
+
+/// Subject P01 in group AML; specimen SP01 at timepoint D0; both samples in
+/// batch B1.
+fn design() -> dataset::Design {
+    use dataset::{Design, Factor, FactorLevel, SampleDesign, SpecimenDesign, SubjectEntry};
+    let factors = |pairs: &[(&str, &str)]| {
+        pairs
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect()
+    };
+    Design {
+        factors: vec![
+            Factor {
+                name: "group".into(),
+                level: FactorLevel::Subject,
+            },
+            Factor {
+                name: "timepoint".into(),
+                level: FactorLevel::Specimen,
+            },
+            Factor {
+                name: "batch".into(),
+                level: FactorLevel::Sample,
+            },
+        ],
+        subjects: vec![SubjectEntry {
+            id: "P01".into(),
+            factors: factors(&[("group", "AML")]),
+        }],
+        specimens: vec![SpecimenDesign {
+            specimen: "SP01".into(),
+            subject: "P01".into(),
+            factors: factors(&[("timepoint", "D0")]),
+        }],
+        samples: ["SP01-T", "SP01-B"]
+            .into_iter()
+            .map(|sample| SampleDesign {
+                sample: sample.into(),
+                factors: factors(&[("batch", "B1")]),
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn a_design_is_part_of_the_dataset_identity() {
+    let built = mutated(|m| m.design = Some(design()));
+    let issues = check(&built, Profile::MiflowcytMinimal, false);
+    assert!(!issues.has_errors(), "{:?}", issues.items());
+    let mut regrouped = built.manifest.clone();
+    regrouped.design.as_mut().unwrap().subjects[0]
+        .factors
+        .insert("group".into(), "CLL".into());
+    assert_ne!(regrouped.dataset_id(), built.manifest.dataset_id());
+    let text = built.manifest.canonical_json();
+    let mut issues = Issues::new();
+    let parsed = dataset::parse(text.as_bytes(), DocumentFormat::Json, &mut issues).unwrap();
+    assert_eq!(parsed.design, Some(design()));
+    dataset::conforms(
+        &serde_json::from_str(&text).unwrap(),
+        "dataset-manifest.schema.json",
+    )
+    .unwrap();
+}
+
+#[test]
+fn design_subjects_are_unique_pseudonyms() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects.push(design.subjects[0].clone());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::DuplicateIdentifier,
+    );
+    let dated = mutated(|m| {
+        let mut design = design();
+        design.subjects[0].id = "1984-03-07".into();
+        design.specimens[0].subject = "1984-03-07".into();
+        m.design = Some(design);
+    });
+    let issues = check(&dated, Profile::Structural, false);
+    assert!(
+        issues
+            .codes(Severity::Warning)
+            .contains(&IssueCode::PrivacyViolation),
+        "{:?}",
+        issues.items()
+    );
+}
+
+#[test]
+fn a_specimen_of_an_unknown_subject_is_invalid() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.specimens[0].subject = "P02".into();
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::InvalidReference,
+    );
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.samples[0].sample = "SP09-T".into();
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::InvalidReference,
+    );
+}
+
+#[test]
+fn a_factor_given_at_the_wrong_level_is_invalid() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects[0]
+                .factors
+                .insert("timepoint".into(), "D0".into());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::InvalidReference,
+    );
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.samples[1].factors.clear();
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::MissingMetadata,
+    );
+}
+
+#[test]
+fn undeclared_factors_and_free_text_are_malformed() {
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects[0].factors.insert("sex".into(), "F".into());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::MalformedDocument,
+    );
+    expect(
+        &mutated(|m| {
+            let mut design = design();
+            design.subjects[0]
+                .factors
+                .insert("group".into(), "acute myeloid leukemia".into());
+            m.design = Some(design);
+        }),
+        false,
+        IssueCode::MalformedDocument,
+    );
+}

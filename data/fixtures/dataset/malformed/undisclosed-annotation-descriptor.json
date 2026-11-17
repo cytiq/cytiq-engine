@@ -1,0 +1,28 @@
+{
+  "expect": "privacy_violation",
+  "tier": "document",
+  "description": "A population annotation descriptor (event-annotations.json) records the absolute paths of its inputs; listing one needs a disclosure with provenance_records.",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/contracts/-",
+      "value": "cytiq.population.annotations.v1"
+    },
+    {
+      "op": "add",
+      "path": "/artifacts/-",
+      "value": {
+        "role": "annotation",
+        "contract": "cytiq.population.annotations.v1",
+        "semantic_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+        "parents": [],
+        "content": {
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "bytes": 1024
+        },
+        "location": "observations/M/event-annotations.json"
+      }
+    }
+  ]
+}

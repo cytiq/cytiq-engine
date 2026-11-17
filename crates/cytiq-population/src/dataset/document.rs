@@ -46,7 +46,223 @@ pub fn validate_document(
     check_controls(manifest, issues);
     check_knowledge(manifest, issues);
     check_artifacts(manifest, issues);
+    if let Some(design) = &manifest.design {
+        check_design(manifest, design, issues);
+    }
     profile::check(manifest, profile, issues);
+}
+
+/// A factor name: lowercase, an SQL identifier.
+fn factor_name_valid(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_lowercase())
+        && name.len() <= 32
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// A factor value: a short code, never free text.
+fn factor_value_valid(value: &str) -> bool {
+    let mut chars = value.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && value.len() <= 64
+        && chars.all(|c| c.is_ascii_alphanumeric() || "_.:+-".contains(c))
+}
+
+/// Whether `value` reads as a calendar date (`2024-01-31`, `31.01.2024`,
+/// `01-JAN-2024`), which would identify a visit.
+fn looks_like_date(value: &str) -> bool {
+    let parts: Vec<&str> = value.split(['-', '.', '/', ':']).collect();
+    let numeric = |part: &str, digits: &[usize]| {
+        digits.contains(&part.len()) && part.chars().all(|c| c.is_ascii_digit())
+    };
+    let month = |part: &str| {
+        [
+            "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+        ]
+        .contains(&part.to_ascii_lowercase().as_str())
+    };
+    parts.len() == 3
+        && parts.iter().any(|part| numeric(part, &[4]))
+        && parts
+            .iter()
+            .all(|part| numeric(part, &[1, 2, 4]) || month(part))
+}
+
+/// The study design: unique pseudonymous subjects, declared factors given
+/// at their level only, with every factor of its level, and references to
+/// the manifest's specimens and samples.
+fn check_design(manifest: &DatasetManifest, design: &super::Design, issues: &mut Issues) {
+    let mut declared: HashMap<&str, super::FactorLevel> = HashMap::new();
+    for (index, factor) in design.factors.iter().enumerate() {
+        let at = pointer(["design", "factors", &index.to_string(), "name"]);
+        if !factor_name_valid(&factor.name) {
+            issues.error(
+                IssueCode::MalformedDocument,
+                at,
+                format!(
+                    "factor `{}` is not a lowercase identifier of at most 32 characters",
+                    factor.name
+                ),
+            );
+        } else if declared.insert(&factor.name, factor.level).is_some() {
+            issues.error(
+                IssueCode::DuplicateIdentifier,
+                at,
+                format!("factor `{}` is declared twice", factor.name),
+            );
+        }
+    }
+    let subjects: HashSet<&str> = design.subjects.iter().map(|s| s.id.as_str()).collect();
+    let mut seen = HashSet::new();
+    for (index, subject) in design.subjects.iter().enumerate() {
+        let at = pointer(["design", "subjects", &index.to_string()]);
+        if !seen.insert(subject.id.to_ascii_lowercase()) {
+            issues.error(
+                IssueCode::DuplicateIdentifier,
+                format!("{at}/id"),
+                format!("subject `{}` appears more than once", subject.id),
+            );
+        }
+        check_pseudonym(&subject.id, &format!("{at}/id"), issues);
+        check_factors(
+            &subject.factors,
+            super::FactorLevel::Subject,
+            &declared,
+            &at,
+            issues,
+        );
+    }
+    let specimens: HashSet<&str> = manifest.specimens.iter().map(|s| s.id.as_str()).collect();
+    let mut seen = HashSet::new();
+    for (index, entry) in design.specimens.iter().enumerate() {
+        let at = pointer(["design", "specimens", &index.to_string()]);
+        if !specimens.contains(entry.specimen.as_str()) {
+            issues.error(
+                IssueCode::InvalidReference,
+                format!("{at}/specimen"),
+                format!("specimen `{}` is not defined", entry.specimen),
+            );
+        }
+        if !seen.insert(entry.specimen.as_str()) {
+            issues.error(
+                IssueCode::DuplicateIdentifier,
+                format!("{at}/specimen"),
+                format!("specimen `{}` is designed twice", entry.specimen),
+            );
+        }
+        if !subjects.contains(entry.subject.as_str()) {
+            issues.error(
+                IssueCode::InvalidReference,
+                format!("{at}/subject"),
+                format!("subject `{}` is not defined", entry.subject),
+            );
+        }
+        check_factors(
+            &entry.factors,
+            super::FactorLevel::Specimen,
+            &declared,
+            &at,
+            issues,
+        );
+    }
+    let samples: HashSet<&str> = manifest.samples.iter().map(|s| s.id.as_str()).collect();
+    let mut seen = HashSet::new();
+    for (index, entry) in design.samples.iter().enumerate() {
+        let at = pointer(["design", "samples", &index.to_string()]);
+        if !samples.contains(entry.sample.as_str()) {
+            issues.error(
+                IssueCode::InvalidReference,
+                format!("{at}/sample"),
+                format!("sample `{}` is not defined", entry.sample),
+            );
+        }
+        if !seen.insert(entry.sample.as_str()) {
+            issues.error(
+                IssueCode::DuplicateIdentifier,
+                format!("{at}/sample"),
+                format!("sample `{}` is designed twice", entry.sample),
+            );
+        }
+        check_factors(
+            &entry.factors,
+            super::FactorLevel::Sample,
+            &declared,
+            &at,
+            issues,
+        );
+    }
+}
+
+/// Subject ids are study pseudonyms: neither a date nor an acquisition id.
+fn check_pseudonym(id: &str, at: &str, issues: &mut Issues) {
+    if id.trim().is_empty() {
+        issues.error(IssueCode::MissingMetadata, at, "subject id is empty");
+    } else if looks_like_date(id) {
+        issues.warning(
+            IssueCode::PrivacyViolation,
+            at,
+            "a subject id shaped like a date may identify a person",
+        );
+    } else if is_sha256(id) {
+        issues.warning(
+            IssueCode::DuplicateIdentifier,
+            at,
+            "a subject id shaped like a SHA-256 is easily mistaken for an acquisition id",
+        );
+    }
+}
+
+/// An entity's factors: declared, of its level, valid codes, and every
+/// factor of its level present.
+fn check_factors(
+    factors: &BTreeMap<String, String>,
+    level: super::FactorLevel,
+    declared: &HashMap<&str, super::FactorLevel>,
+    at: &str,
+    issues: &mut Issues,
+) {
+    for (name, value) in factors {
+        let at = format!("{at}{}", pointer(["factors", name.as_str()]));
+        match declared.get(name.as_str()) {
+            None => issues.error(
+                IssueCode::MalformedDocument,
+                at.clone(),
+                format!("factor `{name}` is not declared"),
+            ),
+            Some(declared) if *declared != level => issues.error(
+                IssueCode::InvalidReference,
+                at.clone(),
+                format!(
+                    "factor `{name}` is a {} factor, not a {} one",
+                    declared.as_str(),
+                    level.as_str()
+                ),
+            ),
+            Some(_) => {}
+        }
+        if !factor_value_valid(value) {
+            issues.error(
+                IssueCode::MalformedDocument,
+                at,
+                format!("factor value `{value}` is not a short code"),
+            );
+        } else if looks_like_date(value) {
+            issues.warning(
+                IssueCode::PrivacyViolation,
+                at,
+                "a factor value shaped like a date may identify a visit; use a study timepoint",
+            );
+        }
+    }
+    for (name, declared) in declared {
+        if *declared == level && !factors.contains_key(*name) {
+            issues.error(
+                IssueCode::MissingMetadata,
+                format!("{at}/factors"),
+                format!("the {} lacks factor `{name}`", level.as_str()),
+            );
+        }
+    }
 }
 
 fn check_identity(manifest: &DatasetManifest, issues: &mut Issues) {
@@ -503,6 +719,7 @@ fn role_takes(role: ArtifactRole, contract: &str) -> bool {
         ArtifactRole::TechnicalMask => contract == contracts::MASK,
         ArtifactRole::Annotation => {
             contract == contracts::MASK
+                || contract == contracts::LABELS
                 || contracts::CLASSIFY_PREDICTIONS.contains(&contract)
                 || contracts::ANNOTATIONS.contains(&contract)
         }
@@ -640,6 +857,16 @@ fn check_artifact_fields(
             IssueCode::PrivacyViolation,
             format!("{at}/role"),
             "provenance records hold paths and command lines; list them only under a disclosure with `provenance_records`",
+        );
+    }
+    if contracts::ANNOTATIONS.contains(&artifact.contract.as_str())
+        && !manifest.privacy.discloses_provenance_records()
+    {
+        issues.error(
+            IssueCode::PrivacyViolation,
+            format!("{at}/contract"),
+            "population annotation descriptors record the absolute paths of their inputs; list \
+             them only under a disclosure with `provenance_records`",
         );
     }
     check_artifact_acquisition(artifact, at, acquisitions, issues);

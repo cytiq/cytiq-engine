@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gates on the reference's transformed Case12 layer (arcsinh 150 on the
+     fluorescence channels): nested (blasts in CD45+), overlapping (CD45+ and
+     CD34+ share an event) and empty (large). -->
+<gating:Gating-ML
+    xmlns:gating="http://www.isac-net.org/std/Gating-ML/v2.0/gating"
+    xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v2.0/datatypes">
+  <gating:RectangleGate gating:id="cells">
+    <gating:dimension gating:min="100000" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FS INT"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:RectangleGate gating:id="CD45+" gating:parent_id="cells">
+    <gating:dimension gating:min="4" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FL10 INT"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:RectangleGate gating:id="CD34+" gating:parent_id="cells">
+    <gating:dimension gating:min="2" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FL5 INT"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:RectangleGate gating:id="blasts" gating:parent_id="CD45+">
+    <gating:dimension gating:min="3" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="FL5 INT"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+  <gating:RectangleGate gating:id="large" gating:parent_id="cells">
+    <gating:dimension gating:min="100000" gating:compensation-ref="uncompensated">
+      <data-type:fcs-dimension data-type:name="SS INT"/>
+    </gating:dimension>
+  </gating:RectangleGate>
+</gating:Gating-ML>

@@ -9,13 +9,14 @@ use std::process::Command;
 use cytiq_fcs::{FcsReadLimits, FcsReader};
 use cytiq_manifest::{RunManifest, SignalState};
 use cytiq_population::dataset::{
-    self, AcquisitionRole, ArtifactEntry, ArtifactRole, DatasetManifest, KnowledgeEntry,
-    PanelEntry, SampleEntry, contracts,
+    self, AcquisitionRole, ArtifactEntry, ArtifactRole, DatasetManifest, Design, Factor,
+    FactorLevel, KnowledgeEntry, PanelEntry, SampleDesign, SampleEntry, SpecimenDesign,
+    SubjectEntry, contracts,
 };
-use cytiq_population::events;
 use cytiq_population::issue::Issues;
 use cytiq_population::knowledge::KnowledgeArtifact;
 use cytiq_population::privacy::PrivacyPolicy;
+use cytiq_population::{events, labels};
 
 pub fn fixtures() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/fixtures")
@@ -156,6 +157,161 @@ fn chain(
     vec![comp, trans, margins]
 }
 
+/// Run `cytiq export labels` into `work`, place the table under `root` and
+/// describe it.
+fn export_labels(
+    root: &Path,
+    work: &Path,
+    location: &str,
+    args: &[&str],
+    parents: Vec<String>,
+) -> ArtifactEntry {
+    let staged = work.join(location.replace('/', "_"));
+    let mut command = vec!["export", "labels", "--output", utf8(&staged)];
+    command.extend_from_slice(args);
+    cytiq(&command);
+    let placed = place(root, &staged, location);
+    let mut issues = Issues::new();
+    let summary = labels::verify_file(&placed, "", &mut issues)
+        .unwrap_or_else(|| panic!("{location}: {:?}", issues.items()));
+    ArtifactEntry::labels(
+        &summary,
+        Some("M".into()),
+        parents,
+        location.into(),
+        dataset::content_of(&placed).unwrap(),
+    )
+}
+
+/// Panel M's labels: the margin mask as QC labels, and the membership of
+/// `case12-gates.xml` (nested, overlapping and empty gates) on the
+/// transformed layer, within that mask, as gate labels.
+fn labels(
+    root: &Path,
+    work: &Path,
+    id: &str,
+    [raw, transformed, margins]: [&ArtifactEntry; 3],
+) -> Vec<ArtifactEntry> {
+    let gates = fixtures().join("dataset/case12-gates.xml");
+    let mask = work.join(format!("{id}.comp.masks.parquet"));
+    let membership = work.join(format!("{id}.membership.parquet"));
+    let counts = work.join(format!("{id}.counts.json"));
+    cytiq(&[
+        "gate",
+        "--input",
+        utf8(&work.join(format!("{id}.trans.fcs"))),
+        "--gating-ml",
+        utf8(&gates),
+        "--mask",
+        utf8(&mask),
+        "--output",
+        utf8(&counts),
+        "--format",
+        "json",
+        "--membership",
+        utf8(&membership),
+    ]);
+    let compensate_record =
+        cytiq_provenance::record_path_for_file(&work.join(format!("{id}.comp.fcs")));
+    let qc = export_labels(
+        root,
+        work,
+        &format!("labels/M/{id}.qc.parquet"),
+        &[
+            "--kind",
+            "qc",
+            "--input",
+            utf8(&mask),
+            "--producer-provenance",
+            utf8(&compensate_record),
+            "--events",
+            utf8(&root.join(&raw.location)),
+        ],
+        vec![margins.semantic_id.clone()],
+    );
+    let gate = export_labels(
+        root,
+        work,
+        &format!("labels/M/{id}.gates.parquet"),
+        &[
+            "--kind",
+            "gate",
+            "--input",
+            utf8(&membership),
+            "--producer-provenance",
+            utf8(&cytiq_provenance::record_path_for_file(&counts)),
+            "--events",
+            utf8(&root.join(&transformed.location)),
+            "--qc-mask",
+            utf8(&mask),
+            "--gating-ml",
+            utf8(&gates),
+        ],
+        vec![transformed.semantic_id.clone(), margins.semantic_id.clone()],
+    );
+    let placed = place(root, &gates, "definitions/case12-gates.xml");
+    let gating = ArtifactEntry::object(
+        ArtifactRole::Gating,
+        contracts::GATING_ML,
+        None,
+        vec![],
+        "definitions/case12-gates.xml".into(),
+        dataset::content_of(&placed).unwrap(),
+    );
+    vec![qc, gate, gating]
+}
+
+/// Subjects P01 (specimen SP01, panels M and B) and P02 (the synthetic
+/// SP02), each in a group, at a timepoint and in a batch.
+fn design() -> Design {
+    let factors = |pairs: &[(&str, &str)]| {
+        pairs
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect()
+    };
+    let factor = |name: &str, level| Factor {
+        name: name.into(),
+        level,
+    };
+    Design {
+        factors: vec![
+            factor("group", FactorLevel::Subject),
+            factor("timepoint", FactorLevel::Specimen),
+            factor("batch", FactorLevel::Sample),
+        ],
+        subjects: vec![
+            SubjectEntry {
+                id: "P01".into(),
+                factors: factors(&[("group", "case")]),
+            },
+            SubjectEntry {
+                id: "P02".into(),
+                factors: factors(&[("group", "control")]),
+            },
+        ],
+        specimens: vec![
+            SpecimenDesign {
+                specimen: "SP01".into(),
+                subject: "P01".into(),
+                factors: factors(&[("timepoint", "D0")]),
+            },
+            SpecimenDesign {
+                specimen: "SP02".into(),
+                subject: "P02".into(),
+                factors: factors(&[("timepoint", "D0")]),
+            },
+        ],
+        samples: [("S12-M", "B1"), ("S30-B", "B1"), ("SX-X", "B2")]
+            .into_iter()
+            .map(|(sample, batch)| SampleDesign {
+                sample: sample.into(),
+                factors: factors(&[("batch", batch)]),
+            })
+            .collect(),
+    }
+}
+
 fn base_state(state: SignalState) -> &'static str {
     match state {
         SignalState::Raw => "raw",
@@ -201,6 +357,7 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
     let mut acquisitions = Vec::new();
     let mut samples = Vec::new();
     let mut artifacts = Vec::new();
+    let mut labelled = Vec::new();
     for sample in &run.samples {
         let panel = run.panel_of(sample).unwrap();
         let label = panel.label();
@@ -235,6 +392,7 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
         );
         if label == "M" {
             let derived = chain(root, work, &sample.file, &sample.id, &raw);
+            labelled = labels(root, work, &sample.id, [&raw, &derived[1], &derived[2]]);
             artifacts.push(raw);
             artifacts.extend(derived);
         } else {
@@ -243,6 +401,9 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
     }
     let (knowledge, gating) = definitions(root);
     artifacts.push(gating);
+    // After the events and definitions, so their positions stay those the
+    // malformed cases patch.
+    artifacts.extend(labelled);
     let manifest = DatasetManifest {
         schema_version: dataset::SCHEMA_VERSION,
         artifact_type: dataset::ARTIFACT_TYPE.into(),
@@ -250,6 +411,7 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
         contracts: vec![
             contracts::EVENTS.into(),
             contracts::MASK.into(),
+            contracts::LABELS.into(),
             contracts::GATING_ML.into(),
         ],
         privacy: policy,
@@ -262,6 +424,7 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
         controls: vec![],
         knowledge,
         artifacts,
+        design: Some(design()),
     }
     .sealed();
     fs::write(root.join("manifest.json"), manifest.canonical_json()).unwrap();

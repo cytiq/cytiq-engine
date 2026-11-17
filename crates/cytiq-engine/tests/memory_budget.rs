@@ -317,6 +317,19 @@ fn memory_heavy_entry_points_stay_within_their_heap_budgets() {
     // At least one batch of decoded events is live.
     check("events export", peak, MIB, EVENTS_EXPORT_BUDGET_MIB);
 
+    let labels = qc_labels(directory.path(), &raw, &output, EVENTS, "labels");
+    let peak = peak_during(|| {
+        cytiq_population::labels::LabelsRunner::run(&labels).expect("labels export runs");
+    });
+    // At least one batch of label rows is live.
+    check("labels export", peak, MIB, LABELS_EXPORT_BUDGET_MIB);
+
+    exports_do_not_grow_with_the_event_count(directory.path());
+}
+
+/// Past one row group, the events and label export peaks do not grow with
+/// the event count, beyond the label export's per-event bitmaps.
+fn exports_do_not_grow_with_the_event_count(directory: &Path) {
     // Past one row group, the peak does not grow with the event count.
     let settings = cytiq_population::events::WriteSettings {
         row_group_rows: std::num::NonZeroUsize::new(SCALING_ROW_GROUP).expect("positive"),
@@ -325,9 +338,9 @@ fn memory_heavy_entry_points_stay_within_their_heap_budgets() {
     let peaks: Vec<usize> = [SCALING_EVENTS, 4 * SCALING_EVENTS]
         .into_iter()
         .map(|events| {
-            let input = directory.path().join(format!("scaling{events}.fcs"));
+            let input = directory.join(format!("scaling{events}.fcs"));
             write_scaling_input(&input, events);
-            let output = directory.path().join(format!("scaling{events}.parquet"));
+            let output = directory.join(format!("scaling{events}.parquet"));
             peak_during(|| {
                 cytiq_population::events::export_with(
                     &input,
@@ -345,6 +358,103 @@ fn memory_heavy_entry_points_stay_within_their_heap_budgets() {
         peaks[1] * 10 <= peaks[0] * 11,
         "the export peak grew with the event count: {peaks:?}"
     );
+
+    // Nor does the label export's, beyond its per-event bitmaps.
+    let peaks: Vec<usize> = [SCALING_EVENTS, 4 * SCALING_EVENTS]
+        .into_iter()
+        .map(|events| {
+            let input = directory.join(format!("scaling{events}.fcs"));
+            let anchor = directory.join(format!("scaling{events}.parquet"));
+            let labels = qc_labels(
+                directory,
+                &input,
+                &anchor,
+                events,
+                &format!("scaling{events}"),
+            );
+            peak_during(|| {
+                cytiq_population::labels::LabelsRunner::run(&labels).expect("labels export runs");
+            })
+        })
+        .collect();
+    eprintln!("labels export scaling: peaks {peaks:?} B");
+    assert!(
+        peaks[1] * 10 <= peaks[0] * 11,
+        "the label export peak grew with the event count: {peaks:?}"
+    );
+}
+
+/// `cytiq.events.labels.v1` export of a QC mask of 200k events with two
+/// filters, bound to the 32-channel events table above. It streams batches
+/// of 65,536 label rows; the peak is the events table's read-back batch, a
+/// label batch, the encoder's row group and the label read-back batch.
+/// Measured 22,000,986 B when added; 300k and 1.2M events of 4 channels
+/// peaked at 17,786,905 and 17,835,971 B.
+const LABELS_EXPORT_BUDGET_MIB: usize = 24;
+
+/// A `cytiq clean`-style QC mask of `events` raw events of `raw`, its
+/// producer's record, and the export binding it to `anchor`.
+fn qc_labels(
+    directory: &Path,
+    raw: &Path,
+    anchor: &Path,
+    events: usize,
+    name: &str,
+) -> cytiq_population::labels::ExportLabelsConfig {
+    let acquisition = cytiq_provenance::hash_file(raw).expect("hash").1;
+    let keep: Vec<bool> = (0..events).map(|event| event % 7 != 0).collect();
+    let live: Vec<Option<bool>> = (0..events).map(|event| Some(event % 7 != 0)).collect();
+    let singlets: Vec<Option<bool>> = (0..events)
+        .map(|event| (event % 3 != 0).then_some(true))
+        .collect();
+    let mask = directory.join(format!("{name}.mask.parquet"));
+    cytiq_mask::EventMask::new(acquisition, keep, Some((0..events as u64).collect()))
+        .with_filter("live", live)
+        .with_filter("singlets", singlets)
+        .write_parquet(&mask)
+        .expect("mask writes");
+    let file = |path: &Path, role: Option<&str>| {
+        let (bytes, sha256) = cytiq_provenance::hash_file(path).expect("hash");
+        cytiq_provenance::FileRecord {
+            path: path.display().to_string(),
+            role: role.map(Into::into),
+            bytes,
+            sha256,
+        }
+    };
+    let record = cytiq_provenance::RunRecord {
+        schema_version: cytiq_provenance::SCHEMA_VERSION,
+        tool: "cytiq clean".into(),
+        version: "0.0.0".into(),
+        build: cytiq_provenance::BuildInfo::unknown(),
+        platform: cytiq_provenance::Platform::current(),
+        arguments: Vec::new(),
+        config: serde_json::json!({}),
+        constants: serde_json::json!({}),
+        algorithms: std::collections::BTreeMap::new(),
+        started_at_unix_ms: 0,
+        finished_at_unix_ms: 0,
+        inputs: vec![file(raw, Some("input"))],
+        outputs: vec![file(&mask, None)],
+        execution_fingerprint: None,
+        reason: None,
+        parallelism: None,
+    };
+    let producer = directory.join(format!("{name}.mask.provenance.json"));
+    std::fs::write(&producer, serde_json::to_vec(&record).expect("record")).expect("record writes");
+    cytiq_population::labels::ExportLabelsConfig {
+        kind: cytiq_population::labels::LabelKind::Qc,
+        input: mask,
+        producer_provenance: producer,
+        events: anchor.to_path_buf(),
+        qc_masks: Vec::new(),
+        gating: None,
+        cluster_model: None,
+        probabilities: true,
+        output: directory.join(format!("{name}.labels.parquet")),
+        overwrite: false,
+        settings: cytiq_population::labels::LabelSettings::default(),
+    }
 }
 
 /// Events of the smaller scaling input; both inputs span several row groups.
