@@ -56,6 +56,8 @@ pub mod contracts {
         "cytiq.population.annotations.v2",
     ];
     pub const OBSERVATIONS: &str = "cytiq.population.observations.v1";
+    /// Per-event labels of one native output (`cytiq export labels`).
+    pub const LABELS: &str = crate::labels::CONTRACT;
     pub const GATING_ML: &str = "gating-ml.v2";
     pub const CLASSIFY_BUNDLE: &str = "cytiq.classify.bundle";
     pub const CYTIQ_TREE: &str = "cytiq-tree.v2";
@@ -68,6 +70,7 @@ pub mod contracts {
             EVENTS,
             EVENTS_PARTS,
             MASK,
+            LABELS,
             OBSERVATIONS,
             GATING_ML,
             CLASSIFY_BUNDLE,
@@ -321,6 +324,33 @@ impl ArtifactEntry {
         Self {
             contract: contracts::EVENTS_PARTS.into(),
             ..Self::signal_layer(descriptor, values_sha256, panel, parents, location, content)
+        }
+    }
+
+    /// The entry of a `cytiq.events.labels.v1` table: an annotation of its
+    /// acquisition whose semantic id is its `annotation_id`.
+    #[must_use]
+    pub fn labels(
+        summary: &crate::labels::LabelsSummary,
+        panel: Option<String>,
+        parents: Vec<String>,
+        location: String,
+        content: ContentRef,
+    ) -> Self {
+        Self {
+            role: ArtifactRole::Annotation,
+            contract: contracts::LABELS.into(),
+            semantic_id: summary.annotation_id.clone(),
+            acquisition: Some(summary.descriptor.acquisition_id.clone()),
+            panel,
+            parents,
+            layer: None,
+            content: ContentRef {
+                values_sha256: Some(summary.values_sha256.clone()),
+                ..content
+            },
+            location,
+            execution: None,
         }
     }
 

@@ -14,6 +14,7 @@
     "malformed/missing-purpose.json": "24e389dc5c13e91ac0b226f5a11be176f51c2b5486ac44f42cee2ce03cf4a289",
     "malformed/reused-reporter.json": "179b03c0f42c2b96706d30c3de773047fbecbd11cd96b2b07132c0e3adc82fd5",
     "malformed/swapped-layers.json": "84121d56f067154cca999a7f1c089a90601d0a386eba9bd99ca74ab20dee5477",
+    "malformed/undisclosed-annotation-descriptor.json": "e5be2d8c804334f9a1d179dcbcfd19159405992a5960ff34beec9b1e70dfd886",
     "malformed/undisclosed-provenance.json": "fad91da588da8cd505636fe248caeef67535a9ddc8ee94f3a9ed69b9c96d76e5",
     "malformed/unknown-contract.json": "11f7defdedeb2dad42db1b46433993260cd932dd2a0c6a183f143c43a9cd5555",
     "malformed/unknown-detector.json": "ecca127767909e0c12fdd1a372934127aca22766412840d685cb425398efa747",

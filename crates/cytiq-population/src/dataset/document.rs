@@ -503,6 +503,7 @@ fn role_takes(role: ArtifactRole, contract: &str) -> bool {
         ArtifactRole::TechnicalMask => contract == contracts::MASK,
         ArtifactRole::Annotation => {
             contract == contracts::MASK
+                || contract == contracts::LABELS
                 || contracts::CLASSIFY_PREDICTIONS.contains(&contract)
                 || contracts::ANNOTATIONS.contains(&contract)
         }
@@ -640,6 +641,16 @@ fn check_artifact_fields(
             IssueCode::PrivacyViolation,
             format!("{at}/role"),
             "provenance records hold paths and command lines; list them only under a disclosure with `provenance_records`",
+        );
+    }
+    if contracts::ANNOTATIONS.contains(&artifact.contract.as_str())
+        && !manifest.privacy.discloses_provenance_records()
+    {
+        issues.error(
+            IssueCode::PrivacyViolation,
+            format!("{at}/contract"),
+            "population annotation descriptors record the absolute paths of their inputs; list \
+             them only under a disclosure with `provenance_records`",
         );
     }
     check_artifact_acquisition(artifact, at, acquisitions, issues);

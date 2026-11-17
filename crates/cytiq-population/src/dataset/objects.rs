@@ -54,6 +54,11 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
                     check_event_table(artifact, acquisition, &path, &at, issues);
                 }
             }
+            ArtifactRole::Annotation if artifact.contract == contracts::LABELS => {
+                if let Some(acquisition) = acquisition {
+                    check_labels(artifact, acquisition, &path, &at, issues);
+                }
+            }
             ArtifactRole::Observations => {
                 check_observations(&acquisitions, artifact, &path, &at, issues);
             }
@@ -292,6 +297,44 @@ fn check_event_table(
             IssueCode::InvalidReference,
             at,
             "a mask covers every raw event of its acquisition",
+        );
+    }
+}
+
+/// A label table verifies, labels every raw event of its acquisition, and
+/// is listed under its `annotation_id` and values digest.
+fn check_labels(
+    artifact: &ArtifactEntry,
+    acquisition: &AcquisitionEntry,
+    path: &Path,
+    at: &str,
+    issues: &mut Issues,
+) {
+    let Some(summary) = crate::labels::verify_file(path, at, issues) else {
+        return;
+    };
+    let descriptor = &summary.descriptor;
+    if descriptor.acquisition_id != acquisition.id
+        || descriptor.raw_events != acquisition.raw_events
+    {
+        issues.error(
+            IssueCode::InvalidReference,
+            at,
+            "the label table is of another acquisition or event count than the artifact's",
+        );
+    }
+    if artifact.semantic_id != summary.annotation_id {
+        issues.error(
+            IssueCode::CorruptArtifactHash,
+            format!("{at}/semantic_id"),
+            "a label table's semantic id is its `annotation_id`",
+        );
+    }
+    if artifact.content.values_sha256.as_ref() != Some(&summary.values_sha256) {
+        issues.error(
+            IssueCode::CorruptArtifactHash,
+            format!("{at}/content/values_sha256"),
+            "the label table's values digest differs from the manifest's",
         );
     }
 }
