@@ -99,6 +99,11 @@ performance-events *args: lakehouse-setup
     cargo build --release --locked -p {{ CLI_PACKAGE }}
     target/lakehouse/py/bin/python performance/events.py {{ args }}
 
+# ---- Label table layouts: wide vs long, and the UNPIVOT view (see performance/README.md)
+[group('validation')]
+performance-labels *args: lakehouse-setup
+    target/lakehouse/py/bin/python performance/labels.py {{ args }}
+
 # ---- Pinned DuckDB and PyArrow for the lakehouse checks, in target/lakehouse/py
 [group('validation')]
 lakehouse-setup:

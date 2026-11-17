@@ -74,6 +74,18 @@ cells:
   below), and `not_assessed` otherwise. An omitted event the masks keep is
   refused.
 
+### Physical layout
+
+The layout is **wide**: one row per event and one column per label.
+`performance/labels.py` measured it against a long layout (one row per event
+and label) before the contract was fixed, with the rule set beforehand (see
+[`performance/README.md`](../performance/README.md#label-tables)). Wide was
+15× smaller for 32 gates and faster for per-label counts (1.2–1.9×) and for
+selecting one label's events (1.6–4×). A long table of 10M events × 32 gates
+decodes to about 55 GB, far beyond the 7 GiB the bounded verifier reads per
+table; wide decodes to 1.9 GB. The long form is a view
+(`UNPIVOT INCLUDE NULLS`), within 2× of a materialized long table.
+
 ## Identities
 
 The footer key `cytiq.labels.descriptor` holds the canonical JSON of the

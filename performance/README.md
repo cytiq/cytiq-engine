@@ -186,3 +186,46 @@ The report goes to `target/performance/events/report.json` and `summary.md`;
 keep it local. The measured decision is summarized in
 [`docs/dataset-contract.md`](../docs/dataset-contract.md#physical-layout).
 `--smoke` runs small inputs once and decides nothing.
+
+## Label tables
+
+`performance/labels.py` compares the wide `cytiq.events.labels.v1` layout
+(one row per event, one column per label) with a long one (one row per event
+and label), and measures the `UNPIVOT ... INCLUDE NULLS` view a user writes
+to get the long form from the wide one.
+
+```bash
+just performance-labels                       # all workloads, median of 5
+just performance-labels --workload gates_10m
+just performance-labels --smoke
+```
+
+**Workloads**: 1M and 10M events × 32 nested gates, 10M events × 5 QC
+filters, 1M events × 20 class probabilities; about one event in sixteen
+QC-rejected (null cells). PyArrow writes both layouts with cytiq's settings
+(zstd 1, dictionaries on strings only, 128k-event row groups); the writer is
+not measured. DuckDB runs per-label counts (or means) and the selection of
+one label's events; every layout and the view must give the same answers.
+
+**Decision rule**, fixed in `decide()` before the first run:
+- a layout whose largest table the bounded verifier could not read as one
+  table (the planner's decoded estimate above 7/8 of 8 GiB) is ineligible;
+- wide stays canonical unless long is at least 1.5× better on per-label
+  counts, the selection or file size, which sends the numbers to review;
+- the `UNPIVOT` view must be within 2× of a materialized long table,
+  otherwise the documentation gives a `COPY` recipe.
+
+**Results** (Apple M2 Pro, 12 cores, 16 GB, DuckDB 2.0.0, PyArrow 26.0.0;
+wide / long):
+
+| Workload | File | Decoded estimate | Per-label | View | Selection |
+| --- | --- | --- | --- | --- | --- |
+| gates 1M × 32 | 2.2 / 35.0 MB | 0.19 / 5.5 GB | 46 / 70 ms | 56 ms | 1.8 / 4.7 ms |
+| gates 10M × 32 | 22.5 / 349 MB | 1.9 / 55 GB | 302 / 495 ms | 424 ms | 9.7 / 39 ms |
+| QC 10M × 5 | 11.5 / 53.7 MB | 1.7 / 8.7 GB | 35 / 66 ms | 104 ms | 8.6 / 15 ms |
+| classifier 1M × 20 | 14.6 / 34.6 MB | 0.26 / 3.5 GB | 36 / 42 ms | 48 ms | 2.8 / 4.5 ms |
+
+Wide was smaller and faster on every workload, and the long layout is
+ineligible at 10M events: one table would exceed what the verifier reads.
+The view stays within 2× of a materialized long table, so `views.sql`
+unpivots gates on demand (`gate_membership`) instead of storing them twice.
