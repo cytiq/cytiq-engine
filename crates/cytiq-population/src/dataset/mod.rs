@@ -42,6 +42,8 @@ pub const REPORT_ARTIFACT_TYPE: &str = "cytiq_dataset_validation";
 /// Contracts an artifact may declare. Readers reject any other.
 pub mod contracts {
     pub const EVENTS: &str = crate::events::CONTRACT;
+    /// A signal layer split into `cytiq.events.v1` parts.
+    pub const EVENTS_PARTS: &str = crate::events::PARTS_CONTRACT;
     pub const MASK: &str = "cytiq.mask.v2";
     pub const CLASSIFY_PREDICTIONS: &[&str] = &[
         "cytiq.classify.predictions.v2",
@@ -64,6 +66,7 @@ pub mod contracts {
     pub fn is_known(contract: &str) -> bool {
         [
             EVENTS,
+            EVENTS_PARTS,
             MASK,
             OBSERVATIONS,
             GATING_ML,
@@ -304,6 +307,23 @@ impl ArtifactEntry {
         }
     }
 
+    /// [`Self::signal_layer`] for a layer split into parts: `location` and
+    /// `content` are those of its `parts.json`, `values_sha256` the layer's.
+    #[must_use]
+    pub fn signal_layer_parts(
+        descriptor: &crate::events::LayerDescriptor,
+        values_sha256: &str,
+        panel: Option<String>,
+        parents: Vec<String>,
+        location: String,
+        content: ContentRef,
+    ) -> Self {
+        Self {
+            contract: contracts::EVENTS_PARTS.into(),
+            ..Self::signal_layer(descriptor, values_sha256, panel, parents, location, content)
+        }
+    }
+
     /// The entry of another object, identified by its role, contract,
     /// acquisition, parents and content digest.
     #[must_use]
@@ -435,8 +455,16 @@ pub const PUBLISHED_SCHEMAS: &[(&str, &str)] = &[
         include_str!("../../contracts/dataset/v1/dataset-manifest.schema.json"),
     ),
     (
+        "events-channels.schema.json",
+        include_str!("../../contracts/dataset/v1/events-channels.schema.json"),
+    ),
+    (
         "events-layer.schema.json",
         include_str!("../../contracts/dataset/v1/events-layer.schema.json"),
+    ),
+    (
+        "events-parts.schema.json",
+        include_str!("../../contracts/dataset/v1/events-parts.schema.json"),
     ),
     (
         "validation-report.schema.json",

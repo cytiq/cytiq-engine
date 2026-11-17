@@ -143,17 +143,30 @@ fields (`None` or empty). `RunManifest::migrate` raises a document to
 Two commands and two contracts are new; nothing existing changes. See the
 [dataset contract](dataset-contract.md).
 
-- `cytiq events export` writes one FCS file as a `cytiq.events.v1` Parquet
-  table, keyed by acquisition, signal layer and raw event id in every row.
-  A file `cytiq compensate --matrix` produced needs `--compensation-matrix`,
-  and a file unmixed by `cytiq autospectral` needs `--unmixing-reference`:
-  the FCS records those definitions only by path, which is never exported.
+- `cytiq export events --input F --output T --layer raw` writes one FCS
+  file as a `cytiq.events.v1` Parquet table, keyed by acquisition, signal
+  layer and raw event id in every row.
+  - `--layer` is required and must name the layer the file holds.
+  - A file `cytiq compensate --matrix` produced needs
+    `--compensation-matrix`, and a file unmixed by `cytiq autospectral`
+    needs `--unmixing-reference`: the FCS records those definitions only by
+    path, which is never exported.
+  - QC-filtered or normalized files, whose rows are a subset of the
+    acquisition, need `--allow-subset`.
+  - `--max-file-bytes` splits a layer into parts listed by a
+    `cytiq.events.parts.v1` manifest.
+  - Batch size, row groups, the codec (zstd or Snappy) and the stored
+    channels are options; none of them changes a value.
 - `cytiq dataset validate` checks a dataset manifest v1 and writes a typed
   report. Errors exit 3 after the report is written.
 
 Rust API:
 - `cytiq_population::PopulationError` gains `Fcs`; exhaustive matches need
   an arm.
+- Snappy decoding is compiled into the workspace's `parquet` (the `snap`
+  feature), so the bounded reader of `cytiq-mask` now decodes Snappy pages
+  instead of refusing them as an unsupported codec. Their size stays bounded
+  by the page header.
 - `cytiq-population` now depends on `cytiq-fcs` directly.
 - New modules: `events`, `dataset`, `identity`, `issue` and `privacy`.
 - `serialization::canonical` returns the canonical text that `digest` hashes.

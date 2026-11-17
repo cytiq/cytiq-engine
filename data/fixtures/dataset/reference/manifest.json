@@ -47,8 +47,8 @@
     {
       "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
       "content": {
-        "bytes": 17165,
-        "sha256": "218ada6da3c61689f6f8f6565b99992ac4a1c51763ff6a644f96728010d9dea5",
+        "bytes": 19879,
+        "sha256": "28ccf1b58ae3699bf5e46cf273101a1526445e39244c97a997fed25bca929f37",
         "values_sha256": "630bfad09aade0b1265d4ca65bd9ce75501eb9612de283b1a3add045a7cb99a9"
       },
       "contract": "cytiq.events.v1",
@@ -65,8 +65,8 @@
     {
       "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
       "content": {
-        "bytes": 17453,
-        "sha256": "6f437ab777a2bdebb7c61ef728430d198d14db25e0a1c97f247cf7c1f4ec8f2d",
+        "bytes": 20323,
+        "sha256": "5fcb3c16b549b6a1a44897a0a11a75d2394ab6ad8c94c532c2fdb8493657c467",
         "values_sha256": "c9a6bdbdc3a859c20dcfd007a2a514eddfe3aca2681429ca194e45e9f8fdeccc"
       },
       "contract": "cytiq.events.v1",
@@ -93,8 +93,8 @@
     {
       "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
       "content": {
-        "bytes": 17707,
-        "sha256": "70e22dc153f52568fcdb7d0cb6b691becde2c1c823446ff5b2ba68712ed6c296",
+        "bytes": 20635,
+        "sha256": "ff7dd12e3070a0e8f0b75f9b3b221f988c26b4921ca4fcdf564baf4fd0220d43",
         "values_sha256": "c669f6b780ebed68602439f74677c508ebc2651dff161aa4e00da57158a681a5"
       },
       "contract": "cytiq.events.v1",
@@ -140,8 +140,8 @@
     {
       "acquisition": "0f4a15bc6029a497422397f2b39e354020d3437b24f68d7e755cb7057b2b7bc2",
       "content": {
-        "bytes": 23699,
-        "sha256": "819cd3a1b27d8bd3b0ba2e5f28fc22ad3305a1d9857143673ecb78e50171162d",
+        "bytes": 25997,
+        "sha256": "ecb00768335ad867ba63498f05f6ccc6f4086485fe547520cc880d0a80396023",
         "values_sha256": "658a127d1fc3a69db15e6aa8d366225c59d80e1e0c5e9ac8444d300fcfb511b4"
       },
       "contract": "cytiq.events.v1",
@@ -164,8 +164,8 @@
     {
       "acquisition": "26267dc7d9a6b5becf4c3d7c73c01f6104a252bef363a67ffc2651f5284a2be4",
       "content": {
-        "bytes": 4900,
-        "sha256": "ab8a022b52ebb1e41c0eb026aacc81790655d2db62a8016b5133e41745ed5a8f",
+        "bytes": 5474,
+        "sha256": "38e8c508b0f8841d0b8deebe569ba2f90824a71f80fef891e0ca7554b43393c3",
         "values_sha256": "8a9baa90a8e60d1fd79e1f34261c02d9420ff90dd6e4d143ad0a5b649049a870"
       },
       "contract": "cytiq.events.v1",

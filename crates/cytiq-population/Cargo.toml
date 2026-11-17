@@ -18,7 +18,7 @@ cytiq-publish.workspace = true
 cytiq-qc.workspace = true
 cytiq-manifest.workspace = true
 cytiq-mask.workspace = true
-parquet = { workspace = true, features = ["zstd"] }
+parquet = { workspace = true, features = ["snap", "zstd"] }
 serde.workspace = true
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 serde-saphyr.workspace = true

@@ -136,8 +136,10 @@ PeacoQC, CytoScan and CompensAID against the R outputs in
 on `data/fixtures/pipeline` against per-event truth), `plot_cli.rs` (every
 plot type, masks, gates checked against `cytiq gate`, classes, batch output,
 determinism), `preflight_cli.rs`,
-`qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`, `events_cli.rs` (raw, compensated,
-transformed and externally processed layers, matrix verification against the producing run),
+`qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`, `export_events_cli.rs` (raw, compensated,
+transformed and externally processed layers, matrix verification against the producing run,
+the asserted `--layer`, malformed or truncated files publishing nothing, parts directories with
+their provenance checksums, channel selection and write-setting refusals),
 `dataset_cli.rs` (the reference dataset with every object verified, report and exit 3).
 `tests/common/mod.rs` holds `assert_provenance`, `assert_provenance_chain` and
 `adjusted_rand_index`; `tests/common/dataset.rs` builds the reference dataset of
@@ -150,7 +152,12 @@ checks that `--threads` never changes outputs. `memory_budget.rs` runs the Peaco
 FlowSOM, CytoNorm apply and events export library entry points on fixed 200k-event inputs
 under a counting allocator (its own test binary, one rayon thread) and holds
 each peak heap to a frozen budget; lower a budget with the change that lowers
-its peak, and raise one only with a reviewed reason. `src/cli_surface.rs` compares
+its peak, and raise one only with a reviewed reason. It also requires the export
+peak at 1.2M events to stay within 10% of the peak at 300k. The counting allocator
+does not see memory that C libraries allocate (zstd's per-column contexts); the
+events benchmark (`performance/events.py`) measures it as RSS.
+`examples/events_layouts.rs` generates the benchmark and interop inputs and writes
+the benchmark-only list layout; it is a development tool, not a subcommand. `src/cli_surface.rs` compares
 every flag, default and recorded config key with
 `tests/fixtures/cli-surface.json`; update that fixture by hand, in the same
 change, only for an intended CLI change.

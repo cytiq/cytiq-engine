@@ -201,7 +201,9 @@ fn check(name: &str, peak: usize, input_bytes: usize, budget_mib: usize) {
 // identical across runs. With the library code of eb9ebd2: PeacoQC 72,150,023 B, FlowSOM
 // 33,611,512 B, CytoNorm apply 35,269,712 B. PeacoQC without the channel
 // copies: 46,549,575 B. CytoNorm apply normalizing in place: 34,151,514 B.
-// Events export (batches of at most 16 MiB with keys): 26,038,442 B.
+// Events export (batches of at most 16 MiB with keys): 26,038,442 B; with
+// row groups of 131,072 events instead of one batch (65,536), the default
+// performance/events.py chose for DuckDB scans and projections: 33,799,853 B.
 
 /// `PeacoQC` on 200k events and 8 channels (all methods, cleaned FCS, masks and
 /// summary).
@@ -212,8 +214,11 @@ const FLOWSOM_BUDGET_MIB: usize = 36;
 const CYTONORM_APPLY_BUDGET_MIB: usize = 36;
 /// `cytiq.events.v1` export of 200k raw events on 32 float32 channels. It
 /// streams batches of at most 16 MiB of values and keys; the peak is one
-/// batch, its key columns and the encoder's row group, whatever the count.
-const EVENTS_EXPORT_BUDGET_MIB: usize = 26;
+/// batch, its key columns, the encoder's row group (131,072 events) and the
+/// read-back batch, whatever the count. zstd's per-column contexts are C
+/// allocations this counter does not see; `performance/events.py` measures
+/// them as RSS.
+const EVENTS_EXPORT_BUDGET_MIB: usize = 36;
 /// Channels of the events export input.
 const EXPORT_CHANNELS: usize = 32;
 
@@ -311,4 +316,53 @@ fn memory_heavy_entry_points_stay_within_their_heap_budgets() {
     });
     // At least one batch of decoded events is live.
     check("events export", peak, MIB, EVENTS_EXPORT_BUDGET_MIB);
+
+    // Past one row group, the peak does not grow with the event count.
+    let settings = cytiq_population::events::WriteSettings {
+        row_group_rows: std::num::NonZeroUsize::new(SCALING_ROW_GROUP).expect("positive"),
+        ..cytiq_population::events::WriteSettings::default()
+    };
+    let peaks: Vec<usize> = [SCALING_EVENTS, 4 * SCALING_EVENTS]
+        .into_iter()
+        .map(|events| {
+            let input = directory.path().join(format!("scaling{events}.fcs"));
+            write_scaling_input(&input, events);
+            let output = directory.path().join(format!("scaling{events}.parquet"));
+            peak_during(|| {
+                cytiq_population::events::export_with(
+                    &input,
+                    &output,
+                    &cytiq_population::events::ExportOptions::default(),
+                    &settings,
+                    cytiq_mask::parquet::ParquetReadLimits::default(),
+                )
+                .expect("events export runs");
+            })
+        })
+        .collect();
+    eprintln!("events export scaling: peaks {peaks:?} B");
+    assert!(
+        peaks[1] * 10 <= peaks[0] * 11,
+        "the export peak grew with the event count: {peaks:?}"
+    );
+}
+
+/// Events of the smaller scaling input; both inputs span several row groups.
+const SCALING_EVENTS: usize = 300_000;
+const SCALING_ROW_GROUP: usize = 65_536;
+
+/// A raw float32 FCS of `events` events on 4 channels.
+fn write_scaling_input(path: &Path, events: usize) {
+    #[allow(clippy::cast_precision_loss)]
+    let columns: Vec<Vec<f32>> = (0..4)
+        .map(|channel| {
+            (0..events)
+                .map(|event| ((event * 7919 + channel * 104_729) % 65_521) as f32 / 7.0)
+                .collect()
+        })
+        .collect();
+    let parameters: Vec<FcsWriteParameter> = (1..=4)
+        .map(|index| FcsWriteParameter::new(format!("S{index}")))
+        .collect();
+    cytiq_fcs::write_fcs3_1_f32(path, &parameters, &columns).expect("synthetic FCS writes");
 }

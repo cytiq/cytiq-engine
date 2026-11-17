@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cytiq/cytiq-engine/contracts/dataset/v1/events-parts.schema.json",
+  "title": "cytiq.events.parts.v1 manifest",
+  "description": "`parts.json` of a signal layer split into `cytiq.events.v1` part tables, listed in row order. `values_sha256` covers every row of every part in order and equals the digest of the same layer stored as one table.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "cytiq.events.parts.v1"
+    },
+    "acquisition_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "layer_id": {
+      "$ref": "#/$defs/sha256"
+    },
+    "row_set": {
+      "enum": [
+        "all",
+        "subset"
+      ]
+    },
+    "raw_events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rows": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "values_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/part"
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "acquisition_id",
+    "layer_id",
+    "row_set",
+    "rows",
+    "values_sha256",
+    "parts"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "part": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "first_source_event_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "last_source_event_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "values_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "sha256",
+        "bytes",
+        "rows",
+        "values_sha256"
+      ]
+    }
+  }
+}

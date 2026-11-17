@@ -56,8 +56,36 @@ matched against the producing run's provenance), `declared` or `external`
 may share one lakehouse table share it. `cytiq.events.values_sha256` is a
 digest of keys and values that does not depend on the Parquet encoding.
 Field metadata (`cytiq.channel.*`) keeps the detector (`$PnDET`), marker
-(`$PnS`, `$PnANALYTE`) and reporter (`$PnTAG`) apart. No other FCS TEXT is
+(`$PnS`, `$PnANALYTE`) and reporter (`$PnTAG`) apart. The footer key
+`cytiq.events.channels` repeats it as a JSON channel dictionary
+(`ChannelEntry`) that SQL engines read without Arrow. No other FCS TEXT is
 written: file names, operators and dates never reach the table.
+
+`events::export_with` takes `WriteSettings`:
+- `batch_rows`;
+- `row_group_rows`, with a 64 MiB encoded cap per row group;
+- `codec`: `Codec::Zstd(level)` or `Codec::Snappy`;
+- `channels`: a projection stored in `$Pn` order;
+- `max_file_bytes`: split into parts.
+
+It also takes the `ParquetReadLimits` the result must satisfy; settings
+whose tables the bounded reader would refuse are rejected before writing. No
+setting changes a value. `ExportOptions::layer` must be the layer the file
+holds, and `allow_subset` must be set for a file with `Original_ID`.
+
+The export streams with `FcsReader::stream`. Memory holds one batch, the
+encoded row group, one read-back batch, and the codec state of each column.
+It reads every table back through the bounded reader and publishes it only
+when the values digest matches. It records the input's digest
+(`cytiq.events.source_sha256`), hashes it again at the end and refuses an
+input whose TEXT or bytes changed during the export.
+
+A split layer is a directory of `part-NNNNN.parquet` tables and `parts.json`
+(`PartsManifest`, `cytiq.events.parts.v1`), whose layer digest equals the
+single-table one. `events::verify_parts` checks it.
+
+`ExportRunner` (`cytiq export events`) publishes the table or the directory
+through `cytiq-publish`.
 
 ## Dataset manifest v1
 

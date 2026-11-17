@@ -50,6 +50,10 @@ nightly in `CYTIQ_FUZZ_TOOLCHAIN`, which `just fuzz` installs on first use.
 - `just verify` runs the standard local quality gate.
 - `just performance-check` checks the algorithm benchmark harness; `just performance --help`
   describes the paired CLI benchmarks in [`performance/`](performance/README.md).
+- `just performance-events` measures the events export: the wide and list layouts,
+  codecs and row groups (see [`performance/`](performance/README.md#events-export)).
+- `just lakehouse-interop` checks that exported events read back exactly in DuckDB and
+  PyArrow ([`parity/lakehouse/`](parity/lakehouse/README.md)).
 - `just docker-build` verifies container changes.
 
 Before opening a pull request, run `just verify`. CI enforces the equivalent checks on every pull request with `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` and the packaging check (job `quality`) and `cargo test --workspace --locked` under coverage instrumentation (job `test`). The release build and the Docker image (`.github/workflows/package.yml`, job `docker`) take about six minutes, so they run only on pull requests that change manifests, the lockfile, `build.rs`, `cytiq-classify`, its fixtures or `docker/`, plus weekly and on demand; run `just docker-build` locally when a change can affect packaging in other ways.
@@ -88,6 +92,10 @@ durations too; the experiment does not alter required checks.
 `CI_LIGHT_RUNNER` defaults to `ubuntu-24.04` and controls only release-version resolution. Trial `ubuntu-slim`
 there after compatibility testing; retain it only when cost falls without increasing required-check P95 by
 more than 10%. It never controls Docker or Rust runners.
+
+`.github/workflows/lakehouse.yml` runs `just lakehouse-interop`. It uses one million events on pull
+requests that change the events export, the FCS reader or the bounded Parquet reader, and ten
+million weekly and on demand. It is not a required check.
 
 `.github/workflows/fuzz.yml` fuzzes the FCS reader and the spillover parser (`cytiq-fcs`), the population JSON/YAML document, observation-table, annotation-table, events-table and dataset-manifest readers (`cytiq-population`), specimen result comparison (`cytiq-specimen`) and the Gating-ML parser and writer (`cytiq-gating`): one minute a target on pull requests that change one of those crates, ten minutes weekly, and on demand. Run a target locally with `just fuzz <crate> <target> [seconds]` (`just fuzz-fcs` remains for `cytiq-fcs`). It is not a required check. A crash uploads its input as an artifact; turn it into a regression test as `crates/cytiq-fcs/CONTRIBUTING.md` describes. `cargo test` replays the saved regressions on every run.
 

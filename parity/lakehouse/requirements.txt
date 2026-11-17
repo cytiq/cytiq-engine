@@ -1,0 +1,4 @@
+# DuckDB and PyArrow for the lakehouse interop check and the events benchmark
+# (parity/lakehouse/README.md). pyarrow matches parity/requirements.txt.
+duckdb==2.0.0
+pyarrow==26.0.0

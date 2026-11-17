@@ -36,7 +36,12 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
             .and_then(|id| acquisitions.get(id).copied());
         match artifact.role {
             ArtifactRole::SignalLayer => {
-                if let Some(summary) = events::verify_file(&path, &at, issues) {
+                let summary = if artifact.contract == contracts::EVENTS_PARTS {
+                    events::verify_parts(&path, &at, issues)
+                } else {
+                    events::verify_file(&path, &at, issues)
+                };
+                if let Some(summary) = summary {
                     check_layer(manifest, artifact, acquisition, &summary, &at, issues);
                     layers.insert(artifact.semantic_id.as_str(), summary.descriptor);
                 }
@@ -157,6 +162,13 @@ fn check_layer(
             IssueCode::CorruptArtifactHash,
             format!("{at}/layer"),
             "the layer summary differs from the table's descriptor",
+        );
+    }
+    if !summary.all_columns {
+        issues.error(
+            IssueCode::PanelMismatch,
+            at,
+            "the table stores a projection of the layer's channels; a signal layer stores all",
         );
     }
     let Some(acquisition) = acquisition else {

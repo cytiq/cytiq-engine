@@ -9,7 +9,7 @@ use cytiq_manifest::RunManifest;
 use cytiq_population::dataset::{
     self, AcquisitionRole, ArtifactEntry, ArtifactRole, DatasetManifest, SampleEntry, contracts,
 };
-use cytiq_population::events::{self, ExportOptions};
+use cytiq_population::events::{self, ExportOptions, LayerState, WriteSettings};
 use cytiq_population::privacy::PrivacyPolicy;
 
 const RUN: &str = "\
@@ -81,16 +81,73 @@ fn metadata(path: &Path) -> cytiq_fcs::FcsMetadata {
         .metadata
 }
 
+/// How panel T's raw layer is stored.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Storage {
+    #[default]
+    Table,
+    /// Parts of two events each, listed by `parts.json`.
+    Parts,
+    /// A table of two of the three channels.
+    Projection,
+}
+
 fn layer(
     root: &Path,
     input: &Path,
-    location: &str,
+    (location, state): (&str, LayerState),
     panel: &str,
     parents: Vec<String>,
 ) -> ArtifactEntry {
+    stored_layer(
+        root,
+        input,
+        (location, state),
+        panel,
+        parents,
+        Storage::Table,
+    )
+}
+
+fn stored_layer(
+    root: &Path,
+    input: &Path,
+    (location, state): (&str, LayerState),
+    panel: &str,
+    parents: Vec<String>,
+    storage: Storage,
+) -> ArtifactEntry {
     let output = root.join(location);
     std::fs::create_dir_all(output.parent().unwrap()).unwrap();
-    let summary = events::export(input, &output, &ExportOptions::default()).unwrap();
+    let options = ExportOptions {
+        layer: state,
+        ..ExportOptions::default()
+    };
+    let limits = cytiq_mask::parquet::ParquetReadLimits::default();
+    if storage == Storage::Parts {
+        std::fs::create_dir_all(&output).unwrap();
+        // 8 bytes of id and three float32 channels per event.
+        let settings = WriteSettings {
+            max_file_bytes: std::num::NonZeroU64::new(2 * (8 + 3 * 4)),
+            ..WriteSettings::default()
+        };
+        let summary = events::export_with(input, &output, &options, &settings, limits).unwrap();
+        let manifest = output.join(events::PARTS_FILE);
+        return ArtifactEntry::signal_layer_parts(
+            &summary.descriptor,
+            &summary.values_sha256,
+            Some(panel.into()),
+            parents,
+            format!("{location}/{}", events::PARTS_FILE),
+            dataset::content_of(&manifest).unwrap(),
+        );
+    }
+    let settings = WriteSettings {
+        channels: (storage == Storage::Projection)
+            .then(|| vec!["FSC-A".to_owned(), "FL1-A".to_owned()]),
+        ..WriteSettings::default()
+    };
+    let summary = events::export_with(input, &output, &options, &settings, limits).unwrap();
     ArtifactEntry::signal_layer(
         &summary.descriptor,
         &summary.values_sha256,
@@ -175,32 +232,44 @@ fn entries(
 }
 
 /// Export every layer and write panel T's QC mask.
-fn artifacts(root: &Path, raw: &Path, acquisition_t: String) -> Vec<ArtifactEntry> {
-    let t_raw = layer(
+fn artifacts(
+    root: &Path,
+    raw: &Path,
+    acquisition_t: String,
+    storage: Storage,
+) -> Vec<ArtifactEntry> {
+    let t_raw = stored_layer(
         root,
         &raw.join("t.fcs"),
-        "events/T/SP01-T.raw.parquet",
+        ("events/T/SP01-T.raw.parquet", LayerState::Raw),
         "T",
         vec![],
+        storage,
     );
     let t_comp = layer(
         root,
         &raw.join("t.comp.fcs"),
-        "events/T/SP01-T.compensated.parquet",
+        (
+            "events/T/SP01-T.compensated.parquet",
+            LayerState::Compensated,
+        ),
         "T",
         vec![t_raw.semantic_id.clone()],
     );
     let t_trans = layer(
         root,
         &raw.join("t.trans.fcs"),
-        "events/T/SP01-T.transformed.parquet",
+        (
+            "events/T/SP01-T.transformed.parquet",
+            LayerState::Transformed,
+        ),
         "T",
         vec![t_comp.semantic_id.clone()],
     );
     let b_raw = layer(
         root,
         &raw.join("b.fcs"),
-        "events/B/SP01-B.raw.parquet",
+        ("events/B/SP01-B.raw.parquet", LayerState::Raw),
         "B",
         vec![],
     );
@@ -231,6 +300,11 @@ fn artifacts(root: &Path, raw: &Path, acquisition_t: String) -> Vec<ArtifactEntr
 /// Panel T: raw, compensated and transformed layers and a QC mask; panel B:
 /// a raw layer. Both acquisitions share specimen SP01 and count rows from 0.
 pub fn build() -> Built {
+    build_storing(Storage::Table)
+}
+
+/// [`build`] with panel T's raw layer stored as `storage`.
+pub fn build_storing(storage: Storage) -> Built {
     let root = tempfile::tempdir().unwrap();
     let raw = root.path().join("raw");
     std::fs::create_dir_all(&raw).unwrap();
@@ -239,13 +313,21 @@ pub fn build() -> Built {
     let acquisition_t = write_inputs(&raw);
     let policy = PrivacyPolicy::deidentified();
     let (panels, acquisitions, samples) = entries(&run, &raw, &policy);
-    let artifacts = artifacts(root.path(), &raw, acquisition_t);
+    let artifacts = artifacts(root.path(), &raw, acquisition_t, storage);
     std::fs::remove_dir_all(&raw).unwrap();
     let manifest = DatasetManifest {
         schema_version: dataset::SCHEMA_VERSION,
         artifact_type: dataset::ARTIFACT_TYPE.into(),
         dataset_id: None,
-        contracts: vec![contracts::EVENTS.into(), contracts::MASK.into()],
+        contracts: if storage == Storage::Parts {
+            vec![
+                contracts::EVENTS.into(),
+                contracts::EVENTS_PARTS.into(),
+                contracts::MASK.into(),
+            ]
+        } else {
+            vec![contracts::EVENTS.into(), contracts::MASK.into()]
+        },
         privacy: policy,
         study: run.experiment.clone(),
         instruments: run.instruments.clone(),

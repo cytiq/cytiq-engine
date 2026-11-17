@@ -975,6 +975,129 @@ mod tests {
         );
     }
 
+    /// One Snappy-compressed, non-nullable `Float64` column of three values
+    /// in a single plain data page.
+    fn snappy_table() -> tempfile::NamedTempFile {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "value",
+            DataType::Float64,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Float64Array::from(vec![0.25, -0.0, f64::MAX]))],
+        )
+        .unwrap();
+        let properties = parquet::file::properties::WriterProperties::builder()
+            .set_dictionary_enabled(false)
+            .set_compression(Compression::SNAPPY)
+            .build();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut writer =
+            ArrowWriter::try_new(file.reopen().unwrap(), schema, Some(properties)).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+        file
+    }
+
+    #[test]
+    fn snappy_pages_decode_within_their_declared_sizes() {
+        let file = snappy_table();
+        let batches =
+            ScalarParquetReader::new(file.reopen().unwrap(), ParquetReadLimits::default())
+                .unwrap()
+                .collect::<Result<Vec<_>>>()
+                .unwrap();
+        let values = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .unwrap();
+        let bits: Vec<u64> = values.values().iter().map(|v| v.to_bits()).collect();
+        assert_eq!(
+            bits,
+            [0.25_f64.to_bits(), (-0.0_f64).to_bits(), f64::MAX.to_bits()]
+        );
+        // The declared page size bounds the allocation before decompression.
+        let error = ScalarParquetReader::new(
+            file.reopen().unwrap(),
+            ParquetReadLimits {
+                page_bytes: 16,
+                ..ParquetReadLimits::default()
+            },
+        )
+        .err()
+        .expect("a page over the limit must be refused before decompression");
+        assert!(error.to_string().contains("exceeds limit"), "{error}");
+    }
+
+    #[test]
+    fn snappy_frames_longer_than_their_declared_page_are_refused() {
+        let file = snappy_table();
+        let offset = {
+            let reader = SerializedFileReader::new(file.reopen().unwrap()).unwrap();
+            usize::try_from(reader.metadata().row_group(0).column(0).data_page_offset()).unwrap()
+        };
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        // Compact page header: type DATA_PAGE (0), then the uncompressed size
+        // 24 as the one-byte zig-zag varint 48.
+        assert_eq!(bytes[offset..offset + 4], [0x15, 0x00, 0x15, 48]);
+        bytes[offset + 3] = 32; // 16 bytes: shorter than the 24-byte frame.
+        std::fs::write(file.path(), &bytes).unwrap();
+        let error = ScalarParquetReader::new(file.reopen().unwrap(), ParquetReadLimits::default())
+            .unwrap()
+            .collect::<Result<Vec<_>>>()
+            .expect_err("a frame longer than its page must not decode");
+        assert!(
+            error.to_string().contains("smaller than required"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn snappy_headers_overstating_their_frame_add_no_value() {
+        let file = snappy_table();
+        let offset = {
+            let reader = SerializedFileReader::new(file.reopen().unwrap()).unwrap();
+            usize::try_from(reader.metadata().row_group(0).column(0).data_page_offset()).unwrap()
+        };
+        let mut bytes = std::fs::read(file.path()).unwrap();
+        assert_eq!(bytes[offset..offset + 4], [0x15, 0x00, 0x15, 48]);
+        bytes[offset + 3] = 64; // 32 bytes declared for the 24-byte frame.
+        std::fs::write(file.path(), &bytes).unwrap();
+        // parquet 60 zero-fills a Snappy page up to its declared size and the
+        // decoder reads only the page's values, so the page either fails or
+        // yields exactly the frame's values; the padding is never a value.
+        let read = ScalarParquetReader::new(file.reopen().unwrap(), ParquetReadLimits::default())
+            .unwrap()
+            .collect::<Result<Vec<_>>>();
+        if let Ok(batches) = read {
+            let rows: usize = batches.iter().map(RecordBatch::num_rows).sum();
+            assert_eq!(rows, 3);
+            let values = batches[0]
+                .column(0)
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap();
+            let bits: Vec<u64> = values.values().iter().map(|v| v.to_bits()).collect();
+            assert_eq!(
+                bits,
+                [0.25_f64.to_bits(), (-0.0_f64).to_bits(), f64::MAX.to_bits()]
+            );
+        }
+        // The overstated size is what the limits are charged with.
+        let error = ScalarParquetReader::new(
+            file.reopen().unwrap(),
+            ParquetReadLimits {
+                page_bytes: 31,
+                ..ParquetReadLimits::default()
+            },
+        )
+        .err()
+        .expect("the declared size, not the frame, is checked against the limit");
+        assert!(error.to_string().contains("exceeds limit"), "{error}");
+    }
+
     #[test]
     fn preserves_nulls_and_unsigned_counts_and_enforces_budgets() {
         let schema = Arc::new(Schema::new(vec![Field::new(

@@ -15,10 +15,17 @@
 //! Technical masks and biological annotations keep their own formats
 //! (`cytiq-mask` v2, gate membership, classifier predictions) and join on
 //! (`acquisition_id`, `source_event_id`).
+//!
+//! A table may store a projection of the layer's channels
+//! (`column_set=subset`), and a layer may be split into part tables listed
+//! by a [`PartsManifest`] (`cytiq.events.parts.v1`).
 
+mod channels;
 mod descriptor;
+mod parts;
 mod read;
 mod runner;
+mod settings;
 mod write;
 
 use serde::{Deserialize, Serialize};
@@ -27,10 +34,19 @@ use sha2::{Digest, Sha256};
 
 use crate::serialization;
 
+pub use channels::ChannelEntry;
 pub use descriptor::{BaseState, Definition, ExportOptions};
+pub use parts::{
+    PARTS_CONTRACT, PARTS_FILE, PARTS_MAX, PartEntry, PartsManifest, RowSet, part_name,
+    verify_parts, verify_parts_with_limits,
+};
 pub use read::{EventsSummary, verify, verify_file, verify_with_limits};
 pub use runner::{ExportConfig, ExportRunner};
-pub use write::{ExportSummary, export};
+pub use settings::{
+    BATCH_BYTES_MAX, Codec, DEFAULT_BATCH_BYTES, DEFAULT_ROW_GROUP_ROWS, DEFAULT_ZSTD_LEVEL,
+    ROW_GROUP_BYTES_MAX, WriteSettings,
+};
+pub use write::{ExportSummary, export, export_with};
 
 /// Contract identifier of an events table.
 pub const CONTRACT: &str = "cytiq.events.v1";
@@ -51,6 +67,13 @@ pub const ROW_SET_KEY: &str = "cytiq.events.row_set";
 pub const RAW_EVENTS_KEY: &str = "cytiq.events.raw_events";
 /// Encoding-independent digest of keys and values (see [`ValuesHasher`]).
 pub const VALUES_SHA256_KEY: &str = "cytiq.events.values_sha256";
+/// JSON channel dictionary of the stored channels (see [`ChannelEntry`]):
+/// what Arrow field metadata holds, readable by engines that drop it.
+pub const CHANNELS_KEY: &str = "cytiq.events.channels";
+/// `all` when every channel of the layer is stored, `subset` otherwise.
+pub const COLUMN_SET_KEY: &str = "cytiq.events.column_set";
+/// SHA-256 of the FCS file the table was exported from.
+pub const SOURCE_SHA256_KEY: &str = "cytiq.events.source_sha256";
 pub use cytiq_mask::{ACQUISITION_KEY, EVENT_ID_BASE_KEY};
 
 pub const ACQUISITION_COLUMN: &str = "acquisition_id";
@@ -78,14 +101,30 @@ pub const VALUES_DOMAIN: &str = "cytiq.events.values.v1";
 pub const CREATED_BY: &str = "cytiq events.v1";
 
 /// What a layer's stored values are: the last processing step applied.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum LayerState {
+    #[default]
     Raw,
     Compensated,
     Unmixed,
     Transformed,
     Normalized,
+}
+
+impl LayerState {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Raw => "raw",
+            Self::Compensated => "compensated",
+            Self::Unmixed => "unmixed",
+            Self::Transformed => "transformed",
+            Self::Normalized => "normalized",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -308,7 +347,24 @@ impl LayerDescriptor {
 /// row order. It does not depend on the Parquet encoding or batching.
 pub struct ValuesHasher {
     hasher: Sha256,
-    row: Vec<u8>,
+    /// Row-major bytes of up to [`HASH_CHUNK_BYTES`] of rows.
+    chunk: Vec<u8>,
+}
+
+/// Bytes of rows laid out at a time before they are hashed.
+const HASH_CHUNK_BYTES: usize = 64 << 10;
+
+/// Write `values` at `offset` of each `stride`-byte row of `chunk`.
+fn scatter<const N: usize, T: Copy>(
+    chunk: &mut [u8],
+    offset: usize,
+    stride: usize,
+    values: &[T],
+    bytes: impl Fn(T) -> [u8; N],
+) {
+    for (row, value) in chunk.chunks_exact_mut(stride).zip(values) {
+        row[offset..offset + N].copy_from_slice(&bytes(*value));
+    }
 }
 
 impl ValuesHasher {
@@ -321,31 +377,52 @@ impl ValuesHasher {
         hasher.update(b"\n");
         Self {
             hasher,
-            row: Vec::new(),
+            chunk: Vec::with_capacity(HASH_CHUNK_BYTES),
         }
     }
 
-    /// Hash one batch: `ids[i]` and `columns[c][i]` form row `i`.
+    /// Hash one batch: `ids[i]` and `columns[c][i]` form row `i`. Rows are
+    /// laid out a chunk at a time, column by column.
     pub fn update(&mut self, ids: &[u64], columns: &[ColumnValues<'_>]) {
-        for (row, id) in ids.iter().enumerate() {
-            self.row.clear();
-            self.row.extend_from_slice(&id.to_le_bytes());
+        let stride = 8 + columns.iter().map(ColumnValues::width).sum::<usize>();
+        let rows_per_chunk = (HASH_CHUNK_BYTES / stride).max(1);
+        let mut start = 0;
+        while start < ids.len() {
+            let end = (start + rows_per_chunk).min(ids.len());
+            self.chunk.clear();
+            self.chunk.resize((end - start) * stride, 0);
+            scatter(
+                &mut self.chunk,
+                0,
+                stride,
+                &ids[start..end],
+                u64::to_le_bytes,
+            );
+            let mut offset = 8;
             for column in columns {
                 match column {
-                    ColumnValues::Uint64(values) => {
-                        self.row.extend_from_slice(&values[row].to_le_bytes());
-                    }
+                    ColumnValues::Uint64(values) => scatter(
+                        &mut self.chunk,
+                        offset,
+                        stride,
+                        &values[start..end],
+                        u64::to_le_bytes,
+                    ),
                     ColumnValues::Float32(values) => {
-                        self.row
-                            .extend_from_slice(&values[row].to_bits().to_le_bytes());
+                        scatter(&mut self.chunk, offset, stride, &values[start..end], |v| {
+                            v.to_bits().to_le_bytes()
+                        });
                     }
                     ColumnValues::Float64(values) => {
-                        self.row
-                            .extend_from_slice(&values[row].to_bits().to_le_bytes());
+                        scatter(&mut self.chunk, offset, stride, &values[start..end], |v| {
+                            v.to_bits().to_le_bytes()
+                        });
                     }
                 }
+                offset += column.width();
             }
-            self.hasher.update(&self.row);
+            self.hasher.update(&self.chunk);
+            start = end;
         }
     }
 
@@ -363,7 +440,18 @@ pub enum ColumnValues<'a> {
     Float64(&'a [f64]),
 }
 
-fn hex(bytes: &[u8]) -> String {
+impl ColumnValues<'_> {
+    /// Bytes of one value.
+    #[must_use]
+    pub const fn width(&self) -> usize {
+        match self {
+            Self::Float32(_) => 4,
+            Self::Uint64(_) | Self::Float64(_) => 8,
+        }
+    }
+}
+
+pub(crate) fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write as _;
     bytes
         .iter()
@@ -467,6 +555,52 @@ mod tests {
             [StepKind::Compensation, StepKind::Transform]
         );
         assert_eq!(child.steps_of("FSC"), Vec::<StepKind>::new());
+    }
+
+    /// The definition, one row at a time.
+    fn reference_digest(layer_id: &str, ids: &[u64], columns: &[ColumnValues<'_>]) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(format!("{VALUES_DOMAIN}\n{layer_id}\n").as_bytes());
+        for (row, id) in ids.iter().enumerate() {
+            hasher.update(id.to_le_bytes());
+            for column in columns {
+                match column {
+                    ColumnValues::Uint64(v) => hasher.update(v[row].to_le_bytes()),
+                    ColumnValues::Float32(v) => hasher.update(v[row].to_bits().to_le_bytes()),
+                    ColumnValues::Float64(v) => hasher.update(v[row].to_bits().to_le_bytes()),
+                }
+            }
+        }
+        hex(&hasher.finalize())
+    }
+
+    #[test]
+    fn chunked_hashing_matches_the_row_by_row_definition() {
+        // Enough rows to span several chunks, with every type.
+        let rows = 3 * HASH_CHUNK_BYTES / 28 + 5;
+        let ids: Vec<u64> = (0..rows as u64).map(|i| i * 3 + 1).collect();
+        #[allow(clippy::cast_precision_loss)]
+        let a: Vec<f32> = (0..rows).map(|i| i as f32 * 0.5 - 7.0).collect();
+        let b: Vec<u64> = (0..rows as u64).map(|i| u64::MAX - i).collect();
+        #[allow(clippy::cast_precision_loss)]
+        let c: Vec<f64> = (0..rows).map(|i| -(i as f64) / 3.0).collect();
+        let columns = [
+            ColumnValues::Float32(&a),
+            ColumnValues::Uint64(&b),
+            ColumnValues::Float64(&c),
+        ];
+        let mut hasher = ValuesHasher::new("layer");
+        hasher.update(&ids[..17], &columns.map(|column| slice(column, 0, 17)));
+        hasher.update(&ids[17..], &columns.map(|column| slice(column, 17, rows)));
+        assert_eq!(hasher.finish(), reference_digest("layer", &ids, &columns));
+    }
+
+    fn slice(column: ColumnValues<'_>, start: usize, end: usize) -> ColumnValues<'_> {
+        match column {
+            ColumnValues::Uint64(v) => ColumnValues::Uint64(&v[start..end]),
+            ColumnValues::Float32(v) => ColumnValues::Float32(&v[start..end]),
+            ColumnValues::Float64(v) => ColumnValues::Float64(&v[start..end]),
+        }
     }
 
     #[test]

@@ -9,7 +9,7 @@ pub(crate) mod compensate;
 pub(crate) mod cytonorm;
 pub(crate) mod cytoscan;
 pub(crate) mod dataset;
-pub(crate) mod events;
+pub(crate) mod export;
 pub(crate) mod flowsom;
 pub(crate) mod gate;
 pub(crate) mod mask;

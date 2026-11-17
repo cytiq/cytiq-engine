@@ -1,5 +1,5 @@
 //! The reference dataset of `data/fixtures/dataset`, built with the real
-//! commands: `cytiq events export` for every layer, `cytiq compensate` and
+//! commands: `cytiq export events` for every layer, `cytiq compensate` and
 //! `cytiq transform` for panel M's chain, and the library for the manifest.
 
 use std::fs;
@@ -61,17 +61,19 @@ fn layer(
     input: &Path,
     location: &str,
     panel: &str,
-    base_state: &str,
+    (base_state, state): (&str, &str),
     parents: Vec<String>,
 ) -> ArtifactEntry {
     let staged = work.join(location.replace('/', "_"));
     cytiq(&[
-        "events",
         "export",
+        "events",
         "--input",
         utf8(input),
         "--output",
         utf8(&staged),
+        "--layer",
+        state,
         "--base-state",
         base_state,
     ]);
@@ -125,7 +127,7 @@ fn chain(
         &compensated,
         &format!("events/M/{id}.compensated.parquet"),
         "M",
-        "raw",
+        ("raw", "compensated"),
         vec![raw.semantic_id.clone()],
     );
     let trans = layer(
@@ -134,7 +136,7 @@ fn chain(
         &transformed,
         &format!("events/M/{id}.transformed.parquet"),
         "M",
-        "raw",
+        ("raw", "transformed"),
         vec![comp.semantic_id.clone()],
     );
     let location = format!("masks/M/{id}.margins.parquet");
@@ -228,7 +230,7 @@ pub fn build(root: &Path, work: &Path) -> DatasetManifest {
             &sample.file,
             &format!("events/{label}/{}.{state}.parquet", sample.id),
             label,
-            state,
+            (state, state),
             vec![],
         );
         if label == "M" {

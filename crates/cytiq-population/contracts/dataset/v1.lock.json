@@ -1,7 +1,9 @@
 {
   "files": {
     "dataset-manifest.schema.json": "fe31dd0dd0c1297309b5ea2f62215bb3b5f99320d88e01ef809ae0d928663823",
+    "events-channels.schema.json": "cf01021bb294f4a6fb4441e07511bda1a4dcf5fd2e728416718a327e7e696854",
     "events-layer.schema.json": "b7f7c171a14edd65800902dcc61a4e20946a6cd2f869177baf4bea8cd6e7b956",
+    "events-parts.schema.json": "f1064c6d519580952fc00337c5f132ac60074a0c980ea62d121ec7cbb4185d66",
     "identity-vectors.json": "9281e5b81a3b6d2e4072b055b2679d74777eb476234b7991c77691bafd3eb2e2",
     "validation-report.schema.json": "7ef86dc2fde8a9e5daa2dfdcedf20f3937ad72740c1fecc84454727535d082d5"
   },
