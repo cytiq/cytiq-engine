@@ -177,8 +177,8 @@ impl LabelsRunner {
         }
         let source = Source::read(config, &record, &acquisition)?;
         // The input's layer, path-free, when the events table is its export.
-        let input_layer = (input_sha256.as_ref() == Some(&anchor.source_sha256))
-            .then(|| anchor.layer_id.clone());
+        let input_layer =
+            (input_sha256.as_ref() == Some(&anchor.source_sha256)).then(|| anchor.layer_id.clone());
         let descriptor = LabelDescriptor {
             contract: DESCRIPTOR_CONTRACT.into(),
             kind: config.kind,

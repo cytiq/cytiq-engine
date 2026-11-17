@@ -143,6 +143,8 @@ their provenance checksums, channel selection and write-setting refusals),
 `dataset_cli.rs` (the reference dataset with every object verified, report and exit 3),
 `export_labels_cli.rs` (every label kind on the pipeline chain and the classifier fixtures, refusals that
 publish nothing, and the output-conflict contract, which `overwrite_cli.rs` cannot run without producers).
+`dataset_export_cli.rs` (the reference dataset's analytics product, refusals, and `population observe`
+counts matching the label tables of the same membership exactly).
 `tests/common/mod.rs` holds `assert_provenance`, `assert_provenance_chain` and
 `adjusted_rand_index`; `tests/common/dataset.rs` builds the reference dataset of
 `data/fixtures/dataset` with the real commands.

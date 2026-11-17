@@ -71,9 +71,7 @@ fn factor_value_valid(value: &str) -> bool {
 /// Whether `value` reads as a calendar date (`2024-01-31`, `31.01.2024`,
 /// `01-JAN-2024`), which would identify a visit.
 fn looks_like_date(value: &str) -> bool {
-    let parts: Vec<&str> = value
-        .split(['-', '.', '/', ':'])
-        .collect();
+    let parts: Vec<&str> = value.split(['-', '.', '/', ':']).collect();
     let numeric = |part: &str, digits: &[usize]| {
         digits.contains(&part.len()) && part.chars().all(|c| c.is_ascii_digit())
     };

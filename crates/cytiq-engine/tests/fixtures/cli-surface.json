@@ -1890,6 +1890,88 @@
         "args_conflict_with_subcommands": false,
         "subcommand_required": true,
         "subcommands": {
+          "export": {
+            "args": [
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "manifest",
+                "long": "manifest",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "MANIFEST"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "output",
+                "long": "output",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": true,
+                "short": null,
+                "value_names": [
+                  "OUTPUT"
+                ]
+              },
+              {
+                "action": "set",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "root",
+                "long": "root",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "ROOT"
+                ]
+              },
+              {
+                "action": "set_true",
+                "aliases": [],
+                "conflicts_with": [],
+                "defaults": [],
+                "global": false,
+                "hidden": false,
+                "id": "overwrite",
+                "long": "overwrite",
+                "num_args": null,
+                "positional": false,
+                "possible_values": [
+                  "true",
+                  "false"
+                ],
+                "required": false,
+                "short": null,
+                "value_names": [
+                  "OVERWRITE"
+                ]
+              }
+            ],
+            "args_conflict_with_subcommands": false,
+            "subcommand_required": false,
+            "subcommands": {}
+          },
           "validate": {
             "args": [
               {
@@ -6273,6 +6355,13 @@
       "reference",
       "strict",
       "threads"
+    ],
+    "dataset export": [
+      "Export",
+      "Export.manifest",
+      "Export.output",
+      "Export.overwrite",
+      "Export.root"
     ],
     "dataset validate": [
       "Validate",

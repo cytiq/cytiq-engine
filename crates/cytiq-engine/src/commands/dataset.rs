@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Args, Subcommand, ValueEnum};
+use cytiq_population::analytics::{AnalyticsRunner, ExportDatasetConfig};
 use cytiq_population::dataset::{
     Profile, ReportStatus, ValidateConfig, ValidateOptions, ValidateRunner,
 };
@@ -18,6 +19,77 @@ pub(crate) enum DatasetCommand {
     /// JSON report; exits with 3 after writing it when the dataset has
     /// errors.
     Validate(DatasetValidateArgs),
+    /// Write the analytics product of a dataset: path-free Parquet tables
+    /// of its subjects, samples, design factors, panels, label tables with
+    /// exact counts, and flattened population observations, plus
+    /// `views.sql` (`DuckDB` views, cohort statistics per subject and inputs
+    /// for diffcyt) and `product.json`. Observations must agree with the
+    /// label tables of the same native output, or nothing is published.
+    Export(DatasetExportArgs),
+}
+
+#[derive(Debug, Serialize, Args)]
+pub(crate) struct DatasetExportArgs {
+    /// Dataset manifest (`.json`).
+    #[arg(long)]
+    manifest: PathBuf,
+    /// Product directory; its provenance record is written in it.
+    #[arg(long)]
+    output: PathBuf,
+    /// Directory the manifest's object keys resolve against; the
+    /// manifest's directory by default.
+    #[arg(long)]
+    root: Option<PathBuf>,
+    /// Replace an existing product directory.
+    #[arg(long)]
+    overwrite: bool,
+}
+
+impl From<DatasetExportArgs> for ExportDatasetConfig {
+    fn from(args: DatasetExportArgs) -> Self {
+        Self {
+            manifest: args.manifest,
+            root: args.root,
+            output: args.output,
+            overwrite: args.overwrite,
+        }
+    }
+}
+
+fn export(
+    args: DatasetExportArgs,
+    mut recorder: crate::provenance::Invocation,
+) -> crate::provenance::CommandResult {
+    let config = ExportDatasetConfig::from(args);
+    info!(
+        "starting dataset export: manifest={}, output={}",
+        config.manifest.display(),
+        config.output.display()
+    );
+    recorder.snapshot_roles(&AnalyticsRunner::input_files(&config)?)?;
+    let recorder = crate::provenance::begin!(
+        recorder,
+        cytiq_provenance::reuse::Destination::Dir(config.output.clone())
+    );
+    let product = AnalyticsRunner::run(&config)?;
+    info!(
+        "dataset export: {} table(s), {} view(s), {} label table(s) checked against \
+         observations, cohort views {}; wrote {}",
+        product.tables.len(),
+        product.views.names.len(),
+        product.parity.len(),
+        if product.cohort.available {
+            "included"
+        } else {
+            "omitted"
+        },
+        config.output.display()
+    );
+    crate::provenance::record_provenance(
+        recorder,
+        &AnalyticsRunner::outputs(&config, &product),
+        &config.record_path(),
+    )
 }
 
 #[derive(Debug, Serialize, Args)]
@@ -78,7 +150,10 @@ pub(crate) fn run(
     command: DatasetCommand,
     mut recorder: crate::provenance::Invocation,
 ) -> crate::provenance::CommandResult {
-    let DatasetCommand::Validate(args) = command;
+    let args = match command {
+        DatasetCommand::Validate(args) => args,
+        DatasetCommand::Export(args) => return export(args, recorder),
+    };
     let config = ValidateConfig::from(args);
     info!(
         "starting dataset validate: manifest={}, profile={}, verify_objects={}",

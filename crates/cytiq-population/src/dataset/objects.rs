@@ -87,7 +87,7 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
 }
 
 /// The object's path when it exists with the recorded size and digest.
-fn present(
+pub(crate) fn present(
     root: &Path,
     location: &str,
     content: &crate::identity::ContentRef,
@@ -310,9 +310,19 @@ fn check_labels(
     at: &str,
     issues: &mut Issues,
 ) {
-    let Some(summary) = crate::labels::verify_file(path, at, issues) else {
-        return;
-    };
+    verified_labels(artifact, acquisition, path, at, issues);
+}
+
+/// [`check_labels`], returning the table's summary when it has no error.
+pub(crate) fn verified_labels(
+    artifact: &ArtifactEntry,
+    acquisition: &AcquisitionEntry,
+    path: &Path,
+    at: &str,
+    issues: &mut Issues,
+) -> Option<crate::labels::LabelsSummary> {
+    let errors = issues.errors();
+    let summary = crate::labels::verify_file(path, at, issues)?;
     let descriptor = &summary.descriptor;
     if descriptor.acquisition_id != acquisition.id
         || descriptor.raw_events != acquisition.raw_events
@@ -337,6 +347,7 @@ fn check_labels(
             "the label table's values digest differs from the manifest's",
         );
     }
+    (issues.errors() == errors).then_some(summary)
 }
 
 /// The table's contract version, acquisition and event base.

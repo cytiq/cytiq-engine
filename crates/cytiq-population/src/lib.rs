@@ -1,5 +1,6 @@
 //! Population contracts independent of specimen reconciliation and model inference.
 
+pub mod analytics;
 pub mod annotations;
 pub mod artifact;
 mod bitmap;

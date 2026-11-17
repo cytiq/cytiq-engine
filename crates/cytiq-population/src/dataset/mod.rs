@@ -11,7 +11,7 @@
 
 mod document;
 mod from_run;
-mod objects;
+pub(crate) mod objects;
 mod profile;
 mod runner;
 

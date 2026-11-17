@@ -487,6 +487,7 @@ pub(crate) const fn command_name(command: &Commands) -> &'static str {
         Commands::Dataset(crate::commands::dataset::DatasetCommand::Validate(_)) => {
             "dataset validate"
         }
+        Commands::Dataset(crate::commands::dataset::DatasetCommand::Export(_)) => "dataset export",
         Commands::Autospill(_) => "autospill",
         Commands::Autospread(_) => "autospread",
         Commands::Autospectral(_) => "autospectral",
