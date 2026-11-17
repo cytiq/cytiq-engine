@@ -1,0 +1,681 @@
+{
+  "acquisitions": [
+    {
+      "id": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "keywords": {
+        "$BYTEORD": "4,3,2,1",
+        "$CYT": "Kaluza",
+        "$DATATYPE": "F",
+        "$MODE": "L",
+        "$ORIGINALITY": "DataModified",
+        "$PAR": "15",
+        "$TOT": "3"
+      },
+      "panel": "M",
+      "raw_events": 3,
+      "role": "sample"
+    },
+    {
+      "id": "0f4a15bc6029a497422397f2b39e354020d3437b24f68d7e755cb7057b2b7bc2",
+      "keywords": {
+        "$BYTEORD": "4,3,2,1",
+        "$DATATYPE": "F",
+        "$MODE": "L",
+        "$PAR": "15",
+        "$TOT": "149"
+      },
+      "panel": "B",
+      "raw_events": 149,
+      "role": "sample"
+    },
+    {
+      "id": "26267dc7d9a6b5becf4c3d7c73c01f6104a252bef363a67ffc2651f5284a2be4",
+      "keywords": {
+        "$BYTEORD": "1,2,3,4",
+        "$DATATYPE": "I",
+        "$MODE": "L",
+        "$PAR": "3",
+        "$TOT": "2"
+      },
+      "panel": "X",
+      "raw_events": 2,
+      "role": "sample"
+    }
+  ],
+  "artifact_type": "cytiq_dataset_manifest",
+  "artifacts": [
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 19879,
+        "sha256": "28ccf1b58ae3699bf5e46cf273101a1526445e39244c97a997fed25bca929f37",
+        "values_sha256": "630bfad09aade0b1265d4ca65bd9ce75501eb9612de283b1a3add045a7cb99a9"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "a68688d44ca112bf6ea64e32a057c18a48e7da4dfe06cf20990deabfa85c48c7",
+        "state": "raw",
+        "steps": []
+      },
+      "location": "events/M/S12-M.raw.parquet",
+      "panel": "M",
+      "role": "signal_layer",
+      "semantic_id": "9a4cdabcd5b1f564333c148a8088697c3f6a7fa4d959901b083bb847c53ad794"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 20323,
+        "sha256": "5fcb3c16b549b6a1a44897a0a11a75d2394ab6ad8c94c532c2fdb8493657c467",
+        "values_sha256": "c9a6bdbdc3a859c20dcfd007a2a514eddfe3aca2681429ca194e45e9f8fdeccc"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "4c1f5e0f25e32c8de2c2f49bd57e2e3e067717f37b36308b28b2a4f60986669a",
+        "state": "compensated",
+        "steps": [
+          {
+            "definition_sha256": "a27296c09d8f365e8395f33e8ea8328f56b96515a9100e65c08b16b4529a01b5",
+            "kind": "compensation",
+            "method": "spillover",
+            "origin": "recorded"
+          }
+        ]
+      },
+      "location": "events/M/S12-M.compensated.parquet",
+      "panel": "M",
+      "parents": [
+        "9a4cdabcd5b1f564333c148a8088697c3f6a7fa4d959901b083bb847c53ad794"
+      ],
+      "role": "signal_layer",
+      "semantic_id": "3690bb778374368882898cb1cba7a280768c328c3723107dca356cf78c90c734"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 20635,
+        "sha256": "d4ed429141c21e604c75dfc2f8baf050ce7c7530b248493ef52a70035bd92b7e",
+        "values_sha256": "c669f6b780ebed68602439f74677c508ebc2651dff161aa4e00da57158a681a5"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "dfa64a3f391302c0858e88cc8885774f99d92f641d16a2e9d8cfa3f190f642dc",
+        "state": "transformed",
+        "steps": [
+          {
+            "definition_sha256": "a27296c09d8f365e8395f33e8ea8328f56b96515a9100e65c08b16b4529a01b5",
+            "kind": "compensation",
+            "method": "spillover",
+            "origin": "recorded"
+          },
+          {
+            "kind": "transform",
+            "method": "arcsinh",
+            "origin": "recorded"
+          }
+        ]
+      },
+      "location": "events/M/S12-M.transformed.parquet",
+      "panel": "M",
+      "parents": [
+        "3690bb778374368882898cb1cba7a280768c328c3723107dca356cf78c90c734"
+      ],
+      "role": "signal_layer",
+      "semantic_id": "0e1381bce9af4f95eef21ad6764792d3e857306c997072933f5e133c057cf829"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 1389,
+        "sha256": "2ed95488da5845b4668111cee658bbd1f36d306373e31cf577c826d1b3db29de"
+      },
+      "contract": "cytiq.mask.v2",
+      "location": "masks/M/S12-M.margins.parquet",
+      "parents": [
+        "9a4cdabcd5b1f564333c148a8088697c3f6a7fa4d959901b083bb847c53ad794"
+      ],
+      "role": "technical_mask",
+      "semantic_id": "3e6f083f74d2ee1d2275d0f888e32862be7683c41cabd59d2f15013334406031"
+    },
+    {
+      "acquisition": "0f4a15bc6029a497422397f2b39e354020d3437b24f68d7e755cb7057b2b7bc2",
+      "content": {
+        "bytes": 25997,
+        "sha256": "ecb00768335ad867ba63498f05f6ccc6f4086485fe547520cc880d0a80396023",
+        "values_sha256": "658a127d1fc3a69db15e6aa8d366225c59d80e1e0c5e9ac8444d300fcfb511b4"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "1f17c831f893dd37b8399abc7f80b4f17bd4dfad0708d4fc96d8e610135bd49e",
+        "state": "compensated",
+        "steps": [
+          {
+            "kind": "compensation",
+            "method": "unknown",
+            "origin": "external"
+          }
+        ]
+      },
+      "location": "events/B/S30-B.compensated.parquet",
+      "panel": "B",
+      "role": "signal_layer",
+      "semantic_id": "307c2c209d4d18a03f6c99dde2bb04455eccd02608b304d2153de315d5d7ebea"
+    },
+    {
+      "acquisition": "26267dc7d9a6b5becf4c3d7c73c01f6104a252bef363a67ffc2651f5284a2be4",
+      "content": {
+        "bytes": 5474,
+        "sha256": "38e8c508b0f8841d0b8deebe569ba2f90824a71f80fef891e0ca7554b43393c3",
+        "values_sha256": "8a9baa90a8e60d1fd79e1f34261c02d9420ff90dd6e4d143ad0a5b649049a870"
+      },
+      "contract": "cytiq.events.v1",
+      "layer": {
+        "recipe_id": "e14a83e87979054acc7fc08bafd37f8d03229c99933c7eeafaa91f87ad8217f9",
+        "state": "raw",
+        "steps": []
+      },
+      "location": "events/X/SX-X.raw.parquet",
+      "panel": "X",
+      "role": "signal_layer",
+      "semantic_id": "4953efa1203a53d8e436101a15d55f896e69cebece07b201f7dff2ba381b1fa9"
+    },
+    {
+      "content": {
+        "bytes": 1098,
+        "sha256": "c8d4fbe20b7c917400739c7817065c46134e6e4cf1c0b0a900a4c39ecbf4e421"
+      },
+      "contract": "gating-ml.v2",
+      "location": "definitions/gates.xml",
+      "role": "gating",
+      "semantic_id": "63f4ddd21e48423e24f94a4e0fc72be3c5d58d34d74a003cb587b9d0ae4adefb"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 3129,
+        "sha256": "7f7fcbd70b038b2a5096db0859442d11680f6731ab4846c4b5da1f58815517a2",
+        "values_sha256": "1b4a83013c1903a44775729bf45190906f51a65c1c57d4a7af778c87c6fd0e2b"
+      },
+      "contract": "cytiq.events.labels.v1",
+      "location": "labels/M/S12-M.qc.parquet",
+      "panel": "M",
+      "parents": [
+        "3e6f083f74d2ee1d2275d0f888e32862be7683c41cabd59d2f15013334406031"
+      ],
+      "role": "annotation",
+      "semantic_id": "7c24208730dc03b054b05d61597ccc5619ea3ba7b1319293bbb10c923badea2f"
+    },
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "content": {
+        "bytes": 4325,
+        "sha256": "70c91461fee5e13c46fdb686bdb40e4f1a618815eb31eac6ee0b33e512517295",
+        "values_sha256": "f32f8109819aa838ff60d765e18e40b85be4e104c80f10812f76b629b35b1ecc"
+      },
+      "contract": "cytiq.events.labels.v1",
+      "location": "labels/M/S12-M.gates.parquet",
+      "panel": "M",
+      "parents": [
+        "0e1381bce9af4f95eef21ad6764792d3e857306c997072933f5e133c057cf829",
+        "3e6f083f74d2ee1d2275d0f888e32862be7683c41cabd59d2f15013334406031"
+      ],
+      "role": "annotation",
+      "semantic_id": "84cc0681658c59c9bcc25eb09cff520ec65c32450c352d20d2b04392edb1570b"
+    },
+    {
+      "content": {
+        "bytes": 1680,
+        "sha256": "1e52242c8b4bc761eb80c6a13a706e5d40e0d94e280ca4e2e6c9adb718f5206a"
+      },
+      "contract": "gating-ml.v2",
+      "location": "definitions/case12-gates.xml",
+      "role": "gating",
+      "semantic_id": "8a00cc48ad59106a155b24a0f08725955c1d5411ca33743acd0790a214a2fc22"
+    }
+  ],
+  "contracts": [
+    "cytiq.events.v1",
+    "cytiq.mask.v2",
+    "cytiq.events.labels.v1",
+    "gating-ml.v2"
+  ],
+  "dataset_id": "78cbbcec941187e250e5a54130c48ace68901cd9525c78c7df16d9ef5158652f",
+  "design": {
+    "factors": [
+      {
+        "level": "subject",
+        "name": "group"
+      },
+      {
+        "level": "specimen",
+        "name": "timepoint"
+      },
+      {
+        "level": "sample",
+        "name": "batch"
+      }
+    ],
+    "samples": [
+      {
+        "factors": {
+          "batch": "B1"
+        },
+        "sample": "S12-M"
+      },
+      {
+        "factors": {
+          "batch": "B1"
+        },
+        "sample": "S30-B"
+      },
+      {
+        "factors": {
+          "batch": "B2"
+        },
+        "sample": "SX-X"
+      }
+    ],
+    "specimens": [
+      {
+        "factors": {
+          "timepoint": "D0"
+        },
+        "specimen": "SP01",
+        "subject": "P01"
+      },
+      {
+        "factors": {
+          "timepoint": "D0"
+        },
+        "specimen": "SP02",
+        "subject": "P02"
+      }
+    ],
+    "subjects": [
+      {
+        "factors": {
+          "group": "case"
+        },
+        "id": "P01"
+      },
+      {
+        "factors": {
+          "group": "control"
+        },
+        "id": "P02"
+      }
+    ]
+  },
+  "instruments": [
+    {
+      "detectors": [
+        {
+          "id": "FL1",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL2",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL3",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL4",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL5",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL6",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL7",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL8",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL9",
+          "kind": "pmt"
+        },
+        {
+          "id": "FL10",
+          "kind": "pmt"
+        }
+      ],
+      "id": "navios-1",
+      "manufacturer": "Beckman Coulter",
+      "model": "Navios"
+    },
+    {
+      "detectors": [
+        {
+          "id": "FITC PMT",
+          "kind": "pmt"
+        },
+        {
+          "id": "V450",
+          "kind": "pmt"
+        }
+      ],
+      "id": "synthetic-1",
+      "manufacturer": "cytiq",
+      "model": "synthetic"
+    }
+  ],
+  "knowledge": [
+    {
+      "kind": "curated_tree",
+      "sha256": "d895452a11a32e224410e3a62331bc2ff620c4debd2feb83c6b5a36917dad347"
+    },
+    {
+      "kind": "panel_projection",
+      "sha256": "d60ec31e2ff4ba17d6f4e3bd8159cf57fa82b39125a7c466ae927f8aab6ec68e"
+    }
+  ],
+  "panels": [
+    {
+      "channels": [
+        {
+          "index": 1,
+          "name": "FS INT"
+        },
+        {
+          "index": 2,
+          "name": "SS PEAK"
+        },
+        {
+          "index": 3,
+          "name": "SS INT"
+        },
+        {
+          "index": 4,
+          "name": "SS TOF"
+        },
+        {
+          "detector": "FL1",
+          "index": 5,
+          "kind": "fluorescence",
+          "marker": "CD14",
+          "name": "FL1 INT",
+          "reporter": "FITC"
+        },
+        {
+          "detector": "FL2",
+          "index": 6,
+          "kind": "fluorescence",
+          "marker": "CD19",
+          "name": "FL2 INT",
+          "reporter": "PE"
+        },
+        {
+          "detector": "FL3",
+          "index": 7,
+          "kind": "fluorescence",
+          "marker": "CD13",
+          "name": "FL3 INT",
+          "reporter": "ECD"
+        },
+        {
+          "detector": "FL4",
+          "index": 8,
+          "kind": "fluorescence",
+          "marker": "CD33",
+          "name": "FL4 INT",
+          "reporter": "PC5.5"
+        },
+        {
+          "detector": "FL5",
+          "index": 9,
+          "kind": "fluorescence",
+          "marker": "CD34",
+          "name": "FL5 INT",
+          "reporter": "PC7"
+        },
+        {
+          "detector": "FL6",
+          "index": 10,
+          "kind": "fluorescence",
+          "marker": "CD117",
+          "name": "FL6 INT",
+          "reporter": "APC"
+        },
+        {
+          "detector": "FL7",
+          "index": 11,
+          "kind": "fluorescence",
+          "marker": "CD7",
+          "name": "FL7 INT",
+          "reporter": "APC700"
+        },
+        {
+          "detector": "FL8",
+          "index": 12,
+          "kind": "fluorescence",
+          "marker": "CD16",
+          "name": "FL8 INT",
+          "reporter": "APC750"
+        },
+        {
+          "detector": "FL9",
+          "index": 13,
+          "kind": "fluorescence",
+          "marker": "HLA",
+          "name": "FL9 INT",
+          "reporter": "PB"
+        },
+        {
+          "detector": "FL10",
+          "index": 14,
+          "kind": "fluorescence",
+          "marker": "CD45",
+          "name": "FL10 INT",
+          "reporter": "KO"
+        },
+        {
+          "index": 15,
+          "name": "TIME"
+        }
+      ],
+      "cytometry": "conventional",
+      "id": "M",
+      "instrument": "navios-1",
+      "signal_state": "raw"
+    },
+    {
+      "channels": [
+        {
+          "index": 1,
+          "name": "FS.INT"
+        },
+        {
+          "index": 2,
+          "name": "SS.PEAK"
+        },
+        {
+          "index": 3,
+          "name": "SS.INT"
+        },
+        {
+          "index": 4,
+          "name": "SS.TOF"
+        },
+        {
+          "detector": "FL1",
+          "index": 5,
+          "kind": "fluorescence",
+          "marker": "CD14",
+          "name": "CD14.FITC",
+          "reporter": "FITC"
+        },
+        {
+          "detector": "FL2",
+          "index": 6,
+          "kind": "fluorescence",
+          "marker": "CD19",
+          "name": "CD19.PE",
+          "reporter": "PE"
+        },
+        {
+          "detector": "FL3",
+          "index": 7,
+          "kind": "fluorescence",
+          "marker": "CD13",
+          "name": "CD13.ECD",
+          "reporter": "ECD"
+        },
+        {
+          "detector": "FL4",
+          "index": 8,
+          "kind": "fluorescence",
+          "marker": "CD33",
+          "name": "CD33.PC5.5",
+          "reporter": "PC5.5"
+        },
+        {
+          "detector": "FL5",
+          "index": 9,
+          "kind": "fluorescence",
+          "marker": "CD34",
+          "name": "CD34.PC7",
+          "reporter": "PC7"
+        },
+        {
+          "detector": "FL6",
+          "index": 10,
+          "kind": "fluorescence",
+          "marker": "CD117",
+          "name": "CD117.APC",
+          "reporter": "APC"
+        },
+        {
+          "detector": "FL7",
+          "index": 11,
+          "kind": "fluorescence",
+          "marker": "CD7",
+          "name": "CD7.APC700",
+          "reporter": "APC700"
+        },
+        {
+          "detector": "FL8",
+          "index": 12,
+          "kind": "fluorescence",
+          "marker": "CD16",
+          "name": "CD16.APC750",
+          "reporter": "APC750"
+        },
+        {
+          "detector": "FL9",
+          "index": 13,
+          "kind": "fluorescence",
+          "marker": "HLA",
+          "name": "HLA.PB",
+          "reporter": "PB"
+        },
+        {
+          "detector": "FL10",
+          "index": 14,
+          "kind": "fluorescence",
+          "marker": "CD45",
+          "name": "CD45.KO",
+          "reporter": "KO"
+        },
+        {
+          "index": 15,
+          "name": "TIME"
+        }
+      ],
+      "cytometry": "conventional",
+      "id": "B",
+      "instrument": "navios-1",
+      "signal_state": "compensated"
+    },
+    {
+      "channels": [
+        {
+          "index": 1,
+          "name": "Time"
+        },
+        {
+          "detector": "FITC PMT",
+          "index": 2,
+          "kind": "fluorescence",
+          "name": "FITC-A"
+        },
+        {
+          "detector": "V450",
+          "index": 3,
+          "kind": "fluorescence",
+          "marker": "CD3",
+          "name": "CD3-A",
+          "reporter": "BV421"
+        }
+      ],
+      "cytometry": "conventional",
+      "id": "X",
+      "instrument": "synthetic-1",
+      "signal_state": "raw"
+    }
+  ],
+  "privacy": {
+    "profile": "deidentified"
+  },
+  "samples": [
+    {
+      "acquisition": "61835b0c89cc3f60f5d65172b0845ac5f9920d92e86f27390a686f337fa3fad5",
+      "id": "S12-M",
+      "panel": "M",
+      "specimen": "SP01"
+    },
+    {
+      "acquisition": "0f4a15bc6029a497422397f2b39e354020d3437b24f68d7e755cb7057b2b7bc2",
+      "id": "S30-B",
+      "panel": "B",
+      "specimen": "SP01"
+    },
+    {
+      "acquisition": "26267dc7d9a6b5becf4c3d7c73c01f6104a252bef363a67ffc2651f5284a2be4",
+      "id": "SX-X",
+      "panel": "X",
+      "specimen": "SP02"
+    }
+  ],
+  "schema_version": 1,
+  "specimens": [
+    {
+      "id": "SP01",
+      "material": "bone marrow aspirate",
+      "ontology": [
+        {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        {
+          "id": "UBERON:0002371",
+          "label": "bone marrow"
+        }
+      ],
+      "organism": "Homo sapiens"
+    },
+    {
+      "id": "SP02",
+      "material": "synthetic events",
+      "organism": "synthetic"
+    }
+  ],
+  "study": {
+    "keywords": [
+      "reference",
+      "contract"
+    ],
+    "purpose": "Reference fixtures for cytiq.events.v1 and the dataset manifest",
+    "title": "cytiq dataset contract reference"
+  }
+}

@@ -38,6 +38,7 @@
           "$ref": "#/$defs/sha256"
         },
         "input_sha256": {
+          "description": "SHA-256 of the FCS file the producer read, when its signal layer is unknown; null when `input_layer_id` is set or the producer read no FCS file.",
           "oneOf": [
             {
               "$ref": "#/$defs/sha256"
@@ -48,6 +49,7 @@
           ]
         },
         "input_layer_id": {
+          "description": "The signal layer of the FCS file the producer read, when the events table given is the export of exactly that file.",
           "oneOf": [
             {
               "$ref": "#/$defs/sha256"

@@ -13,6 +13,8 @@ fixtures with the real commands. No FCS file is added here.
 | `reference/events/B/` | `../flowcyt/Case30_P.fcs` (flowCore re-export of compensated values) as an externally compensated layer |
 | `reference/events/X/` | `../fcs/fcs3_2_mixed.fcs` (synthetic): integer, float and double channels, FCS 3.2 `$PnDET`, `$PnTYPE`, `$PnANALYTE`, `$PnFEATURE` |
 | `reference/definitions/gates.xml` | `../specimen/gates.xml`, a Gating-ML artifact |
+| `case12-gates.xml`, `reference/definitions/case12-gates.xml` | Gates on panel M's transformed layer: nested (`blasts` in `CD45+`), overlapping (`CD45+` and `CD34+` share event 2) and empty (`large`) |
+| `reference/labels/M/` | `cytiq.events.labels.v1` tables written by `cytiq export labels`: the margin mask as `qc` labels, and `cytiq gate --membership` of `case12-gates.xml` within that mask as `gate` labels |
 | `malformed/*.json` | One or more cases per validation code: a JSON patch of `reference/manifest.json`, the expected code, the tier (`document` or `objects`) and an optional profile |
 | `sha256.json` | SHA-256 of every file here except this README and the lock |
 
@@ -20,6 +22,10 @@ The manifest also references `../specimen/tree.json` and
 `../specimen/flowcyt-bm.projection.json` by their canonical cytiq-tree digests.
 
 The FlowCyt files are CC-BY-4.0 (see [`../flowcyt/README.md`](../flowcyt/README.md)).
+
+The manifest's `design` puts specimen SP01 (panels M and B) under subject
+P01 in group `case` and the synthetic SP02 under P02 in group `control`,
+both at timepoint `D0`, with batches per sample.
 
 Panels M and B both belong to specimen SP01 and both hold `source_event_id`
 0, 1, 2…. That pairing is **synthetic**: Case12 and Case30 are different
@@ -35,7 +41,10 @@ Checks:
   every malformed case.
 - `crates/cytiq-engine/tests/dataset_fixtures.rs` rebuilds the reference with
   the commands and requires the same semantic ids, recipes, values digests
-  and dataset id.
+  and dataset id. `cytiq transform` writes FCS bytes that differ between
+  builds, so a rebuild changes the transformed table's
+  `cytiq.events.source_sha256` (and its bytes) but no identity; the gate
+  labels record that input by its layer id, which is path-free.
 
 To regenerate after an intended change:
 

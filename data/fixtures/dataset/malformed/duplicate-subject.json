@@ -1,0 +1,12 @@
+{
+  "expect": "duplicate_identifier",
+  "tier": "document",
+  "description": "Subjects are the units cohort statistics count; each is listed once.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/design/subjects/1/id",
+      "value": "P01"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "expect": "malformed_document",
+  "tier": "document",
+  "description": "Every factor value belongs to a declared factor.",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/design/subjects/0/factors/sex",
+      "value": "F"
+    }
+  ]
+}

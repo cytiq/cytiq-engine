@@ -176,6 +176,9 @@ impl LabelsRunner {
             )?;
         }
         let source = Source::read(config, &record, &acquisition)?;
+        // The input's layer, path-free, when the events table is its export.
+        let input_layer = (input_sha256.as_ref() == Some(&anchor.source_sha256))
+            .then(|| anchor.layer_id.clone());
         let descriptor = LabelDescriptor {
             contract: DESCRIPTOR_CONTRACT.into(),
             kind: config.kind,
@@ -185,9 +188,12 @@ impl LabelsRunner {
                 tool: record.tool.clone(),
                 native_contract: source.contract.clone(),
                 native_sha256: native_sha256.clone(),
-                input_layer_id: (input_sha256.as_ref() == Some(&anchor.source_sha256))
-                    .then(|| anchor.layer_id.clone()),
-                input_sha256,
+                input_layer_id: input_layer.clone(),
+                input_sha256: if input_layer.is_some() {
+                    None
+                } else {
+                    input_sha256
+                },
             },
             definition: source.definition.clone(),
             eligibility,

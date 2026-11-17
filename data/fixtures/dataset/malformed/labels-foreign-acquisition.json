@@ -1,0 +1,22 @@
+{
+  "expect": "invalid_reference",
+  "tier": "objects",
+  "description": "A label table listed under another acquisition than the one it labels.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/artifacts/8/acquisition",
+      "value": "0f4a15bc6029a497422397f2b39e354020d3437b24f68d7e755cb7057b2b7bc2"
+    },
+    {
+      "op": "replace",
+      "path": "/artifacts/8/panel",
+      "value": "B"
+    },
+    {
+      "op": "replace",
+      "path": "/artifacts/8/parents",
+      "value": []
+    }
+  ]
+}

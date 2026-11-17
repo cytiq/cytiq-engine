@@ -1,0 +1,12 @@
+{
+  "expect": "corrupt_artifact_hash",
+  "tier": "objects",
+  "description": "A label table's semantic id is its annotation_id, the digest of its descriptor.",
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/artifacts/7/semantic_id",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

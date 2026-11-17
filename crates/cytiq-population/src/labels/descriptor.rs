@@ -44,11 +44,13 @@ pub struct Producer {
     pub native_contract: String,
     /// SHA-256 of the native file.
     pub native_sha256: String,
-    /// SHA-256 of the FCS file the producer read (its `input`); `None` only
-    /// for a QC mask combined from other masks.
+    /// SHA-256 of the FCS file the producer read (its `input`), when its
+    /// signal layer is not known. FCS files a cytiq stage writes may record
+    /// paths, so their bytes are no path-free identity.
     pub input_sha256: Option<String>,
-    /// The signal layer of that input, when its events table was given and
-    /// verified to be the export of exactly that file.
+    /// The signal layer of that input, when the events table given is the
+    /// export of exactly that file. At most one of the two is set; neither
+    /// only for a QC mask combined from other masks.
     pub input_layer_id: Option<String>,
 }
 
@@ -171,7 +173,13 @@ impl LabelDescriptor {
             "the label producer needs a tool and a native contract",
         )?;
         require(
-            self.kind == LabelKind::Qc || self.producer.input_sha256.is_some(),
+            self.producer.input_sha256.is_none() || self.producer.input_layer_id.is_none(),
+            "a producer input is its layer or, when that is unknown, its digest",
+        )?;
+        require(
+            self.kind == LabelKind::Qc
+                || self.producer.input_sha256.is_some()
+                || self.producer.input_layer_id.is_some(),
             "only QC labels may come from a producer without an FCS input",
         )?;
         require(
