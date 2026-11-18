@@ -42,6 +42,10 @@ is not the empirical spreading of the final compensated data. Independent
 controls, coefficient bootstrap/perturbation and explicit rescaling experiments
 are provided in [`parity/scientific`](../../parity/scientific). SSI alone does
 not establish matrix correctness, and these diagnostics never alter compensation.
+A manifest holds one control per dye; between-tube and between-session
+coefficient variability is studied on synthetic repeat controls
+(`repeat_controls.py`), and the real repeat controls such claims need are
+specified in [the scientific guide](../../parity/scientific/README.md#required-real-data).
 
 On the synthetic parity datasets the spillover matrix matches R `autospill`
 0.2.0 to `4.8e-13`, and on real single-stain controls from a FACSCelesta (11

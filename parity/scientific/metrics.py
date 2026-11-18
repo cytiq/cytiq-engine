@@ -13,15 +13,37 @@ def bootstrap_interval(values, statistic=np.mean, *, replicates=1000, seed=42):
     return np.quantile(estimates, [0.025, 0.975], axis=0).tolist()
 
 
-def coefficient_perturbations(spillover, latent, deltas=(1e-4, 1e-3, 1e-2)):
-    """Compensate ``latent @ spillover`` with every off-diagonal coefficient
-    (row = dye, column = detector) perturbed by each delta.
+def matrix_perturbation(spillover, latent, perturbation, *, observed=None, inverse=None):
+    """Compensate ``latent @ spillover`` with ``spillover + perturbation`` (E).
 
-    With E the perturbation and A = E S^-1, the exact error is
-    r = -latent A (I + A)^-1 and the first-order term f = -latent A, so
-    f - r = r A: the first-order term's error relative to r is at most
-    ||A||_2 (``bound``). ``rmse_per_unit`` is the sensitivity to a unit
-    coefficient error. Nothing here changes a production matrix.
+    The exact error is r = -latent E (S + E)^-1. With A = E S^-1 the
+    first-order term f = -latent A satisfies f - r = r A, so its error
+    relative to r is at most ||A||_2 (``bound``). ``observed`` and
+    ``inverse`` (S^-1) may be passed when they are reused. Returns the
+    metrics and r.
+    """
+    spillover = np.asarray(spillover, dtype=float)
+    latent = np.asarray(latent, dtype=float)
+    perturbation = np.asarray(perturbation, dtype=float)
+    observed = latent @ spillover if observed is None else observed
+    inverse = np.linalg.inv(spillover) if inverse is None else inverse
+    residual = observed @ np.linalg.inv(spillover + perturbation) - latent
+    first_order = -latent @ perturbation @ inverse
+    norm = np.linalg.norm(residual)
+    return {
+        "rmse": float(np.sqrt(np.mean(residual**2))),
+        "max_abs": float(np.abs(residual).max()),
+        "per_detector_rmse": np.sqrt(np.mean(residual**2, axis=0)).tolist(),
+        "first_order_relative_error": float(np.linalg.norm(residual - first_order) / norm) if norm else 0.0,
+        "bound": float(np.linalg.norm(perturbation @ inverse, 2)),
+    }, residual
+
+
+def coefficient_perturbations(spillover, latent, deltas=(1e-4, 1e-3, 1e-2)):
+    """Every off-diagonal coefficient (row = dye, column = detector) perturbed
+    by each delta, through ``matrix_perturbation``. ``rmse_per_unit`` is the
+    sensitivity to a unit coefficient error. Nothing here changes a
+    production matrix.
     """
     spillover = np.asarray(spillover, dtype=float)
     latent = np.asarray(latent, dtype=float)
@@ -36,16 +58,14 @@ def coefficient_perturbations(spillover, latent, deltas=(1e-4, 1e-3, 1e-2)):
             for delta in deltas:
                 perturbation = np.zeros_like(spillover)
                 perturbation[dye, detector] = delta
-                residual = observed @ np.linalg.inv(spillover + perturbation) - latent
-                first_order = -latent @ perturbation @ inverse
-                norm = np.linalg.norm(residual)
+                metrics, _ = matrix_perturbation(spillover, latent, perturbation, observed=observed, inverse=inverse)
                 cell[str(delta)] = {
-                    "rmse": float(np.sqrt(np.mean(residual**2))),
-                    "rmse_per_unit": float(np.sqrt(np.mean(residual**2)) / delta),
-                    "max_abs": float(np.abs(residual).max()),
-                    "per_detector_rmse": np.sqrt(np.mean(residual**2, axis=0)).tolist(),
-                    "first_order_relative_error": float(np.linalg.norm(residual - first_order) / norm) if norm else 0.0,
-                    "bound": float(np.linalg.norm(perturbation @ inverse, 2)),
+                    "rmse": metrics["rmse"],
+                    "rmse_per_unit": metrics["rmse"] / delta,
+                    "max_abs": metrics["max_abs"],
+                    "per_detector_rmse": metrics["per_detector_rmse"],
+                    "first_order_relative_error": metrics["first_order_relative_error"],
+                    "bound": metrics["bound"],
                 }
     return results
 
