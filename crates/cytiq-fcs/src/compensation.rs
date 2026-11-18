@@ -224,9 +224,12 @@ pub fn invert_matrix(matrix: &[f64], size: usize) -> Result<Vec<f64>, FcsError> 
     Ok(inverse)
 }
 
-/// 1-norm condition number `‖A‖₁·‖A⁻¹‖₁` of a row-major `size × size`
-/// matrix: how much relative errors in raw values can grow through
-/// compensation.
+/// 1-norm condition number `κ₁(A) = ‖A‖₁·‖A⁻¹‖₁` of a row-major
+/// `size × size` matrix.
+///
+/// [`compensate`] multiplies events as row vectors, so through a spillover
+/// matrix `S` relative 1-norm errors of an event grow by up to `κ₁(Sᵀ)`
+/// (`= κ∞(S)`), which can exceed `κ₁(S)`: pass the transpose for that bound.
 ///
 /// # Errors
 ///
@@ -446,5 +449,192 @@ mod tests {
         let recovered = compensate(&observed, &spillover.compensation_matrix().unwrap());
         assert_close(&recovered[0], &true_signal[0]);
         assert_close(&recovered[1], &true_signal[1]);
+    }
+
+    /// Row-major `a · b` of `size × size` matrices.
+    fn matrix_product(a: &[f64], b: &[f64], size: usize) -> Vec<f64> {
+        let mut product = vec![0.0; size * size];
+        for row in 0..size {
+            for column in 0..size {
+                product[row * size + column] = (0..size)
+                    .map(|k| a[row * size + k] * b[k * size + column])
+                    .sum();
+            }
+        }
+        product
+    }
+
+    fn transpose(matrix: &[f64], size: usize) -> Vec<f64> {
+        (0..size * size)
+            .map(|index| matrix[(index % size) * size + index / size])
+            .collect()
+    }
+
+    /// `‖v‖₁` of event `event` of `columns`.
+    fn event_norm_1(columns: &[Vec<f64>], event: usize) -> f64 {
+        columns.iter().map(|column| column[event].abs()).sum()
+    }
+
+    /// `‖A‖∞`, the largest absolute row sum: the 1-norm bound of `v · A`.
+    fn row_norm(matrix: &[f64], size: usize) -> f64 {
+        (0..size)
+            .map(|row| {
+                matrix[row * size..(row + 1) * size]
+                    .iter()
+                    .map(|v| v.abs())
+                    .sum()
+            })
+            .fold(0.0, f64::max)
+    }
+
+    const SPILL_4: [f64; 16] = [
+        1.0, 0.12, 0.03, 0.0, //
+        0.05, 1.0, 0.21, 0.02, //
+        0.0, 0.08, 1.0, 0.31, //
+        0.01, 0.0, 0.14, 1.0,
+    ];
+
+    /// 64 deterministic events of four channels, some negative.
+    fn latent_events() -> Vec<Vec<f64>> {
+        (0..4)
+            .map(|channel| {
+                (0..64)
+                    .map(|event| f64::from((event * 37 + channel * 11) % 97) * 100.0 - 800.0)
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// One coefficient perturbed, and a dense perturbation, of size `delta`.
+    fn perturbations(delta: f64) -> [Vec<f64>; 2] {
+        let mut single = vec![0.0; 16];
+        single[1] = delta;
+        let dense = (0..16)
+            .map(|index| delta * (f64::from(index % 5) - 2.0) / 2.0)
+            .collect();
+        [single, dense]
+    }
+
+    fn negate(columns: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+        columns
+            .into_iter()
+            .map(|column| column.into_iter().map(|v| -v).collect())
+            .collect()
+    }
+
+    #[test]
+    fn perturbed_matrix_error_is_exactly_minus_latent_e_inverse() {
+        // Observed y = x·S compensated with S + E gives x̂ = x − x·E·(S+E)⁻¹,
+        // equivalently x̂ − x = −x̂·E·S⁻¹: the error the parity perturbation
+        // study (`metrics.coefficient_perturbations`) analyses.
+        let latent = latent_events();
+        let observed = compensate(&latent, &SPILL_4);
+        let inverse = invert_matrix(&SPILL_4, 4).unwrap();
+        for delta in [1e-2, 1e-4] {
+            for error in perturbations(delta) {
+                let perturbed = SPILL_4
+                    .iter()
+                    .zip(&error)
+                    .map(|(s, e)| s + e)
+                    .collect::<Vec<_>>();
+                let perturbed_inverse = invert_matrix(&perturbed, 4).unwrap();
+                let estimate = compensate(&observed, &perturbed_inverse);
+                let exact = negate(compensate(&compensate(&latent, &error), &perturbed_inverse));
+                let via_estimate = negate(compensate(&compensate(&estimate, &error), &inverse));
+                let scale = exact.iter().flatten().fold(0.0_f64, |m, v| m.max(v.abs()));
+                assert!(scale > 0.0);
+                for channel in 0..4 {
+                    for event in 0..64 {
+                        let actual = estimate[channel][event] - latent[channel][event];
+                        assert!((actual - exact[channel][event]).abs() <= 1e-9 * scale);
+                        assert!((actual - via_estimate[channel][event]).abs() <= 1e-9 * scale);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn first_order_error_is_within_the_row_norm_bound() {
+        // f = −x·E·S⁻¹ and the exact error r satisfy f − r = r·A with
+        // A = E·S⁻¹, so per event ‖f − r‖₁ ≤ ‖r‖₁·‖A‖∞.
+        let latent = latent_events();
+        let observed = compensate(&latent, &SPILL_4);
+        let inverse = invert_matrix(&SPILL_4, 4).unwrap();
+        for delta in [1e-2, 1e-4] {
+            for error in perturbations(delta) {
+                let perturbed = SPILL_4
+                    .iter()
+                    .zip(&error)
+                    .map(|(s, e)| s + e)
+                    .collect::<Vec<_>>();
+                let estimate = compensate(&observed, &invert_matrix(&perturbed, 4).unwrap());
+                let first_order = negate(compensate(&compensate(&latent, &error), &inverse));
+                let bound = row_norm(&matrix_product(&error, &inverse, 4), 4);
+                for event in 0..64 {
+                    let exact = (0..4)
+                        .map(|c| estimate[c][event] - latent[c][event])
+                        .collect::<Vec<_>>();
+                    let gap = (0..4)
+                        .map(|c| (first_order[c][event] - exact[c]).abs())
+                        .sum::<f64>();
+                    let exact_norm = exact.iter().map(|v| v.abs()).sum::<f64>();
+                    let rounding = 1e-9 * event_norm_1(&latent, event) * delta;
+                    assert!(gap <= exact_norm * bound * (1.0 + 1e-12) + rounding);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn row_compensation_error_is_bounded_by_the_transposed_condition_number() {
+        // x̂ − x = −x̂·E·S⁻¹ gives ‖x̂ − x‖₁ / ‖x̂‖₁ ≤ κ₁(Sᵀ)·‖E‖∞ / ‖S‖∞.
+        let latent = latent_events();
+        let observed = compensate(&latent, &SPILL_4);
+        let kappa = condition_number_1(&transpose(&SPILL_4, 4), 4).unwrap();
+        for delta in [1e-2, 1e-4] {
+            for error in perturbations(delta) {
+                let perturbed = SPILL_4
+                    .iter()
+                    .zip(&error)
+                    .map(|(s, e)| s + e)
+                    .collect::<Vec<_>>();
+                let estimate = compensate(&observed, &invert_matrix(&perturbed, 4).unwrap());
+                let bound = kappa * row_norm(&error, 4) / row_norm(&SPILL_4, 4);
+                for event in 0..64 {
+                    let gap = (0..4)
+                        .map(|c| (estimate[c][event] - latent[c][event]).abs())
+                        .sum::<f64>();
+                    let relative = gap / event_norm_1(&estimate, event);
+                    assert!(relative <= bound * (1.0 + 1e-9), "{relative} > {bound}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn row_compensation_can_exceed_the_untransposed_condition_number() {
+        // S = [[1, .5, .5], [0, 1, 0], [0, 0, 1]]: κ₁(S) = 2.25, κ₁(Sᵀ) = 4.
+        // The raw event (1, .5, .5) perturbed by (ε, 0, 0) compensates to
+        // (1, 0, 0) moved by (ε, −ε/2, −ε/2): its relative error grows 4×.
+        let spill = [1.0, 0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let compensation = invert_matrix(&spill, 3).unwrap();
+        let epsilon = 2.0_f64.powi(-20);
+        let raw = [vec![1.0], vec![0.5], vec![0.5]];
+        let moved = [vec![1.0 + epsilon], vec![0.5], vec![0.5]];
+        let (before, after) = (
+            compensate(&raw, &compensation),
+            compensate(&moved, &compensation),
+        );
+        let change = (0..3)
+            .map(|c| (after[c][0] - before[c][0]).abs())
+            .sum::<f64>();
+        let growth = (change / event_norm_1(&before, 0)) / (epsilon / event_norm_1(&raw, 0));
+        let kappa = condition_number_1(&spill, 3).unwrap();
+        let kappa_transposed = condition_number_1(&transpose(&spill, 3), 3).unwrap();
+        assert!((kappa - 2.25).abs() < 1e-12);
+        assert!((kappa_transposed - 4.0).abs() < 1e-12);
+        assert!((growth - 4.0).abs() < 1e-12, "{growth}");
+        assert!(growth > kappa);
     }
 }
