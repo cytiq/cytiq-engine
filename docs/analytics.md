@@ -148,6 +148,23 @@ object key, row count, size and SHA-256, the views' contract, digest and
 names, the parity entries and whether the cohort views are present. The same
 dataset gives the same product, byte for byte.
 
+## Publishing to a lakehouse
+
+[cytiq-lake](https://github.com/cytiq/cytiq-lake) publishes the product
+into Apache Iceberg. It runs `cytiq dataset export` itself, with the engine
+version its release policy pins, and checks every table's SHA-256 and
+Arrow shape against what that engine writes.
+
+| Product part | In Iceberg |
+| --- | --- |
+| the 17 tables | appended to tables of the same names, keyed by `dataset_id` and `publication_id` (UInt64 columns become `long`) |
+| the dataset's label tables | `labels_<kind>` |
+| the dataset's events layers | `events_<panel>_<state>_<signature>`, stored once per namespace |
+
+`views.sql` is not translated. Select a publication's rows through the
+`publications` table, which also records the snapshot of every table the
+publication wrote, for `AT (VERSION => ...)` queries.
+
 ## Checks
 
 - `crates/cytiq-population/tests/analytics.rs`: parity, refusals, cohort
