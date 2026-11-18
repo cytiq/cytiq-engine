@@ -125,6 +125,14 @@ jobs:
       - name: Independent scientific metrics
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python -m unittest discover -s parity/scientific -p 'test_*.py'
+      # The AF benchmark refits production's spectra with a NumPy port from the
+      # events `--debug-dir` exports; any divergence from the Rust estimator
+      # fails here (synthetic fixture and the real Aurora controls).
+      - name: AF reference oracle
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          parity/.env/py/bin/python parity/scientific/af_benchmark.py oracle --binary target/release/cytiq --source data/fixtures/parity/autospectral --output target/scientific/results/af-oracle-synthetic
+          parity/.env/py/bin/python parity/scientific/af_benchmark.py oracle --binary target/release/cytiq --source target/scientific/real/aurora_pbmc_spectral --output target/scientific/results/af-oracle-aurora
       # Normal donors and the weak phenotype use small fixtures in the
       # repository, so they run whenever parity is selected; only the 16 GB
       # CyMAE cohort waits for full, scheduled and release validation.
