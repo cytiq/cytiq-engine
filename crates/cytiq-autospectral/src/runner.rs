@@ -80,6 +80,14 @@ pub struct AutoSpectralConfig {
 const CONTROL_GATE_QUANTILE: &str = "fsc_ssc_quantile_box";
 const CONTROL_GATE_CLEAN: &str = "detector_margins+autospill_kde_gate";
 
+fn control_gate(config: &AutoSpectralConfig) -> &'static str {
+    if config.clean_controls {
+        CONTROL_GATE_CLEAN
+    } else {
+        CONTROL_GATE_QUANTILE
+    }
+}
+
 impl AutoSpectralConfig {
     #[must_use]
     pub fn new(output_dir: PathBuf) -> Self {
@@ -198,6 +206,57 @@ pub struct AutoSpectralResult {
     pub references: SpectralReferenceSet,
     pub samples: Vec<UnmixedSample>,
     pub summary: AutoSpectralSummary,
+    /// The events behind every reference spectrum; only with `debug_dir`.
+    pub reference_events: Option<ReferenceEvents>,
+}
+
+/// Version of `<debug-dir>/reference_events.json`.
+pub const REFERENCE_EVENTS_SCHEMA_VERSION: u32 = 1;
+
+/// The events every reference spectrum was fitted on, written to
+/// `<debug-dir>/reference_events.json` so an independent implementation can
+/// refit the spectra exactly (`parity/scientific/af_estimators.py`). Rows are
+/// zero-based FCS DATA rows in the order the estimator read them; detector
+/// indices refer to `detectors`.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ReferenceEvents {
+    pub schema_version: u32,
+    pub detectors: Vec<String>,
+    pub control_gate: String,
+    pub autofluorescence: AutofluorescenceEvents,
+    pub single_stains: Vec<SingleStainEvents>,
+}
+
+/// The gated events of the autofluorescence control: the AF spectrum's
+/// events and the pool every single stain draws its negatives from.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AutofluorescenceEvents {
+    pub filename: String,
+    pub dye: String,
+    pub total_events: usize,
+    /// First detector of the highest gated mean (R `which.max`).
+    pub peak_detector: usize,
+    /// First detector of the highest gated mean apart from the peak; absent
+    /// with a single detector.
+    pub runner_up_detector: Option<usize>,
+    /// Ascending.
+    pub retained: Vec<usize>,
+}
+
+/// One single-stain control's events: positives from its own `retained`
+/// rows, negatives from the autofluorescence control's `retained` rows.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SingleStainEvents {
+    pub filename: String,
+    pub dye: String,
+    pub primary_detector: usize,
+    pub total_events: usize,
+    /// Ascending.
+    pub retained: Vec<usize>,
+    /// Ascending.
+    pub positive: Vec<usize>,
+    /// Rows of the autofluorescence control, in the order they were matched.
+    pub matched_negative: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -238,12 +297,14 @@ struct BuiltReferences {
     unmixing: DMatrix<f64>,
     controls: Vec<ControlQc>,
     diagnostics: ReferenceDiagnostics,
+    events: Option<ReferenceEvents>,
 }
 
 #[derive(Clone, Debug)]
 struct BuiltControlReference {
     component: SpectralComponent,
     control_qc: ControlQc,
+    events: Option<SingleStainEvents>,
 }
 
 #[derive(Clone, Debug)]
@@ -336,12 +397,7 @@ impl AutoSpectralRunner {
             run_id: run_id(),
             solver: SOLVER.to_owned(),
             solver_method: SOLVER_METHOD.to_owned(),
-            control_gate: if config.clean_controls {
-                CONTROL_GATE_CLEAN
-            } else {
-                CONTROL_GATE_QUANTILE
-            }
-            .to_owned(),
+            control_gate: control_gate(config).to_owned(),
             spectral_channels: detectors,
             components: references
                 .set
@@ -368,6 +424,7 @@ impl AutoSpectralRunner {
                 })
                 .collect(),
             summary,
+            reference_events: references.events,
         };
         write_outputs(
             &result,
@@ -617,40 +674,15 @@ fn build_references(
         .iter()
         .find(|control| control.is_autofluorescence)
         .ok_or(AutoSpectralError::MissingAutofluorescenceControl)?;
-    let af_columns =
-        detector_columns(&autofluorescence.path, &autofluorescence.dataset, detectors)?;
-    let af_gate = retained_indices(
-        &autofluorescence.path,
-        &autofluorescence.dataset,
-        detectors,
-        &af_columns,
-        config,
-    )?;
-    // The AF component is a spectrum like the others, on the detector with
-    // the highest mean (`define.flow.control`).
-    let af_means = mean_spectrum(&af_columns, &af_gate);
-    let af_peak = af_means
-        .iter()
-        .enumerate()
-        .max_by(|(_, left), (_, right)| left.total_cmp(right))
-        .map_or(0, |(index, _)| index);
-    let af_spectrum =
-        estimate_spectrum(&autofluorescence.path, &[(&af_columns, &af_gate)], af_peak)?;
-    let af_sensitivity = af_peak_sensitivity(
-        &autofluorescence.path,
-        (&af_columns, &af_gate),
-        &af_means,
-        af_peak,
-        detectors,
-        &af_spectrum,
-    );
+    let af = build_af_reference(autofluorescence, detectors, config)?;
+    let keep_events = config.debug_dir.is_some();
     let negatives = Negatives {
-        columns: &af_columns,
-        events: &af_gate,
+        columns: &af.columns,
+        events: &af.gate,
         scatter: scatter_points(
             &autofluorescence.path,
             &autofluorescence.dataset,
-            &af_gate,
+            &af.gate,
             config,
         )?,
     };
@@ -662,29 +694,46 @@ fn build_references(
     let built_single_stains = parallel_try_map(
         &single_stain_controls,
         "single-stain reference spectra",
-        |_, control| build_single_stain_reference(control, detectors, config, &negatives),
+        |_, control| {
+            build_single_stain_reference(control, detectors, config, &negatives, keep_events)
+        },
     )?;
-    let mut components = built_single_stains
-        .iter()
-        .map(|reference| reference.component.clone())
-        .collect::<Vec<_>>();
-    let mut controls_qc = built_single_stains
-        .iter()
-        .map(|reference| reference.control_qc.clone())
-        .collect::<Vec<_>>();
+    drop(negatives);
+    let mut components = Vec::with_capacity(component_count);
+    let mut controls_qc = Vec::with_capacity(component_count);
+    let mut single_stain_events = Vec::with_capacity(built_single_stains.len());
+    for reference in built_single_stains {
+        components.push(reference.component);
+        controls_qc.push(reference.control_qc);
+        single_stain_events.extend(reference.events);
+    }
     controls_qc.push(ControlQc {
         dye: autofluorescence.row.dye.clone(),
         filename: autofluorescence.row.filename.clone(),
         primary_channel: None,
         total_events: autofluorescence.dataset.event_count(),
-        retained_events: af_gate.len(),
+        retained_events: af.gate.len(),
         positive_events: None,
         negative_events: None,
+    });
+    let events = keep_events.then(|| ReferenceEvents {
+        schema_version: REFERENCE_EVENTS_SCHEMA_VERSION,
+        detectors: detectors.to_vec(),
+        control_gate: control_gate(config).to_owned(),
+        autofluorescence: AutofluorescenceEvents {
+            filename: autofluorescence.row.filename.clone(),
+            dye: autofluorescence.row.dye.clone(),
+            total_events: autofluorescence.dataset.event_count(),
+            peak_detector: af.peak,
+            runner_up_detector: af.runner_up,
+            retained: af.gate,
+        },
+        single_stains: single_stain_events,
     });
     components.push(SpectralComponent {
         name: "Autofluorescence".to_owned(),
         kind: ComponentKind::Autofluorescence,
-        spectrum: af_spectrum,
+        spectrum: af.spectrum,
     });
 
     // calculate.condition.number: fluorophores only, warn when kappa > n.
@@ -698,10 +747,10 @@ fn build_references(
         diagnostics: reference_diagnostics(
             &matrix,
             &unmixing,
-            detectors[af_peak].clone(),
-            af_means,
+            detectors[af.peak].clone(),
+            af.means,
             fluorophore_condition,
-            af_sensitivity,
+            af.sensitivity,
         ),
         set: SpectralReferenceSet {
             detectors: detectors.to_vec(),
@@ -711,6 +760,53 @@ fn build_references(
         matrix,
         unmixing,
         controls: controls_qc,
+        events,
+    })
+}
+
+/// The autofluorescence reference: the control's gated events and the
+/// spectrum fitted on them.
+struct AfReference {
+    columns: Vec<Vec<f64>>,
+    gate: Vec<usize>,
+    means: Vec<f64>,
+    peak: usize,
+    runner_up: Option<usize>,
+    spectrum: Vec<f64>,
+    sensitivity: Option<AfPeakSensitivity>,
+}
+
+fn build_af_reference(
+    control: &LoadedControl,
+    detectors: &[String],
+    config: &AutoSpectralConfig,
+) -> Result<AfReference, AutoSpectralError> {
+    let columns = detector_columns(&control.path, &control.dataset, detectors)?;
+    let gate = retained_indices(&control.path, &control.dataset, detectors, &columns, config)?;
+    // The AF component is a spectrum like the others, on the detector with
+    // the highest mean (`define.flow.control`'s `which.max`: the first one).
+    let means = mean_spectrum(&columns, &gate);
+    let peak = first_maximum(&means, None).unwrap_or(0);
+    let runner_up = first_maximum(&means, Some(peak));
+    let spectrum = estimate_spectrum(&control.path, &[(&columns, &gate)], peak)?;
+    let sensitivity = runner_up.map(|runner_up| {
+        af_peak_sensitivity(
+            &control.path,
+            (&columns, &gate),
+            &means,
+            (peak, runner_up),
+            detectors,
+            &spectrum,
+        )
+    });
+    Ok(AfReference {
+        columns,
+        gate,
+        means,
+        peak,
+        runner_up,
+        spectrum,
+        sensitivity,
     })
 }
 
@@ -749,6 +845,7 @@ fn build_single_stain_reference(
     detectors: &[String],
     config: &AutoSpectralConfig,
     negatives: &Negatives<'_>,
+    keep_events: bool,
 ) -> Result<BuiltControlReference, AutoSpectralError> {
     let primary_channel = control
         .primary_channel
@@ -790,21 +887,33 @@ fn build_single_stain_reference(
         primary_detector_index,
     )?;
 
+    let control_qc = ControlQc {
+        dye: control.row.dye.clone(),
+        filename: control.row.filename.clone(),
+        primary_channel: Some(primary_channel.to_owned()),
+        total_events: control.dataset.event_count(),
+        retained_events: retained.len(),
+        positive_events: Some(positive.len()),
+        negative_events: Some(matched.len()),
+    };
+    let events = keep_events.then(|| SingleStainEvents {
+        filename: control.row.filename.clone(),
+        dye: control.row.dye.clone(),
+        primary_detector: primary_detector_index,
+        total_events: control.dataset.event_count(),
+        retained,
+        positive,
+        matched_negative: matched,
+    });
+
     Ok(BuiltControlReference {
         component: SpectralComponent {
             name: control.row.dye.clone(),
             kind: ComponentKind::Fluorophore,
             spectrum,
         },
-        control_qc: ControlQc {
-            dye: control.row.dye.clone(),
-            filename: control.row.filename.clone(),
-            primary_channel: Some(primary_channel.to_owned()),
-            total_events: control.dataset.event_count(),
-            retained_events: retained.len(),
-            positive_events: Some(positive.len()),
-            negative_events: Some(matched.len()),
-        },
+        control_qc,
+        events,
     })
 }
 
@@ -1220,23 +1329,30 @@ fn reference_diagnostics(
     }
 }
 
+/// R's `which.max` over `values` without `excluded`: the first index of the
+/// largest value (`Iterator::max_by` would return the last of equal maxima).
+/// `None` when no index is left. The values are finite gated means.
+fn first_maximum(values: &[f64], excluded: Option<usize>) -> Option<usize> {
+    let mut best: Option<usize> = None;
+    for (index, value) in values.iter().enumerate() {
+        if Some(index) != excluded && best.is_none_or(|top| *value > values[top]) {
+            best = Some(index);
+        }
+    }
+    best
+}
+
 /// [`AfPeakSensitivity`] of the AF reference `spectrum`, estimated on `peak`
-/// from `events` of `columns`. Never fails the run: an undefined runner-up
-/// spectrum is reported as absent.
+/// from `events` of `columns`, against the detector `runner_up`. Never fails
+/// the run: an undefined runner-up spectrum is reported as absent.
 fn af_peak_sensitivity(
     path: &Path,
     (columns, events): (&[Vec<f64>], &[usize]),
     means: &[f64],
-    peak: usize,
+    (peak, runner_up): (usize, usize),
     detectors: &[String],
     spectrum: &[f64],
-) -> Option<AfPeakSensitivity> {
-    let runner_up = means
-        .iter()
-        .enumerate()
-        .filter(|(detector, _)| *detector != peak)
-        .max_by(|(_, left), (_, right)| left.total_cmp(right))
-        .map(|(detector, _)| detector)?;
+) -> AfPeakSensitivity {
     let relative_margin =
         (means[peak] != 0.0).then(|| (means[peak] - means[runner_up]) / means[peak].abs());
     let runner_up_spectrum_cosine = estimate_spectrum(path, &[(columns, events)], runner_up)
@@ -1253,13 +1369,13 @@ fn af_peak_sensitivity(
             runner_up_spectrum_cosine.unwrap_or(f64::NAN),
         );
     }
-    Some(AfPeakSensitivity {
+    AfPeakSensitivity {
         runner_up_detector: detectors[runner_up].clone(),
         relative_margin,
         runner_up_spectrum_cosine,
         cosine_threshold: AF_PEAK_COSINE_THRESHOLD,
         stable,
-    })
+    }
 }
 
 fn cosine(left: &[f64], right: &[f64]) -> f64 {
@@ -1757,17 +1873,58 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let means = super::mean_spectrum(&columns, &events);
-        let peak = means
-            .iter()
-            .enumerate()
-            .max_by(|(_, left), (_, right)| left.total_cmp(right))
-            .unwrap()
-            .0;
+        let peak = super::first_maximum(&means, None).unwrap();
+        let runner_up = super::first_maximum(&means, Some(peak)).unwrap();
         let path = std::path::Path::new("af.fcs");
         let spectrum = super::estimate_spectrum(path, &[(&columns, &events)], peak).unwrap();
         let names = (0..detectors).map(|d| format!("D{d}")).collect::<Vec<_>>();
-        super::af_peak_sensitivity(path, (&columns, &events), &means, peak, &names, &spectrum)
-            .unwrap()
+        super::af_peak_sensitivity(
+            path,
+            (&columns, &events),
+            &means,
+            (peak, runner_up),
+            &names,
+            &spectrum,
+        )
+    }
+
+    #[test]
+    fn first_maximum_returns_the_first_of_equal_maxima() {
+        assert_eq!(super::first_maximum(&[1.0, 3.0, 3.0, 2.0], None), Some(1));
+        assert_eq!(
+            super::first_maximum(&[1.0, 3.0, 3.0, 2.0], Some(1)),
+            Some(2)
+        );
+        assert_eq!(
+            super::first_maximum(&[1.0, 3.0, 2.0, 3.0], Some(1)),
+            Some(3)
+        );
+        // R's `which.max(c(-0, 0))` is 1: the zeros compare equal.
+        assert_eq!(super::first_maximum(&[-0.0, 0.0], None), Some(0));
+        assert_eq!(super::first_maximum(&[5.0], Some(0)), None);
+        assert_eq!(super::first_maximum(&[], None), None);
+    }
+
+    #[test]
+    fn tied_af_peak_follows_which_max() {
+        // D1 and D2 hold bit-identical columns: R's `which.max` takes D1, and
+        // the runner-up is D2 with a zero margin and the same spectrum.
+        let sensitivity = sensitivity_of(&[(&[0.2, 1.0, 1.0, 0.5], |event| {
+            100.0 + (event * 37 % 101) as f64
+        })]);
+        assert_eq!(sensitivity.runner_up_detector, "D2");
+        assert_eq!(sensitivity.relative_margin, Some(0.0));
+        assert!(sensitivity.runner_up_spectrum_cosine.unwrap() >= 1.0 - 1e-12);
+        assert_eq!(sensitivity.stable, Some(true));
+    }
+
+    #[test]
+    fn runner_up_takes_the_first_of_tied_detectors() {
+        // D0 and D2 tie behind the D1 peak: the runner-up is the first, D0.
+        let sensitivity = sensitivity_of(&[(&[0.6, 1.0, 0.6, 0.1], |event| {
+            100.0 + (event * 37 % 101) as f64
+        })]);
+        assert_eq!(sensitivity.runner_up_detector, "D0");
     }
 
     #[test]
@@ -1799,6 +1956,186 @@ mod tests {
         let cosine = sensitivity.runner_up_spectrum_cosine.unwrap();
         assert!(cosine < super::AF_PEAK_COSINE_THRESHOLD, "{cosine}");
         assert_eq!(sensitivity.stable, Some(false));
+    }
+
+    /// Unmix `events` (each a detector vector) with `reference` through the
+    /// production per-event path.
+    fn unmix_rows(reference: &DMatrix<f64>, events: &[Vec<f64>]) -> super::UnmixedChunk {
+        let columns = (0..reference.nrows())
+            .map(|detector| {
+                cytiq_fcs::ColumnData::F64(events.iter().map(|event| event[detector]).collect())
+            })
+            .collect::<Vec<_>>();
+        let columns = columns.iter().collect::<Vec<_>>();
+        let unmixing = super::unmixing_matrix(reference).unwrap();
+        super::unmix_event_range(
+            &columns,
+            reference.ncols(),
+            reference.nrows(),
+            reference,
+            &unmixing,
+            0,
+            events.len(),
+        )
+    }
+
+    /// Detectors are rows; the last column is shaped like autofluorescence.
+    fn six_detector_reference() -> DMatrix<f64> {
+        DMatrix::from_row_slice(
+            6,
+            3,
+            &[
+                1.0, 0.1, 0.6, //
+                0.4, 0.3, 1.0, //
+                0.1, 1.0, 0.8, //
+                0.05, 0.6, 0.5, //
+                0.0, 0.2, 0.3, //
+                0.02, 0.05, 0.2,
+            ],
+        )
+    }
+
+    fn mixed(reference: &DMatrix<f64>, abundances: &[f64]) -> Vec<f64> {
+        (reference * nalgebra::DVector::from_column_slice(abundances))
+            .iter()
+            .copied()
+            .collect()
+    }
+
+    fn close_to_f32(actual: f32, expected: f64) -> bool {
+        (f64::from(actual) - expected).abs() <= f64::from(f32::EPSILON) * expected.abs().max(1e-30)
+    }
+
+    #[test]
+    fn noise_free_events_in_span_unmix_exactly() {
+        let reference = six_detector_reference();
+        let abundances = [[10.0, 20.0, 3.0], [5.0, -2.0, 7.0], [-1.0, 0.5, 4.0]];
+        let events = abundances
+            .iter()
+            .map(|a| mixed(&reference, a))
+            .collect::<Vec<_>>();
+        let chunk = unmix_rows(&reference, &events);
+        for (event, a) in abundances.iter().enumerate() {
+            for (component, &expected) in a.iter().enumerate() {
+                let actual = chunk.component_columns[component][event];
+                assert!(close_to_f32(actual, expected), "{actual} vs {expected}");
+            }
+            let norm = events[event].iter().map(|v| v * v).sum::<f64>().sqrt();
+            assert!(
+                chunk.residuals[event] <= 1e-12 * norm,
+                "{}",
+                chunk.residuals[event]
+            );
+        }
+        assert_eq!(chunk.negative_count, 2);
+        assert_eq!(chunk.component_negatives, vec![1, 1, 0]);
+    }
+
+    #[test]
+    fn residual_is_the_out_of_span_component() {
+        let reference = six_detector_reference();
+        let unmixing = super::unmixing_matrix(&reference).unwrap();
+        // n = v − A·A⁺·v is orthogonal to every spectrum; unit length.
+        let v = nalgebra::DVector::from_column_slice(&[0.3, -0.2, 0.5, 1.0, -0.7, 0.4]);
+        let mut n = &v - &reference * (&unmixing * &v);
+        n /= n.norm();
+        let abundances = [[10.0, 20.0, 3.0], [5.0, -2.0, 7.0]];
+        let offsets = [4.0, -2.5];
+        let events = abundances
+            .iter()
+            .zip(offsets)
+            .map(|(a, c)| {
+                mixed(&reference, a)
+                    .iter()
+                    .zip(n.iter())
+                    .map(|(y, n)| y + c * n)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let chunk = unmix_rows(&reference, &events);
+        for (event, (a, c)) in abundances.iter().zip(offsets).enumerate() {
+            assert!((chunk.residuals[event] - c.abs()).abs() <= 1e-12 * c.abs());
+            for (component, &expected) in a.iter().enumerate() {
+                let actual = chunk.component_columns[component][event];
+                assert!(close_to_f32(actual, expected), "{actual} vs {expected}");
+            }
+        }
+        let offset_squares = offsets.iter().map(|c| c * c).sum::<f64>();
+        for detector in 0..6 {
+            let expected = offset_squares * n[detector] * n[detector];
+            let actual = chunk.residual_squares[detector];
+            assert!(
+                (actual - expected).abs() <= 1e-12 * offset_squares,
+                "{actual} vs {expected}"
+            );
+            let signal = events
+                .iter()
+                .map(|e| e[detector] * e[detector])
+                .sum::<f64>();
+            assert!((chunk.signal_squares[detector] - signal).abs() <= 1e-12 * signal);
+        }
+    }
+
+    #[test]
+    fn autofluorescence_only_events_unmix_to_zero_fluorophores() {
+        // Upstream's `benchmark_af_spectra` criterion: an unstained event
+        // that is exactly the AF spectrum has no fluorophore signal.
+        let reference = six_detector_reference();
+        let af = reference.column(2).iter().copied().collect::<Vec<_>>();
+        let levels = [150.0, 2_000.0, 40_000.0];
+        let events = levels
+            .iter()
+            .map(|s| af.iter().map(|value| s * value).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        let chunk = unmix_rows(&reference, &events);
+        for (event, level) in levels.iter().enumerate() {
+            for component in 0..2 {
+                let value = f64::from(chunk.component_columns[component][event]);
+                assert!(value.abs() <= 1e-12 * level, "{value}");
+            }
+            assert!(close_to_f32(chunk.component_columns[2][event], *level));
+        }
+    }
+
+    #[test]
+    fn af_spectrum_is_unchanged_by_power_of_two_scaling() {
+        // Scaling every detector by 4 scales each sum, median and slope term
+        // exactly, so the peak-normalised spectrum is bitwise the same.
+        let events = (0..300).collect::<Vec<usize>>();
+        let sources: [AfSource<'_>; 2] = [
+            (&[1.0, 0.3, 0.1, 0.05], |event| {
+                50.0 + (event * 37 % 101) as f64
+            }),
+            (&[0.05, 0.2, 1.0, 0.4], |event| {
+                49.0 + (event * 53 % 97) as f64
+            }),
+        ];
+        let columns = |scale: f64| {
+            (0..4)
+                .map(|detector| {
+                    events
+                        .iter()
+                        .map(|&event| {
+                            scale
+                                * sources
+                                    .iter()
+                                    .map(|(spectrum, amount)| spectrum[detector] * amount(event))
+                                    .sum::<f64>()
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        };
+        let path = std::path::Path::new("af.fcs");
+        let (base, scaled) = (columns(1.0), columns(4.0));
+        for peak in 0..4 {
+            let expected = super::estimate_spectrum(path, &[(&base, &events)], peak).unwrap();
+            let actual = super::estimate_spectrum(path, &[(&scaled, &events)], peak).unwrap();
+            assert_eq!(
+                actual.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                expected.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
+            );
+        }
     }
 
     #[test]

@@ -17,7 +17,8 @@ this crate.
   slopes, scatter-matched negatives (`FNN::knnx.index`); unit tests against
   `rlm` fixtures from `parity/make_fixtures.R`.
 - `src/export.rs` — `write_outputs`: reference CSV/JSON, unmixed FCS and its
-  margin mask, `diagnostics/run.json`, debug summary.
+  margin mask, `diagnostics/run.json`, debug summary and
+  `reference_events.json`.
 - `src/error.rs` — `AutoSpectralError` (`thiserror`).
 - `tests/autospectral.rs`, `tests/support.rs` — runner tests on the fixture set.
 
@@ -52,6 +53,14 @@ this crate.
   bias the spectra. It changes the retained control events and so the
   spectra.
 - Diagnostics use `log`; never print to stdout.
+- The AF peak and runner-up are `first_maximum`: the first of equal means, as
+  R's `which.max` (`Iterator::max_by` would take the last).
+- `ReferenceEvents` (`--debug-dir` only) records rows in the order the
+  estimator reads them. `parity/scientific/af_estimators.py` ports the
+  estimator and the event selection operation by operation (sequential sums);
+  `af_benchmark.py oracle` requires both to agree to 1e-9 (bitwise today) in
+  the scientific workflow. Change the Rust estimator or the selection and the
+  port together; never widen the oracle tolerance.
 
 ## Where changes belong
 
@@ -70,6 +79,9 @@ cargo test -p cytiq-engine --test autospectral_cli
 
 Unit tests live in `src/manifest.rs` (manifest validation, column aliases) and
 `src/runner.rs` (reference matrix layout, OLS recovery, detector inference,
-`parallel_try_map` ordering). `tests/support.rs` is also compiled into
+`parallel_try_map` ordering, `which.max` ties, closed-form residuals,
+AF-only events, power-of-two scaling). `tests/autospectral.rs` checks the
+`--debug-dir` export and that it leaves every output byte-identical.
+`tests/support.rs` is also compiled into
 `crates/cytiq-engine/tests/autospectral_cli.rs` via `#[path]`; keep its helpers
 generic. Parity scripts live in `parity/` (`run_all.sh`, `compare.py`).

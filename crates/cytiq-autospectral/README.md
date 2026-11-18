@@ -28,7 +28,8 @@ Follows the OLS path of AutoSpectral ([Burton et al., bioRxiv 2025](https://doi.
    100 IRLS steps, `lm` when it does not converge) of that detector on the
    peak detector, divided by the largest value.
 5. Autofluorescence: the slopes over the gated AF control, against the
-   detector with the highest mean.
+   detector with the highest mean (the first of equal means, as R's
+   `which.max`).
 6. For each single stain, positives are events above the 99th percentile
    (R type 7) of the AF control's primary channel, keeping the brightest 500
    (at least 20). Negatives are the AF control's 3 nearest events to each
@@ -129,7 +130,18 @@ The optional detectors CSV uses the [AutoSpill detector format](../cytiq-autospi
   unmixed/<sample-stem>.unmixed.masks.parquet  raw `margin_pass` per event (detectors and scatter)
   diagnostics/run.json                      AutoSpectralSummary
 <debug-dir>/summary.json                    same summary, only with --debug-dir
+<debug-dir>/reference_events.json           rows behind every spectrum, only with --debug-dir
 ```
+
+`reference_events.json` (compact, `schema_version` 1) lists, per control, the
+zero-based FCS DATA rows each spectrum was fitted on, in the order the
+estimator read them: the AF control's `retained` rows with its
+`peak_detector` and `runner_up_detector` (indices into `detectors`), and for
+each single stain its `retained`, `positive` and `matched_negative` rows (the
+last are AF-control rows, in matching order). With it,
+`parity/scientific/af_benchmark.py oracle` refits every production spectrum
+independently; the outputs themselves are byte-identical with or without
+`--debug-dir`, and without it the rows are not kept.
 
 - Unmixed files are FCS 3.1. Components are rounded to float32; copied channels
   keep exact values, so the file uses float64 when one does not fit float32
@@ -160,9 +172,11 @@ and component negative fractions. High cosine, poor conditioning or a small
 residual alone cannot establish biological accuracy.
 
 The AF reference is regressed on the detector with the highest gated AF mean, a
-hard argmax: on real Aurora PBMC controls V7 and UV7 differ by under 1%, and the
-choice moves the AF spectrum (cosine 0.61 to upstream's). `af_peak_sensitivity`
-re-estimates the spectrum on the runner-up detector from the same events and
+hard argmax (equal means resolve to the first detector, as R's `which.max`): on
+real Aurora PBMC controls V7 and UV7 differ by under 1%, and the choice moves
+the AF spectrum (cosine 0.61 to upstream's). `af_peak_sensitivity`
+re-estimates the spectrum on the runner-up detector (likewise the first of
+equal means) from the same events and
 reports `runner_up_detector`, `relative_margin`, `runner_up_spectrum_cosine` and
 `stable` (cosine ≥ `AF_PEAK_COSINE_THRESHOLD` = 0.9999, the spectra parity
 tolerance), with a warning when unstable. One AF source gives the same spectrum
@@ -174,7 +188,12 @@ error (`NonFiniteDiagnostic`) rather than a JSON `null`.
 OLS Householder QR remains the baseline. Controls are fitted before sample DATA
 are loaded; per-event solve buffers are reused without changing operation order.
 Offline AF/bootstrap and alternative-solver experiments live in
-[`parity/scientific`](../../parity/scientific). WLS requires calibrated detector
+[`parity/scientific`](../../parity/scientific). The AF benchmark
+(`af_benchmark.py`) compares the production argmax with peak-free and
+multi-component AF estimators under a predeclared decision rule; no
+alternative is eligible for production with one real spectral dataset, and the
+data it would need are specified in
+[the scientific guide](../../parity/scientific/README.md#required-real-data). WLS requires calibrated detector
 variances, Poisson likelihood requires count-scale measurements, and multiple AF
 components require independent identifiable references; none is inferred from
 arbitrary ADC fluorescence or normalized CyTOF data.
@@ -193,4 +212,9 @@ cargo test -p cytiq-engine --test autospectral_cli
 ```
 
 Integration tests run on `data/fixtures/autospectral/` (unstained, FITC and PE
-controls plus a stained sample).
+controls plus a stained sample). The `--debug-dir` export is checked against
+`run.json` and against outputs written without it, which must be
+byte-identical. Unit tests pin the `which.max` tie rule, closed-form residuals
+(events in the spectral span unmix exactly; an orthogonal offset is the
+residual), AF-only events unmixing to zero fluorophores, and the AF spectrum's
+invariance to power-of-two scaling.
