@@ -700,7 +700,7 @@ flagged `under`, and the SSI moves less (median 0.09 at −0.05 against 1.2 at
 | FlowSOM | ConsensusClusterPlus → average-linkage hc | not visible on the tests | port if needed |
 | FlowSOM | `scale` and `nClus` defaults differ from R | product decision | settable with `--no-scale`/`--metaclusters` |
 | AutoSpectral | the AutoSpill KDE gate instead of AutoSpectral's density gates (`do.gate`, large gates); no autofluorescence removal from cell controls | fluorophore spectra still match to cosine ≥ 0.9998 on real Aurora controls (§2.10) | port `do.gate` and `remove.af` if a panel needs them |
-| AutoSpectral | AF spectrum against the detector with the highest mean of a different gate, over every gated event instead of 1,000 random ones | on the Aurora panel cytiq's peak is V7-A, AutoSpectral's UV7-A (means within 1%); AF spectrum cosine 0.61, fluorophore abundances correlate 0.976–0.99998 (≥ 0.999 with AutoSpectral's AF spectrum); AutoSpectral's own AF spectrum moves to 0.91–0.94 between random draws | — |
+| AutoSpectral | AF spectrum against the detector with the highest mean of a different gate, over every gated event instead of 1,000 random ones | on the Aurora panel cytiq's peak is V7-A, AutoSpectral's UV7-A (means within 1%); AF spectrum cosine 0.61, fluorophore abundances correlate 0.976–0.99998 (≥ 0.999 with AutoSpectral's AF spectrum); AutoSpectral's own AF spectrum moves to 0.91–0.94 between random draws; the gated unstained events hold two AF spectral types (V7-A and UV7-A peaks, 67/33) and the argmax switches with probability 0.31 under resampling (§7) | keep: no alternative met the predeclared rule (§7); exact ties now resolve to the first detector, as `which.max` |
 | AutoSpectral | negatives capped at 1,000 evenly spaced instead of a random `sample` | reproducible runs | — |
 | AutoSpectral | no WLS/Poisson/per-cell AF (R's default `AutoSpectral` method) | comparable only to `method = "OLS"` | separate task |
 | AutoSpread | no upstream; units are σ/√F while AutoSpectral expects σ²/F | format incompatibility | document the units |
@@ -839,3 +839,185 @@ or instruments. Aggregate mode assumes comparable biology. QC reports occupancy,
 CV, identity fallback, extrapolation and a quantile approximation to 1-D EMD;
 that reported approximation is not upstream's histogram `emdEvaluation` score.
 Classifier v3 pins the exact normalizer; v1/v2 reject normalized inputs.
+
+## 7. AF reference and compensation uncertainty (2026-11-18)
+
+No production value changes in this section. The AF peak and runner-up now
+resolve exact ties to the first detector, as R's `which.max` does (Rust's
+`max_by` took the last); every pinned dataset has distinct means, so no output
+moved. `--debug-dir` additionally writes `reference_events.json`, the rows
+behind every spectrum. With and without it, references, unmixed FCS, masks and
+`run.json` (except `run_id`) are byte-identical to `main` on the parity fixture
+and on the Aurora panel. Methods and commands are in the
+[scientific guide](scientific/README.md#af-reference-benchmark).
+
+### AF reference benchmark
+
+**Oracle.** A NumPy port of the estimator and the event selection
+(`af_estimators.py`) refits production from the exported rows. AF means, peak,
+runner-up, margin, runner-up cosine, every positive and matched negative row,
+and every spectrum are bitwise equal on `data/fixtures/autospectral`
+(`--quantile-gate`), `data/fixtures/parity/autospectral` and the real Aurora
+controls (KDE gate, 64 detectors). The tolerance is 1e-9 and never widened.
+The baseline arm reproduces the Rust unmixed FCS within f32 rounding (relative
+5.5e-8).
+
+**Aurora PBMC** (seeds 1–20 for stability, 2 folds × 5 seeds held out, every
+10th sample event):
+
+| Arm | Cosine to production | Split-half min cosine | Peak switch, 1k / 10k events | Held-out SD ratio (median; BV510) | Held-out residual | κ | Max AF↔fluorophore cosine | Sample Δ max (robust SD) | Residual outside AF gate | r to R (min) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `peak_argmax` (production) | 1 | 0.800 | 0.35 / 0.20 | 1 (1) | 0.318 | 6.36 | 0.912 | 0 | 0.043 | 0.976 |
+| `runner_up` | 0.812 | 0.804 | 0.35 / 0.20 | 0.999 (0.998) | 0.315 | 4.33 | 0.745 | 0.95 | 0.040 | 0.998 |
+| `total_signal` | 0.976 | 0.9994 | – | 1.007 (0.949) | 0.266 | 5.78 | 0.873 | 0.39 | 0.042 | 0.962 |
+| `mean_ratio` | 0.985 | 1.0000 | – | 0.995 (0.943) | 0.261 | 5.87 | 0.888 | 0.43 | 0.042 | 0.985 |
+| `principal_axis` | 0.941 | 0.998 | – | 0.998 (0.976) | 0.283 | 5.05 | 0.850 | 0.69 | 0.042 | 0.987 |
+| `spectral_clusters_k2` joint | 0.9996 | 0.9975 | – | 0.998 (1.015) | 0.233 | 8.31 | 0.913 | 0.23 | 0.026 | 0.983 |
+| `spectral_clusters_k2` min-residual | 0.9996 | 0.9975 | – | 1.050 (1.816) | 0.255 | 8.31 | 0.913 | 0.42 | 0.035 | 0.984 |
+| `scatter_strata_k2` joint | 0.9989 | 0.775 | – | 0.995 (0.944) | 0.270 | 7.20 | 0.908 | 0.23 | 0.026 | 0.977 |
+
+- **The peak is a coin flip.** The event bootstrap of the gated means gives
+  V7-A a margin of −0.49% to +0.73% (95%) and a 31% probability that another
+  detector takes the argmax. Production's own AF spectrum has split-half cosine
+  0.80, and 1,000-event subsamples go down to 0.78. The end-to-end
+  `af_sensitivity.py` run (gate recomputed) reproduces #205's table exactly.
+- **Two AF types, not one.** Seeded spherical k-means (k = 2, identical labels
+  for init seeds 1–5, ARI 1.0) splits the gated unstained events 67/33. One
+  component peaks on V7-A and matches production (cosine 0.9996; 0.616 to R).
+  The other peaks on UV7-A and matches R's AF (0.951). FSC and SSC medians of
+  the two differ by under 3%, so scatter cannot identify them (both
+  `scatter_strata` arms are unstable), and no cell-type label is claimed. cytiq
+  and AutoSpectral each fit one of the two; `runner_up` reproduces R's
+  abundances to r ≥ 0.998.
+- **Peak-free spectra are reproducible but not better downstream.**
+  `mean_ratio` reaches split-half cosine 1.0000 and `total_signal` 0.9994,
+  against 0.80, and both lower the held-out relative residual by about 17%.
+  They do not lower the held-out fluorophore spread: median ratio 0.995–1.007,
+  and only BV510, whose spectrum is closest to AF (cosine 0.912) and which has
+  the largest unit-noise variance, improves 5–6%. They move stained-sample
+  abundances by up to 0.4 robust SD.
+- **Two components fit better and stay identifiable, but fail the rule.**
+  `spectral_clusters_k2` passes every identifiability gate on Aurora. Joint
+  unmixing lowers the held-out residual 27% and the residual of sample events
+  outside the AF gate's scatter hull 40%; 68% of sample events lie outside that
+  hull. Its fluorophore spread is unchanged (0.998), its condition number is
+  1.31× production (rule ≤ 1.25) and its split-half cosine 0.9975 (rule ≥
+  0.999).
+
+**Synthetic truth** (`af_scenarios.py`, 3 seeds each; ranges over seeds):
+
+| Scenario | Production split-half / switch probability | Best single-AF arm: held-out SD ratio, abundance RMSE / production | `spectral_clusters_k2` min-residual: SD ratio, RMSE / production, κ ratio, identifiable |
+|---|---|---|---|
+| single AF | 1.000 / 0 | all 1.00, 1.00 | 1.00, 1.00, 19–25, no (κ) |
+| two near-tied sources (D03/D07) | −0.97 / 0.05–0.46 | `principal_axis` 0.95–0.98, 1.04–1.07 | 0.65, 0.54–0.59, 1.59, no (κ) |
+| 5% source, scatter-linked | 1.000 / 0 | `runner_up` 1.00, 0.99 | 0.99, 0.54–0.70, 1.11, no: only 86–102 of its events pass the AF gate |
+| 5% source, scatter-independent | 1.000 / 0 | `runner_up` 1.00, 0.99 | 0.95, 0.54–0.70, 1.13, 1 of 3 seeds (607–687 events against a 629–649 minimum) |
+| dim positives (single AF) | 1.000 / 0 | all 1.00, 1.00 | 1.00, 1.00, 19–25, no (κ) |
+
+- With one AF source every arm is equivalent downstream. The production
+  `rlm`-on-peak spectrum sits 0.27–0.36° from the true AF (regression
+  attenuation from noise on the peak detector) against 0.03° for
+  `mean_ratio`, which changes no abundance (RMSE ratio 1.00). Multi-AF arms are
+  correctly rejected (κ 19–25× production).
+- With two nearly orthogonal sources of similar brightness the production
+  estimator is not merely unstable but wrong in kind. Regressing every detector
+  on one source's peak gives a negative slope for the other source, so the
+  "AF" is roughly afA − 1.1·afB, with a −1.10 lobe. The runner-up spectrum is
+  its mirror (cosine −0.968), and `af_peak_sensitivity` flags it as
+  `stable: false`. No single spectrum repairs it (`mean_ratio` is 2.4× worse).
+  Two components recover both sources (cosine ≥ 0.999 each), with 35% less
+  spread and 41–46% less abundance error, but κ is 1.59× and fails the
+  predeclared identifiability gate (≤ 1.5). The rule was not changed after the
+  results. Aurora's sources overlap (runner-up cosine +0.81), so its production
+  AF has no negative lobe.
+- A 5% minority source leaves the production spectrum stable. Its error lives
+  in the minority cells: two components cut abundance RMSE 30–46% while the
+  held-out robust SD (p16–p84) barely moves. **The held-out spread criterion is
+  blind to minority AF populations**, which the RMSE against truth shows.
+  When the minority source also has higher SSC, the AF control's KDE gate keeps
+  only 86–102 of its roughly 1,000 events: an AF population with distinct
+  scatter barely reaches the AF reference at all.
+- `weak_positive_spike_in` is uninformative by construction: a noise-free
+  fluorophore vector lies in the fluorophore span, so no residual and no AF
+  assignment changes, every solver recovers it without bias, and its AUC
+  restates the unstained spread. Synthetic dim populations (AUC 0.79–0.93) are
+  unchanged by single-AF arms and lowered by joint multi-AF (FITC 0.92 → 0.78 in
+  one seed, k = 3): extra AF columns absorb dim signal.
+
+**Decision.** `DECISION_RULE` (sha256
+`aa5533e0114922bec592572f7cd80992b9f3454a313c5ba96ce297fd497e6eba`, recorded
+before any arm ran) leaves 0 of 16 arm/solver variants eligible. Every variant
+fails for having 1 independent real dataset (< 2). Each also fails at least
+one Aurora criterion: none lowers the held-out spread by 5%, and most fail
+stability, conditioning or identifiability. The production estimator stays,
+and its parity with AutoSpectral's estimator (#202) is unchanged.
+
+Measured, not recommended: the AF instability on PBMC is two AF spectral types
+of near-equal brightness, not noise. A future candidate is a two-component AF
+with per-event assignment. It would need identification by an independent
+variable (sorted or lineage-gated unstained subsets), a second real spectral
+dataset, a decision on the conditioning bound, and a downstream criterion that
+sees minority populations. None of these is available (required data:
+[scientific guide](scientific/README.md#required-real-data)).
+
+### Compensation uncertainty on synthetic repeat controls
+
+No pinned dataset has repeated single-stain controls, so `repeat_controls.py`
+generates them. They are labelled "synthetic; not biological evidence", with
+`real_repeat_controls: not_assessed`. The study ran 6 predeclared scenarios ×
+20 sessions × 8 independently stained tube sets (5,000 events per tube). Every
+matrix came from production `cytiq autospill` and every compensated sample from
+`cytiq compensate`, which reproduced raw·S⁻¹ within f32 rounding throughout. The
+event bootstrap used 100 resamples of 3 sessions (exploratory). Coverage is
+over 600 session intervals or 90 bootstrap intervals, with Wilson 95% bounds in
+the report.
+
+| Scenario | Between-tube / within-tube SD (max cell) | Between-session SD (max) | t-interval → session truth | t-interval → sample truth | Prediction interval → sample truth | Bootstrap → tube truth | Bootstrap → sample truth | FITC single → PE false positives: truth; worst Δ | Co-expressed PE+ Δ (range) |
+|---|---|---:|---:|---:|---:|---:|---:|---|---|
+| null | 2e-4 / 2e-4 | 1e-4 | 0.918 | 0.918 | 1.000 | 0.944 | 0.944 | 9.8%; ±1.0 pt | −2.2 to +2.8 pt |
+| brightness (σ 0.3) | 2e-4 / 2e-4 | 1e-4 | 0.937 | 0.937 | 1.000 | 0.900 | 0.900 | 9.9%; +2.0 pt | −2.5 to +3.6 pt |
+| tandem (σ 0.01) | 0.0108 / 1.1e-4 (×96) | 0.0032 | 0.948 | 0.943 | 1.000 | 0.933 | 0.878 | 10.2%; −1.6 pt | −2.6 to +2.5 pt |
+| AF level/shape | 2e-4 / 2e-4 | 1e-4 | 0.938 | 0.938 | 1.000 | 0.922 | 0.922 | 10.5%; +1.4 pt | −1.9 to +2.5 pt |
+| detector gain (σ 0.05) | 2e-4 / 2e-4 | 0.0225 | 0.913 | 0.352 | 0.478 | 0.933 | 0.500 | 10.4%; +88 pt | −57 to +43 pt |
+| combined | 0.0104 / 1.1e-4 (×101) | 0.0179 | 0.930 | 0.398 | 0.550 | 0.944 | 0.456 | 9.6%; +90 pt | −56 to +44 pt |
+
+- **One tube's bootstrap measures one tube.** When only brightness or AF
+  varies between tubes, a single tube's event bootstrap matches the
+  between-tube spread (ratio 0.94–0.98) and covers the truth 0.90–0.94. A
+  degrading tandem breaks this. Independently stained PE-Cy7 and APC-Cy7 tubes
+  differ in their donor coefficient with SD 0.009–0.011, about 90–100× what
+  any tube's bootstrap reports (1.1e-4). The bootstrap interval of a single
+  control is then far too narrow, and only replicate tubes reveal it.
+- **Session truth is not sample truth.** With per-session detector gain drift
+  (5%), intervals still cover their own session's matrix (0.91–0.93). They
+  cover the matrix the sample was acquired with only 35–50% of the time, and
+  a prediction interval over the session's tubes only 48%. Controls and
+  samples acquired under different gains are a different estimand, which no
+  amount of within-session replication can fix.
+- **Downstream.** Brightness, AF and tandem drift at these magnitudes move no
+  population by more than 3.6 points. The double-negative false-positive rate
+  stays at 0.50–0.53% against the gate's 0.5%. A 5% gain mismatch turns
+  FITC single positives into PE false positives in up to 99% of events (truth:
+  10%, mostly spreading), and moves the dim co-expressed PE+ fraction by up to
+  ±57 points. That dim population sits at the gate, so even the null
+  scenario's coefficient noise (2e-4) moves it by ±2–3 points. The FITC→PE coefficient error orders the false-positive change:
+  Spearman ρ 0.96 (null), 0.69 (gain), 0.45 (combined, where several
+  coefficients err at once).
+- **Estimator bias.** AutoSpill's 160-tube mean differs from the truth by at
+  most 9.7e-5 (BV421→FITC, truth 0.045; up to 9 standard errors in 5 of 30
+  cells). That is why 95% t-intervals cover the truth only 0.92–0.94 even in
+  the null scenario. It is two orders of magnitude below the tandem and gain
+  effects. Leave-one-out prediction intervals, which compare estimates with
+  estimates, reach a nominal 0.94–0.95.
+- **First-order propagation.** For every session matrix the first-order error
+  `−latent·E·S⁻¹` stayed within its exact bound ‖E·S⁻¹‖₂ (largest relative
+  error 0.029 against a bound of 0.050; no violation). The Rust tests now pin
+  the exact identity `x̂ − x = −x·E·(S+E)⁻¹`, the row-norm bounds, and that
+  events grow by up to κ₁(Sᵀ), not κ₁(S). `condition_number_1`'s doc comment
+  said the latter. The preflight warning (`cytiq-qc`, κ₁ of the matrix as
+  given, threshold 100) is unchanged and recorded as a follow-up.
+
+These are properties of the estimators under declared synthetic variability,
+not of any instrument. The real repeat controls that would turn them into
+evidence are specified in the
+[scientific guide](scientific/README.md#required-real-data).
