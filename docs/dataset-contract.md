@@ -16,8 +16,13 @@ gating, FlowSOM and classification decided about each event, keyed like
 events tables. The [analytics product](analytics.md) (`cytiq dataset
 export`) turns a dataset into tables and views for SQL and cohort analysis.
 
-Scope: these are lakehouse-ready files, not a lakehouse. Iceberg tables,
-object storage and catalogs are out of scope.
+Scope: these are lakehouse-ready files, not a lakehouse. The engine knows
+no catalog or object store.
+[cytiq-lake](https://github.com/cytiq/cytiq-lake) publishes a verified
+dataset into Apache Iceberg tables through a REST catalog. It runs this
+engine (pinned by version and commit) on its own copy of the dataset to
+validate and export it, and decides the release from that evidence. It also
+emits OpenLineage events from the provenance records a dataset discloses.
 
 ## Identity of a cell event
 
