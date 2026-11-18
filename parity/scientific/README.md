@@ -141,6 +141,137 @@ An experiment's `completed` status establishes that its inputs were present and
 measurements were produced. It does not turn high observed FPR, missing technical
 truth or a phenotype perturbation into evidence of biological safety.
 
+## AF reference benchmark
+
+`af_benchmark.py` compares the production autofluorescence (AF) reference, a
+hard argmax (`rlm` slopes against the detector with the highest gated mean),
+with alternative estimators. It never changes production.
+
+```bash
+$PY parity/scientific/af_benchmark.py oracle --binary "$BIN" --source data/fixtures/parity/autospectral --output target/scientific/af-oracle
+$PY parity/scientific/af_benchmark.py synthetic --binary "$BIN" --output target/scientific/af-benchmark/synthetic --held-out-seeds 2
+$PY parity/scientific/af_benchmark.py real --binary "$BIN" --source target/scientific/real/aurora_pbmc_spectral --output target/scientific/af-benchmark/real --sample-step 10
+$PY parity/scientific/af_benchmark.py table --report target/scientific/af-benchmark/synthetic/report.json --report target/scientific/af-benchmark/real/report.json --output target/scientific/af-benchmark/table
+```
+
+**Oracle.** Every run first calls `cytiq autospectral --debug-dir`, whose
+`reference_events.json` exports the rows behind every spectrum. `af_estimators.py`
+ports the estimator and the positive/negative selection operation by operation
+(sequential sums, R type 7 quantiles, stable tie order) and must reproduce the AF
+means, peak, runner-up, sensitivity, positives, matched negatives and every
+spectrum to 1e-9 (`ORACLE_TOLERANCE`, never widened); a held-out run must also
+reproduce its production AF, and the baseline must reproduce the unmixed FCS
+within f32 rounding. On the parity fixture and the real Aurora controls all
+values are bitwise equal. The scientific workflow runs the oracle on both.
+
+**Arms.** `peak_argmax` (production), `runner_up` (the same estimator on the
+second detector, as `af_peak_sensitivity`), peak-free single spectra
+(`total_signal`: slopes against the per-event detector sum; `mean_ratio`: the
+mean spectrum over its maximum; `principal_axis`: the top covariance
+eigenvector), and multi-AF arms with k = 2, 3: `scatter_strata` (SSC quantile
+strata, an identification by an independent variable) and `spectral_clusters`
+(seeded spherical k-means on unit spectra; data-driven). Multi-AF arms are
+unmixed jointly (one column per AF), by per-event minimum residual, and by
+AutoSpectral's `assign.af.residuals` score. A multi-AF arm must pass the
+predeclared `IDENTIFIABILITY` gates (events per component, pairwise and
+AF–fluorophore cosine ≤ 0.98, condition number ≤ 1.5× production, split-half
+component cosine ≥ 0.99) or it is `not_identifiable`.
+
+**Metrics** per arm and solver:
+- stability on the fixed production gate: cosine to the arm's own full-data
+  estimate over 1,000/10,000-event subsamples (seeds 1–20), split halves,
+  argmax switch rates, and a 1,000-replicate bootstrap of the peak margin and
+  switch probability (`af_sensitivity.py` measures the same end to end with the
+  gate recomputed);
+- held-out unstained events: each fold's AF control half is rebuilt by
+  production (so evaluated events never served as negatives), every arm is
+  fitted on that half, and the other half's gated events are unmixed. Unstained
+  cells should carry no fluorophore signal (AutoSpectral's
+  `benchmark_af_spectra` criterion): per fluorophore median bias, robust SD
+  ((p84 − p16)/2), p99 |abundance|, and relative residual;
+- conditioning: condition numbers, maximum AF–fluorophore cosine, diag(P Pᵀ);
+- in-sample single-stain spreading, labelled as such;
+- downstream on the stained sample (every 10th event, R's rows): change against
+  production in units of each component's robust SD, negative fraction,
+  residual inside and outside the AF gate's FSC/SSC hull, and correlation to
+  AutoSpectral's abundances, whose own AF spectrum varies between random draws
+  and is not truth;
+- `weak_positive_spike_in`, labelled semi-synthetic: a noise-free fluorophore
+  signal added to held-out unstained events at 1/2/3/5× the baseline robust SD.
+  The added vector lies in the fluorophore span, so every solver here recovers
+  it without bias and its AUC only restates the unstained spread; with no
+  calibrated photon noise it is optimistic;
+- synthetic truth (`af_scenarios.py`; single AF, two near-tied sources on
+  separated detectors, a 5% minority source linked or not linked to scatter,
+  dim positives): AF subspace angle, abundance RMSE/bias, weak-population AUC.
+
+**Decision rule.** `DECISION_RULE` (sha256 in every report and pinned by
+`test_af_estimators.py`) was fixed before any arm was evaluated. An arm is
+eligible only if the oracle passed, it lowers the median held-out robust SD to
+≤ 0.95× production on every multi-source scenario and every real dataset
+(≤ 1.01× on single-source scenarios), raises no component's p99 by > 5%, keeps
+split-half cosine ≥ max(production, 0.999), condition ratio ≤ 1.25 and
+AF–fluorophore cosine increase ≤ 0.01, holds on every synthetic seed, is
+identifiable when multi-AF, and does so on **at least two independent real
+datasets**. With Aurora the only real spectral dataset, every arm is reported
+`eligible: false`. Even an eligible arm only opens a separate, reviewed proposal
+that states its R parity impact; nothing is adopted automatically. Results and
+interpretation are in [`parity/REPORT.md`](../REPORT.md#af-reference-benchmark).
+
+## Repeat-control compensation study
+
+```bash
+$PY parity/scientific/repeat_controls.py run --binary "$BIN" --output target/scientific/repeat-controls
+$PY parity/scientific/repeat_controls.py table --report target/scientific/repeat-controls/report.json --output target/scientific/repeat-controls/table
+```
+
+Synthetic and labelled so (`real_repeat_controls: not_assessed`). Six
+predeclared scenarios (`null`, `brightness`, `tandem`, `af`, `gain`,
+`combined`) generate 20 sessions × 8 independently stained tubes per dye from
+`gen_autospill`'s dyes, spillover and noise models: per-session detector gains,
+per-tube brightness, tandem donor drift (PE-Cy7→PE-A, APC-Cy7→APC-A) and AF
+level/shape. Every matrix comes from production `cytiq autospill` (one run per
+tube set, since a manifest holds one control per dye), every compensated sample
+from `cytiq compensate`, whose output must equal raw·S⁻¹ within f32 rounding.
+
+Tube truth, session truth (E[tube | session], exact for floored tandem draws)
+and the stained sample's own truth are reported separately. The production
+event bootstrap (3 sessions × 100 resamples, exploratory below 1,000) describes
+one tube's sampling noise; t-intervals over a session's tubes target the session
+truth; prediction intervals a new tube. Per off-diagonal coefficient the report
+gives between-tube, between-session and within-tube SD and their excess, and
+every coverage with a Wilson interval. Downstream, each session's matrix
+compensates a sample of double negatives, single positives, a weak PE
+population and FITC-bright/PE-dim co-expressors; gates are the 99.5th
+percentile of truth-compensated double negatives. The report gives false
+positives, weak and co-expressed PE detection, median shifts against the true
+matrix, the Spearman correlation of FITC→PE coefficient error with the change in
+PE false positives, and asserts the first-order bound
+`‖f − r‖ ≤ ‖r‖·‖E·S⁻¹‖₂` (`metrics.matrix_perturbation`).
+
+## Required real data
+
+None of the following is in a pinned dataset; until it is, AF and compensation
+uncertainty claims stay within-acquisition or synthetic. New data must be
+registered in `parity/real/datasets.json` with SHA-256 pins, license and
+provenance (a `repeat_controls` chain for compensation), and frozen before any
+acceptance bound is derived from it.
+
+| Purpose | Minimum | Why |
+| --- | --- | --- |
+| Instruments | ≥ 2 instruments or sites; raw linear FCS (no applied `$SPILL`, no unmixing) with `$CYT`, `$CYTSN`, `$PnV`/`$PnG`, acquisition dates, reagent lots, protocol, fixation | between-instrument variation and lot effects are otherwise confounded |
+| Matched repeat single stains | per dye ≥ 6 independently stained tubes in one session (relative SE of an SD ≈ 1/√(2(K−1)) ≈ 32%), plus ≥ 3 on another day at the same nominal voltages; ≥ 2 lots for tandems; cell and bead controls with ≥ 50,000 / ≥ 10,000 events | separates within-tube sampling, between-tube, between-day and lot variance; bootstrap intervals only cover the first |
+| Unstained / AF controls | ≥ 3 unstained tubes per donor, ≥ 3 donors per tissue or cell type | AF donor variability, which `af_sensitivity.py` cannot measure |
+| Identifiable multi-AF | sorted or lineage-gated unstained subsets (lymphocytes, monocytes, granulocytes) from the same donors | identifies AF components by an independent variable instead of by clustering the spectra being estimated |
+| Second spectral dataset | an independent real spectral control set (different instrument, lab or tissue) with a stained sample | the AF decision rule requires ≥ 2 independent real datasets |
+| Stained samples | fully stained samples with FMO controls for dim and co-expressed markers | weak-positive and co-expression truth that unstained spike-ins cannot give |
+| Detector noise (any WLS/Poisson work) | per-detector calibration at the acquisition voltages: multi-intensity beads, LED pulser (Q, B), blank runs | WLS needs detector variances, Poisson needs count scale; neither is inferred from ADC values |
+
+What each kind of evidence supports: within-acquisition bootstrap supports
+sampling-noise statements only; between-tube, between-day and between-lot
+claims need replicates across exactly those factors; synthetic results support
+none of them.
+
 ## Paired performance
 
 ```bash

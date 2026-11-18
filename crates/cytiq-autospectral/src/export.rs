@@ -6,6 +6,10 @@ use log::debug;
 use crate::error::AutoSpectralError;
 use crate::runner::{AutoSpectralResult, ComponentKind};
 
+/// `<debug-dir>/reference_events.json`: the events behind every reference
+/// spectrum ([`crate::runner::ReferenceEvents`]), compact JSON.
+pub const REFERENCE_EVENTS_FILE: &str = "reference_events.json";
+
 /// `unmixed/sample_01.unmixed.fcs` -> `unmixed/sample_01.unmixed.masks.parquet`.
 #[must_use]
 pub fn masks_path(output: &Path) -> std::path::PathBuf {
@@ -71,6 +75,14 @@ pub fn write_outputs(
             &debug_dir.join("summary.json"),
             &result.summary,
         )?;
+        // The runner keeps the events only when a debug directory is set.
+        if let Some(events) = &result.reference_events {
+            stage_json_compact(
+                &mut publication,
+                &debug_dir.join(REFERENCE_EVENTS_FILE),
+                events,
+            )?;
+        }
         publication.commit()?;
     }
 
@@ -133,6 +145,21 @@ fn stage_json<T: serde::Serialize>(
                 path: path.to_path_buf(),
                 source,
             }
+        })
+    })
+}
+
+/// Compact JSON for large row lists, which pretty-printing would put one
+/// value per line.
+fn stage_json_compact<T: serde::Serialize>(
+    publication: &mut Publication,
+    path: &Path,
+    value: &T,
+) -> Result<(), AutoSpectralError> {
+    publication.stage_file(path, |writer| {
+        serde_json::to_writer(writer, value).map_err(|source| AutoSpectralError::JsonSerialize {
+            path: path.to_path_buf(),
+            source,
         })
     })
 }

@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from metrics import bootstrap_interval, coefficient_perturbations, empirical_spreading, retention, spectral_metrics, wilson_interval, unmixing_spreading
+from metrics import bootstrap_interval, coefficient_perturbations, empirical_spreading, matrix_perturbation, retention, spectral_metrics, wilson_interval, unmixing_spreading
 
 
 class ScientificMetricsTests(unittest.TestCase):
@@ -25,6 +25,21 @@ class ScientificMetricsTests(unittest.TestCase):
         exact = coefficient_perturbations(spillover, latent, deltas=(1e-12,))
         for cell in exact.values():
             self.assertLess(cell["1e-12"]["rmse"], 1e-6)
+
+    def test_matrix_perturbation_error_is_exactly_minus_latent_e_inverse(self):
+        # r = -x E (S + E)^-1 exactly, and the first-order term is within ||E S^-1||_2.
+        rng = np.random.default_rng(11)
+        spillover = np.eye(4) + rng.uniform(0, .25, (4, 4)) * (1 - np.eye(4))
+        latent = rng.lognormal(4, 1, (500, 4))
+        perturbation = rng.normal(0, .01, (4, 4))
+        metrics, residual = matrix_perturbation(spillover, latent, perturbation)
+        exact = -latent @ perturbation @ np.linalg.inv(spillover + perturbation)
+        np.testing.assert_allclose(residual, exact, atol=1e-9 * np.abs(exact).max())
+        self.assertLessEqual(metrics["first_order_relative_error"], metrics["bound"] + 1e-12)
+        self.assertAlmostEqual(metrics["rmse"], float(np.sqrt(np.mean(exact**2))))
+        zero, residual = matrix_perturbation(spillover, latent, np.zeros((4, 4)))
+        self.assertLess(np.abs(residual).max(), 1e-9)
+        self.assertEqual(zero["bound"], 0.0)
 
     def test_unit_noise_gain_matches_exact_inverse(self):
         matrix = np.array([[1., .5], [0., 1.]])

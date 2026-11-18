@@ -119,7 +119,12 @@ just verify
   file in `tests/fuzz_regressions/<target>/` through it, and runs the checks
   on every fixture, so `cargo test` covers what the fuzzer found.
 - `src/compensation.rs` `#[cfg(test)]` — spillover parsing, inversion, and
-  compensation.
+  compensation. The perturbation identities are exact: compensating `x·S` with
+  `S + E` errs by `−x·E·(S+E)⁻¹ = −x̂·E·S⁻¹`, the first-order term `−x·E·S⁻¹`
+  is within `‖E·S⁻¹‖∞` of it, and the relative error is bounded by
+  `κ₁(Sᵀ)·‖E‖∞/‖S‖∞`. Events are row vectors, so the amplification bound is
+  `κ₁(Sᵀ)`, not `κ₁(S)` (a test shows 4 > 2.25); `condition_number_1` returns
+  `κ₁` of the matrix it is given.
 
 When the fuzzer finds a crash (locally in `fuzz/artifacts/<target>/`, in CI as
 the `fuzz-crash-<target>` artifact):

@@ -60,6 +60,15 @@ scientific:
     cargo test --locked -p cytiq-engine --test parity_smoke --test pipeline_cli --test biological_retention
     cargo test --locked -p cytiq-qc --lib retention
 
+# Every scientific-metrics unit test and the AF port oracle, in the pinned
+# Python environment (needs `just parity-setup` once).
+[group('validation')]
+scientific-metrics:
+    parity/.env/py/bin/python -m unittest discover -s parity/scientific -p 'test_*.py'
+    cargo build --release --locked -p cytiq-engine
+    rm -rf target/scientific/af-oracle
+    parity/.env/py/bin/python parity/scientific/af_benchmark.py oracle --binary target/release/cytiq --source data/fixtures/parity/autospectral --output target/scientific/af-oracle
+
 # ---- Validate on real acquisitions shipped with the R packages (and CYTIQ_REAL_DATA)
 [group('validation')]
 parity-real:

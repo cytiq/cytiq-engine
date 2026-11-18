@@ -53,6 +53,7 @@ fn cli_runs_autospectral() {
     );
     assert!(output_dir.join("diagnostics/run.json").is_file());
     assert!(debug_dir.join("summary.json").is_file());
+    assert!(debug_dir.join("reference_events.json").is_file());
     let unmixed = output_dir.join("unmixed/sample.unmixed.fcs");
     let dataset = FcsReader::open(&unmixed)
         .and_then(FcsReader::read)

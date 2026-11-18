@@ -7,7 +7,7 @@ mod runner;
 mod spectrum;
 
 pub use crate::error::AutoSpectralError;
-pub use crate::export::{masks_path, write_outputs};
+pub use crate::export::{REFERENCE_EVENTS_FILE, masks_path, write_outputs};
 pub use crate::manifest::{
     ControlManifestRow, DetectorSpec, SampleManifestRow, read_controls_manifest,
     read_detectors_manifest, read_samples_manifest,
