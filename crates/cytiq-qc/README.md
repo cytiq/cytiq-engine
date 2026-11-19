@@ -89,6 +89,8 @@ Recombining an already combined mask can add further numeric prefixes
 | `QcRunner::input_files` | The manifest, the sample FCS, the mask and the optional population membership, for provenance |
 | `retention::population_retention`, `retention::membership_retention` | Per-stage retention of exclusive labels or overlapping gates against the original acquisition |
 | `retention::qc_population_retention`, `PopulationRetentionReport` | The descriptive `population_retention` section of `qc.json` |
+| `truth::ArtifactTruth` (`read_parquet`, `read_from`, `write_parquet`, `event_states`) | Independent per-event artifact truth, [`cytiq.qc.truth.v1`](../../docs/qc-truth.md), read through the bounded Parquet reader |
+| `truth::TruthDescriptor`, `ClassLabels`, `Evidence`, `Selection`, `TruthClass` | Its provenance: who labelled each class, how, with which evidence, and what a report may claim from it |
 | `QcReport` (`ensure_passed`) | The report: status, counts, metrics, checks |
 | `QcMetrics`, `FilterMetrics` | Raw and kept events; per filter: columns, assessed (count and share of raw events), eligible events and the share of them assessed, removed |
 | `evaluate` | The policy rules over metrics, without files |
@@ -100,7 +102,9 @@ Recombining an already combined mask can add further numeric prefixes
 
 [`cytiq-fcs`](../cytiq-fcs) (acquisition identity),
 [`cytiq-manifest`](../cytiq-manifest) (`QcPolicy`),
-[`cytiq-mask`](../cytiq-mask), `serde` / `serde_json`.
+[`cytiq-mask`](../cytiq-mask) (masks and the bounded Parquet reader),
+`arrow-array` / `arrow-schema` / `parquet` (artifact truth tables, already
+dependencies of `cytiq-mask`), `serde` / `serde_json`.
 
 Default features are empty. Feature `preflight` adds `cytiq-compensate` for
 matrix-file checks. Standalone QC and specimen consumers do not enable it.

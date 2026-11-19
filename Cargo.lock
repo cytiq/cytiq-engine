@@ -990,14 +990,19 @@ dependencies = [
 name = "cytiq-qc"
 version = "0.4.1"
 dependencies = [
+ "arrow-array",
+ "arrow-schema",
+ "bytes",
  "cytiq-compensate",
  "cytiq-fcs",
  "cytiq-manifest",
  "cytiq-mask",
  "cytiq-publish",
  "log",
+ "parquet",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
 ]
 

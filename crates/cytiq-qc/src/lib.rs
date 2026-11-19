@@ -13,6 +13,7 @@ mod error;
 mod policy;
 pub mod retention;
 mod runner;
+pub mod truth;
 
 #[cfg(feature = "preflight")]
 pub mod preflight;
