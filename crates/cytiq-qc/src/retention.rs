@@ -5,6 +5,25 @@ use cytiq_mask::EventMask;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 
+/// What independent technical truth says about one raw event.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EventTruth {
+    /// Verified free of every labelled artifact class.
+    Clean,
+    /// At least one labelled artifact class.
+    Artifact,
+    /// No class says artifact, and at least one class is unlabelled.
+    Undetermined,
+}
+
+impl EventTruth {
+    /// `true` (technically good) is clean, `false` an artifact.
+    #[must_use]
+    pub const fn of_good(good: bool) -> Self {
+        if good { Self::Clean } else { Self::Artifact }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PopulationRetention {
     pub population: String,
@@ -17,10 +36,20 @@ pub struct PopulationRetention {
     pub retained_frequency: Option<f64>,
     pub frequency_error: Option<f64>,
     pub relative_frequency_error: Option<f64>,
+    /// Members verified clean by technical truth.
     pub good_original: Option<usize>,
     pub good_retained: Option<usize>,
     pub good_retention: Option<f64>,
+    /// Members that are labelled artifacts and were removed.
     pub technical_removed: Option<usize>,
+    /// Members whose technical truth is undetermined and were removed.
+    pub undetermined_removed: Option<usize>,
+    /// The population's frequency among the clean events of the base: its
+    /// frequency in artifact-free data.
+    pub clean_frequency: Option<f64>,
+    /// `retained_frequency - clean_frequency`.
+    pub frequency_error_vs_clean: Option<f64>,
+    pub relative_frequency_error_vs_clean: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -53,6 +82,11 @@ pub fn population_retention(
     if technical_good.is_some_and(|good| good.len() != labels.len()) {
         return Err("technical truth length differs from labels".into());
     }
+    let technical = technical_good.map(|good| {
+        good.iter()
+            .map(|&good| EventTruth::of_good(good))
+            .collect::<Vec<_>>()
+    });
     let mut populations: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (row, label) in labels.iter().enumerate() {
         if let Some(label) = label {
@@ -65,7 +99,7 @@ pub fn population_retention(
         labels.len(),
         &populations.into_iter().collect::<Vec<_>>(),
         Some(&labelled),
-        technical_good,
+        technical.as_deref(),
         stages,
     )
 }
@@ -85,6 +119,21 @@ pub fn membership_retention(
     populations: &[(&str, &[bool])],
     stages: &[(&str, &EventMask)],
 ) -> Result<Vec<RetentionStage>, String> {
+    membership_retention_with_truth(acquisition, events, populations, None, stages)
+}
+
+/// [`membership_retention`] with technical truth per raw event, which adds
+/// the clean-event columns of every population.
+fn membership_retention_with_truth(
+    acquisition: &str,
+    events: usize,
+    populations: &[(&str, &[bool])],
+    technical: Option<&[EventTruth]>,
+    stages: &[(&str, &EventMask)],
+) -> Result<Vec<RetentionStage>, String> {
+    if technical.is_some_and(|truth| truth.len() != events) {
+        return Err(format!("technical truth does not have {events} events"));
+    }
     let rows = populations
         .iter()
         .map(|&(name, members)| {
@@ -101,7 +150,24 @@ pub fn membership_retention(
             }
         })
         .collect::<Result<Vec<_>, String>>()?;
-    retention(acquisition, events, &rows, None, None, stages)
+    retention(acquisition, events, &rows, None, technical, stages)
+}
+
+/// The raw row of each `source_event_ids` entry, when they are each of the
+/// `events` raw events exactly once.
+pub(crate) fn raw_rows(source_event_ids: &[u64], events: usize) -> Option<Vec<usize>> {
+    if source_event_ids.len() != events {
+        return None;
+    }
+    let mut seen = vec![false; events];
+    source_event_ids
+        .iter()
+        .map(|&source| {
+            usize::try_from(source)
+                .ok()
+                .filter(|&row| row < events && !std::mem::replace(&mut seen[row], true))
+        })
+        .collect()
 }
 
 /// The `basis` every [`PopulationRetentionReport`] states.
@@ -148,14 +214,16 @@ impl PopulationRetentionReport {
 
 /// Retention of the gates in `membership` (a `cytiq gate --membership` file
 /// over every raw event of `acquisition`) under the QC mask `qc`, which
-/// must cover the same `events`. Anything that prevents an assessment is
-/// reported as not assessed with its reason; this never fails.
+/// must cover the same `events`. `technical`, independent artifact truth
+/// per raw event, adds the clean-event columns. Anything that prevents an
+/// assessment is reported as not assessed with its reason; this never fails.
 #[must_use]
 pub fn qc_population_retention(
     acquisition: &str,
     events: usize,
     qc: &EventMask,
     membership: &EventMask,
+    technical: Option<&[EventTruth]>,
 ) -> PopulationRetentionReport {
     if membership.acquisition != acquisition {
         return PopulationRetentionReport::not_assessed(format!(
@@ -163,19 +231,7 @@ pub fn qc_population_retention(
             membership.acquisition
         ));
     }
-    // Raw rows of the membership, when they are each raw event exactly once.
-    let mut seen = vec![false; events];
-    let rows = membership
-        .source_event_ids
-        .iter()
-        .map(|&source| {
-            usize::try_from(source)
-                .ok()
-                .filter(|&row| row < events && !std::mem::replace(&mut seen[row], true))
-        })
-        .collect::<Option<Vec<_>>>()
-        .filter(|rows| rows.len() == events);
-    let Some(rows) = rows else {
+    let Some(rows) = raw_rows(&membership.source_event_ids, events) else {
         return PopulationRetentionReport::not_assessed(
             "the population membership must have one row per raw event: run `cytiq gate --membership` on the raw acquisition",
         );
@@ -208,21 +264,32 @@ pub fn qc_population_retention(
         .iter()
         .map(|(name, members)| (*name, members.as_slice()))
         .collect::<Vec<_>>();
-    let measured = membership_retention(acquisition, events, &populations, &[("combined", qc)])
-        .and_then(|mut combined| {
-            let filters = qc
-                .filters
-                .iter()
-                .map(|(name, values)| {
-                    let keep = values.iter().map(|value| *value != Some(false)).collect();
-                    let stage =
-                        EventMask::new(acquisition, keep, Some(qc.source_event_ids.clone()));
-                    membership_retention(acquisition, events, &populations, &[(name, &stage)])
-                        .map(|mut stages| stages.remove(0))
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            Ok((combined.remove(0), filters))
-        });
+    let measured = membership_retention_with_truth(
+        acquisition,
+        events,
+        &populations,
+        technical,
+        &[("combined", qc)],
+    )
+    .and_then(|mut combined| {
+        let filters = qc
+            .filters
+            .iter()
+            .map(|(name, values)| {
+                let keep = values.iter().map(|value| *value != Some(false)).collect();
+                let stage = EventMask::new(acquisition, keep, Some(qc.source_event_ids.clone()));
+                membership_retention_with_truth(
+                    acquisition,
+                    events,
+                    &populations,
+                    technical,
+                    &[(name, &stage)],
+                )
+                .map(|mut stages| stages.remove(0))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok((combined.remove(0), filters))
+    });
     match measured {
         Ok((combined, filters)) => PopulationRetentionReport {
             status: RetentionStatus::Assessed,
@@ -242,25 +309,23 @@ fn retention(
     events: usize,
     populations: &[(&str, Vec<usize>)],
     base: Option<&[usize]>,
-    technical_good: Option<&[bool]>,
+    technical: Option<&[EventTruth]>,
     stages: &[(&str, &EventMask)],
 ) -> Result<Vec<RetentionStage>, String> {
     let base_original = base.map_or(events, <[usize]>::len);
+    // Clean events of the base: the denominator of every clean frequency.
+    let technical = technical.map(|truth| {
+        let clean = |row: &usize| truth[*row] == EventTruth::Clean;
+        let base_clean = base.map_or_else(
+            || (0..events).filter(clean).count(),
+            |rows| rows.iter().filter(|row| clean(row)).count(),
+        );
+        (truth, base_clean)
+    });
     let mut keep = vec![true; events];
     let mut result = Vec::new();
     for &(name, mask) in stages {
-        if mask.acquisition != acquisition || mask.source_event_ids.len() != mask.keep.len() {
-            return Err(format!("{name}: incompatible acquisition or mask lengths"));
-        }
-        let mut seen = HashSet::new();
-        let mut stage_keep = vec![false; events];
-        for (&source, &value) in mask.source_event_ids.iter().zip(&mask.keep) {
-            let row = usize::try_from(source).map_err(|_| "source ID overflow")?;
-            if row >= events || !seen.insert(source) {
-                return Err(format!("{name}: invalid or repeated source ID {source}"));
-            }
-            stage_keep[row] = value;
-        }
+        let stage_keep = stage_keep(name, acquisition, events, mask)?;
         let input_events = keep.iter().filter(|v| **v).count();
         let prior = keep.clone();
         for (keep, stage) in keep.iter_mut().zip(stage_keep) {
@@ -270,53 +335,126 @@ fn retention(
         let base_retained = base.map_or(kept_events, |rows| {
             rows.iter().filter(|&&row| keep[row]).count()
         });
-        let rows = populations
-            .iter()
-            .map(|(population, ids)| {
-                let original = ids.len();
-                let eligible = ids.iter().filter(|&&i| prior[i]).count();
-                let retained = ids.iter().filter(|&&i| keep[i]).count();
-                let original_frequency = ratio(original, base_original);
-                let retained_frequency = ratio(retained, base_retained);
-                let frequency_error = retained_frequency
-                    .zip(original_frequency)
-                    .map(|(a, b)| a - b);
-                let good_original =
-                    technical_good.map(|good| ids.iter().filter(|&&i| good[i]).count());
-                let good_retained =
-                    technical_good.map(|good| ids.iter().filter(|&&i| good[i] && keep[i]).count());
-                PopulationRetention {
-                    population: (*population).into(),
-                    original,
-                    eligible,
-                    retained,
-                    conditional_retention: ratio(retained, eligible),
-                    cumulative_retention: ratio(retained, original),
-                    original_frequency,
-                    retained_frequency,
-                    frequency_error,
-                    relative_frequency_error: frequency_error
-                        .zip(original_frequency)
-                        .and_then(|(e, f)| (f != 0.0).then_some(e / f)),
-                    good_original,
-                    good_retained,
-                    good_retention: good_retained
-                        .zip(good_original)
-                        .and_then(|(n, d)| ratio(n, d)),
-                    technical_removed: technical_good
-                        .map(|good| ids.iter().filter(|&&i| !good[i] && !keep[i]).count()),
-                }
-            })
-            .collect();
+        let state = StageState {
+            prior: &prior,
+            keep: &keep,
+            base_original,
+            base_retained,
+        };
         result.push(RetentionStage {
             stage: name.into(),
             input_events,
             kept_events,
             newly_removed: input_events - kept_events,
-            populations: rows,
+            populations: populations
+                .iter()
+                .map(|(population, ids)| population_row(population, ids, &state, technical))
+                .collect(),
         });
     }
     Ok(result)
+}
+
+/// One stage's `keep` per raw event: an event without a row is removed.
+fn stage_keep(
+    name: &str,
+    acquisition: &str,
+    events: usize,
+    mask: &EventMask,
+) -> Result<Vec<bool>, String> {
+    if mask.acquisition != acquisition || mask.source_event_ids.len() != mask.keep.len() {
+        return Err(format!("{name}: incompatible acquisition or mask lengths"));
+    }
+    let mut seen = HashSet::new();
+    let mut stage_keep = vec![false; events];
+    for (&source, &value) in mask.source_event_ids.iter().zip(&mask.keep) {
+        let row = usize::try_from(source).map_err(|_| "source ID overflow")?;
+        if row >= events || !seen.insert(source) {
+            return Err(format!("{name}: invalid or repeated source ID {source}"));
+        }
+        stage_keep[row] = value;
+    }
+    Ok(stage_keep)
+}
+
+/// Cumulative `keep` before and after a stage, with the base counts.
+struct StageState<'a> {
+    prior: &'a [bool],
+    keep: &'a [bool],
+    base_original: usize,
+    base_retained: usize,
+}
+
+/// One population's members by technical truth after a stage.
+#[derive(Default)]
+struct TechnicalCounts {
+    clean: usize,
+    clean_kept: usize,
+    artifact_removed: usize,
+    undetermined_removed: usize,
+}
+
+impl TechnicalCounts {
+    fn of(ids: &[usize], truth: &[EventTruth], keep: &[bool]) -> Self {
+        let mut counts = Self::default();
+        for &row in ids {
+            match (truth[row], keep[row]) {
+                (EventTruth::Clean, kept) => {
+                    counts.clean += 1;
+                    counts.clean_kept += usize::from(kept);
+                }
+                (EventTruth::Artifact, false) => counts.artifact_removed += 1,
+                (EventTruth::Undetermined, false) => counts.undetermined_removed += 1,
+                (EventTruth::Artifact | EventTruth::Undetermined, true) => {}
+            }
+        }
+        counts
+    }
+}
+
+fn relative(error: Option<f64>, of: Option<f64>) -> Option<f64> {
+    error.zip(of).and_then(|(e, f)| (f != 0.0).then_some(e / f))
+}
+
+fn population_row(
+    population: &str,
+    ids: &[usize],
+    state: &StageState<'_>,
+    technical: Option<(&[EventTruth], usize)>,
+) -> PopulationRetention {
+    let original = ids.len();
+    let eligible = ids.iter().filter(|&&i| state.prior[i]).count();
+    let retained = ids.iter().filter(|&&i| state.keep[i]).count();
+    let original_frequency = ratio(original, state.base_original);
+    let retained_frequency = ratio(retained, state.base_retained);
+    let frequency_error = retained_frequency
+        .zip(original_frequency)
+        .map(|(a, b)| a - b);
+    let counts = technical.map(|(truth, _)| TechnicalCounts::of(ids, truth, state.keep));
+    let clean_frequency = technical
+        .zip(counts.as_ref())
+        .and_then(|((_, base_clean), counts)| ratio(counts.clean, base_clean));
+    let frequency_error_vs_clean = retained_frequency.zip(clean_frequency).map(|(a, b)| a - b);
+    PopulationRetention {
+        population: population.into(),
+        original,
+        eligible,
+        retained,
+        conditional_retention: ratio(retained, eligible),
+        cumulative_retention: ratio(retained, original),
+        original_frequency,
+        retained_frequency,
+        frequency_error,
+        relative_frequency_error: relative(frequency_error, original_frequency),
+        good_original: counts.as_ref().map(|c| c.clean),
+        good_retained: counts.as_ref().map(|c| c.clean_kept),
+        good_retention: counts.as_ref().and_then(|c| ratio(c.clean_kept, c.clean)),
+        technical_removed: counts.as_ref().map(|c| c.artifact_removed),
+        undetermined_removed: counts.as_ref().map(|c| c.undetermined_removed),
+        clean_frequency,
+        frequency_error_vs_clean,
+        relative_frequency_error_vs_clean: relative(frequency_error_vs_clean, clean_frequency),
+    }
 }
 
 #[cfg(test)]
@@ -411,5 +549,185 @@ mod tests {
         assert_eq!(r[0].populations[0].technical_removed, Some(1));
         assert_eq!(r[1].populations[0].conditional_retention, Some(0.5));
         assert_eq!(r[1].populations[0].good_retention, Some(0.5));
+    }
+
+    #[test]
+    fn undetermined_events_are_neither_clean_nor_artifacts() {
+        use EventTruth::{Artifact, Clean, Undetermined};
+        let acquisition = "e".repeat(64);
+        let members = [true; 6];
+        let truth = [Clean, Clean, Artifact, Artifact, Undetermined, Undetermined];
+        // Removes one clean, one artifact and one undetermined event.
+        let mask = EventMask::new(
+            &acquisition,
+            vec![true, false, true, false, true, false],
+            None,
+        );
+        let report = membership_retention_with_truth(
+            &acquisition,
+            6,
+            &[("all", &members)],
+            Some(&truth),
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        let all = &report[0].populations[0];
+        assert_eq!((all.good_original, all.good_retained), (Some(2), Some(1)));
+        assert_eq!(all.good_retention, Some(0.5));
+        assert_eq!(all.technical_removed, Some(1));
+        assert_eq!(all.undetermined_removed, Some(1));
+        let without =
+            membership_retention(&acquisition, 6, &[("all", &members)], &[("f", &mask)]).unwrap();
+        let all = &without[0].populations[0];
+        assert_eq!(all.good_original, None);
+        assert_eq!(all.undetermined_removed, None);
+        assert_eq!(all.clean_frequency, None);
+        assert_eq!(all.frequency_error_vs_clean, None);
+    }
+
+    #[test]
+    fn frequency_error_is_also_measured_against_clean_events() {
+        use EventTruth::{Artifact, Clean};
+        let acquisition = "f".repeat(64);
+        // Events 0-3 clean (0-1 in `t`), 4-7 artifacts (4-7 in `t`).
+        let t = [true, true, false, false, true, true, true, true];
+        let truth = [
+            Clean, Clean, Clean, Clean, Artifact, Artifact, Artifact, Artifact,
+        ];
+        // Removes every artifact: `t` falls from 6/8 overall to 2/4, its
+        // frequency among clean events.
+        let mask = EventMask::new(&acquisition, (0..8).map(|i| i < 4).collect(), None);
+        let report = membership_retention_with_truth(
+            &acquisition,
+            8,
+            &[("t", &t)],
+            Some(&truth),
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        let t = &report[0].populations[0];
+        assert_eq!(t.original_frequency, Some(0.75));
+        assert_eq!(t.retained_frequency, Some(0.5));
+        assert_eq!(t.frequency_error, Some(-0.25));
+        assert_eq!(t.relative_frequency_error, Some(-0.25 / 0.75));
+        assert_eq!(t.clean_frequency, Some(0.5));
+        assert_eq!(t.frequency_error_vs_clean, Some(0.0));
+        assert_eq!(t.relative_frequency_error_vs_clean, Some(0.0));
+        assert_eq!(t.technical_removed, Some(4));
+        assert_eq!(t.good_retention, Some(1.0));
+    }
+
+    #[test]
+    fn clean_frequency_is_relative_to_the_labelled_base() {
+        let acquisition = "g".repeat(64);
+        // Event 3 is unlabelled and clean: it is outside the base.
+        let labels = vec![Some("a".into()), Some("b".into()), Some("b".into()), None];
+        let mask = EventMask::new(&acquisition, vec![true, true, false, true], None);
+        let report = population_retention(
+            &acquisition,
+            &labels,
+            Some(&[true, true, false, true]),
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        let [a, b] = &report[0].populations[..] else {
+            panic!("two populations")
+        };
+        assert_eq!(a.clean_frequency, Some(0.5));
+        assert_eq!(b.clean_frequency, Some(0.5));
+        assert_eq!(a.retained_frequency, Some(0.5));
+        assert_eq!(b.frequency_error_vs_clean, Some(0.0));
+        assert_eq!(b.undetermined_removed, Some(0));
+    }
+
+    #[test]
+    fn clean_frequency_is_null_without_clean_events() {
+        let acquisition = "h".repeat(64);
+        let members = [true, true];
+        let truth = [EventTruth::Artifact, EventTruth::Undetermined];
+        let mask = EventMask::new(&acquisition, vec![true, true], None);
+        let report = membership_retention_with_truth(
+            &acquisition,
+            2,
+            &[("p", &members)],
+            Some(&truth),
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        let p = &report[0].populations[0];
+        assert_eq!(p.clean_frequency, None);
+        assert_eq!(p.good_retention, None);
+        assert_eq!(p.relative_frequency_error_vs_clean, None);
+        assert!(
+            membership_retention_with_truth(
+                &acquisition,
+                2,
+                &[("p", &members)],
+                Some(&truth[..1]),
+                &[]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_lost_rare_clean_event_shows_while_total_clean_loss_is_tiny() {
+        let acquisition = "i".repeat(64);
+        let events = 2_000;
+        let rare = (0..events).map(|i| i == 1_999).collect::<Vec<_>>();
+        let common = rare.iter().map(|r| !r).collect::<Vec<_>>();
+        let truth = vec![EventTruth::Clean; events];
+        let mask = EventMask::new(
+            &acquisition,
+            (0..events).map(|i| i != 1_999).collect(),
+            None,
+        );
+        let report = membership_retention_with_truth(
+            &acquisition,
+            events,
+            &[("common", &common), ("rare", &rare)],
+            Some(&truth),
+            &[("filter", &mask)],
+        )
+        .unwrap();
+        assert_eq!(report[0].newly_removed, 1);
+        let [common, rare] = &report[0].populations[..] else {
+            panic!("two populations")
+        };
+        assert_eq!(common.good_retention, Some(1.0));
+        assert_eq!(rare.good_retention, Some(0.0));
+        assert_eq!(rare.relative_frequency_error_vs_clean, Some(-1.0));
+    }
+
+    #[test]
+    fn raw_rows_requires_each_raw_event_exactly_once() {
+        assert_eq!(raw_rows(&[2, 0, 1], 3), Some(vec![2, 0, 1]));
+        assert_eq!(raw_rows(&[], 0), Some(vec![]));
+        assert_eq!(raw_rows(&[0, 1], 3), None);
+        assert_eq!(raw_rows(&[0, 1, 2, 3], 3), None);
+        assert_eq!(raw_rows(&[0, 0, 1], 3), None);
+        assert_eq!(raw_rows(&[0, 1, 3], 3), None);
+        assert_eq!(raw_rows(&[0, 1, u64::MAX], 3), None);
+    }
+
+    #[test]
+    fn qc_retention_passes_technical_truth_to_every_stage() {
+        let acquisition = "j".repeat(64);
+        let qc = EventMask::new(&acquisition, vec![true, false, true], None)
+            .with_filter("live", vec![Some(true), Some(false), None]);
+        let membership = EventMask::new(&acquisition, vec![true; 3], None)
+            .with_filter("cells", vec![Some(true); 3]);
+        let truth = [EventTruth::Clean, EventTruth::Artifact, EventTruth::Clean];
+        let report = qc_population_retention(&acquisition, 3, &qc, &membership, Some(&truth));
+        assert_eq!(report.status, RetentionStatus::Assessed);
+        let combined = &report.combined.unwrap().populations[0];
+        assert_eq!(combined.technical_removed, Some(1));
+        assert_eq!(combined.good_retention, Some(1.0));
+        assert_eq!(report.filters[0].populations[0].technical_removed, Some(1));
+        let plain = qc_population_retention(&acquisition, 3, &qc, &membership, None);
+        assert_eq!(
+            plain.combined.unwrap().populations[0].technical_removed,
+            None
+        );
     }
 }

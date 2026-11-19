@@ -145,7 +145,13 @@ impl QcRunner {
             Some(path) => {
                 let membership = EventMask::read_parquet(path)?;
                 Some(if metrics.is_some() {
-                    qc_population_retention(&acquisition, dataset.event_count(), &mask, &membership)
+                    qc_population_retention(
+                        &acquisition,
+                        dataset.event_count(),
+                        &mask,
+                        &membership,
+                        None,
+                    )
                 } else {
                     PopulationRetentionReport::not_assessed(
                         "the QC mask does not cover this sample's raw events",

@@ -121,9 +121,13 @@ The existing root QC API, including `cytiq_qc::CheckStatus`, is preserved.
 `retention::population_retention` compares ordered filtering masks with labels
 indexed by the original acquisition's source event IDs. It reports conditional
 and cumulative retention, population frequencies and signed absolute/relative
-frequency errors after every stage. Optional technical-good truth separately
-measures retention of good events and removal of known artifacts. Labels alone
-never establish technical removal accuracy. Duplicate/out-of-range IDs and
+frequency errors after every stage. Optional technical truth separately
+measures retention of clean events (`good_*`), removal of known artifacts
+(`technical_removed`) and of events whose truth is undetermined
+(`undetermined_removed`), and each population's frequency among clean events
+(`clean_frequency`) with the retained frequency's error against it
+(`frequency_error_vs_clean`, `relative_frequency_error_vs_clean`). Without truth
+these fields are null. Labels alone never establish technical removal accuracy. Duplicate/out-of-range IDs and
 mixed acquisitions are errors. A small overall removed fraction cannot establish
 safety for a rare or weakly positive population.
 
