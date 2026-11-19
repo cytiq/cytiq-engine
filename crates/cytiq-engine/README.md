@@ -18,7 +18,7 @@ chain and signal-state checks.
 | `cytiq compensate` | [`cytiq-compensate`](../cytiq-compensate/README.md) | Apply a spillover or compensation matrix to sample events |
 | `cytiq spillqc` | [`cytiq-spillqc`](../cytiq-spillqc/README.md) | Flag likely spillover-matrix errors in stained samples (CompensAID SSI), per file and across a batch |
 | `cytiq preflight` | [`cytiq-qc::preflight`](../cytiq-qc/docs/preflight.md) | Check a run manifest and its FCS files before computation |
-| `cytiq qc` | [`cytiq-qc`](../cytiq-qc/README.md) | Check a sample's final event mask against its panel's QC policy |
+| `cytiq qc` | [`cytiq-qc`](../cytiq-qc/README.md) | Check a sample's final event mask against its panel's QC policy; describe population retention and, against independent artifact truth, artifact removal |
 | `cytiq mask combine` | [`cytiq-mask`](../cytiq-mask/README.md) | Combine per-event masks of one acquisition |
 | `cytiq cytoscan` | [`cytiq-cytoscan`](../cytiq-cytoscan/README.md) | File-level anomaly detection over a cohort |
 | `cytiq classify` | [`cytiq-classify`](../cytiq-classify/README.md) | Supervised binary or vocabulary-aware multiclass event classification |

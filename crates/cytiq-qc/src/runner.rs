@@ -9,9 +9,11 @@ use cytiq_publish::Existing;
 use log::{debug, info};
 use serde::Serialize;
 
+use crate::artifacts::{ArtifactRemovalReport, NO_TRUTH, artifact_removal};
 use crate::error::QcError;
 use crate::policy::{CheckStatus, QcCheck, QcMetrics, evaluate};
-use crate::retention::{PopulationRetentionReport, qc_population_retention};
+use crate::retention::{PopulationRetentionReport, RetentionStatus, qc_population_retention};
+use crate::truth::ArtifactTruth;
 
 /// Configuration of `cytiq qc`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,6 +34,10 @@ pub struct QcConfig {
     /// without `--mask`): adds descriptive population retention to the
     /// report. It never adds a check.
     pub populations: Option<PathBuf>,
+    /// Independent artifact truth of the raw events (`cytiq.qc.truth.v1`):
+    /// adds descriptive artifact-removal metrics, and clean-event retention
+    /// to the population report. It never adds a check.
+    pub artifact_truth: Option<PathBuf>,
 }
 
 /// The `qc.json` report.
@@ -56,13 +62,17 @@ pub struct QcReport {
     /// With `populations`: retention of each population, descriptive only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub population_retention: Option<PopulationRetentionReport>,
+    /// Removal of labelled artifacts, descriptive only; `not_assessed`
+    /// without artifact truth, so `status` is never read as validation.
+    pub artifact_removal: ArtifactRemovalReport,
 }
 
 pub struct QcRunner;
 
 impl QcRunner {
     /// The files a run with `config` reads, with their provenance role: the
-    /// manifest, the sample's raw FCS and the mask.
+    /// manifest, the sample's raw FCS, the mask and the optional population
+    /// membership and artifact truth.
     ///
     /// # Errors
     ///
@@ -81,6 +91,12 @@ impl QcRunner {
                 .iter()
                 .map(|populations| ("populations", populations.clone())),
         );
+        files.extend(
+            config
+                .artifact_truth
+                .iter()
+                .map(|truth| ("artifact_truth", truth.clone())),
+        );
         Ok(files)
     }
 
@@ -91,8 +107,9 @@ impl QcRunner {
     /// # Errors
     ///
     /// Returns an error when the output exists without `overwrite`, the
-    /// manifest is invalid or lacks the sample, the sample FCS or the mask
-    /// cannot be read, or the report cannot be written.
+    /// manifest is invalid or lacks the sample, the sample FCS, the mask,
+    /// the membership or the artifact truth cannot be read, or the report
+    /// cannot be written.
     ///
     /// # Panics
     ///
@@ -118,6 +135,7 @@ impl QcRunner {
         let acquisition =
             cytiq_fcs::acquisition_id(&sample.file, &dataset.text).map_err(read_error)?;
         let mask = EventMask::read_parquet(&config.mask)?;
+        let truth = read_truth(config)?;
         info!(
             "qc: sample `{}` (panel `{}`), {} raw event(s), mask {}",
             sample.id,
@@ -140,19 +158,15 @@ impl QcRunner {
                 None => checks.push(missing_policy(&scope, panel.label(), config.require_policy)),
             }
         }
-        let population_retention = match &config.populations {
-            None => None,
-            Some(path) => {
-                let membership = EventMask::read_parquet(path)?;
-                Some(if metrics.is_some() {
-                    qc_population_retention(&acquisition, dataset.event_count(), &mask, &membership)
-                } else {
-                    PopulationRetentionReport::not_assessed(
-                        "the QC mask does not cover this sample's raw events",
-                    )
-                })
-            }
-        };
+        let covered = metrics.is_some();
+        let (population_retention, artifact_removal) = descriptive_reports(
+            config,
+            &acquisition,
+            dataset.event_count(),
+            &mask,
+            covered,
+            truth,
+        )?;
         let count = |status| checks.iter().filter(|check| check.status == status).count();
         let report = QcReport {
             tool: "cytiq qc".to_owned(),
@@ -173,6 +187,7 @@ impl QcRunner {
             metrics,
             checks,
             population_retention,
+            artifact_removal,
         };
         write_report(
             &config.output,
@@ -218,6 +233,62 @@ fn missing_policy(scope: &str, panel: &str, required: bool) -> QcCheck {
         status,
         format!("panel `{panel}` has no effective `qc` policy: {consequence}"),
     )
+}
+
+/// The artifact truth, read before anything is written: a malformed file is
+/// an input error.
+fn read_truth(config: &QcConfig) -> Result<Option<ArtifactTruth>, QcError> {
+    config
+        .artifact_truth
+        .as_ref()
+        .map(|path| {
+            ArtifactTruth::read_parquet(path).map_err(|source| QcError::ArtifactTruth {
+                path: path.clone(),
+                source,
+            })
+        })
+        .transpose()
+}
+
+/// Population retention and artifact removal: never a check. `covered`
+/// says whether the mask has one row per raw event.
+fn descriptive_reports(
+    config: &QcConfig,
+    acquisition: &str,
+    events: usize,
+    mask: &EventMask,
+    covered: bool,
+    truth: Option<ArtifactTruth>,
+) -> Result<(Option<PopulationRetentionReport>, ArtifactRemovalReport), QcError> {
+    const NOT_COVERED: &str = "the QC mask does not cover this sample's raw events";
+    let artifact_removal = match &truth {
+        None => ArtifactRemovalReport::not_assessed(NO_TRUTH),
+        Some(_) if !covered => ArtifactRemovalReport::not_assessed(NOT_COVERED),
+        Some(truth) => artifact_removal(acquisition, events, mask, truth),
+    };
+    // Clean-event retention only from truth that was assessed: it belongs
+    // to this acquisition and covers every raw event.
+    let technical = truth
+        .filter(|_| artifact_removal.status == RetentionStatus::Assessed)
+        .map(|truth| truth.event_states());
+    let population_retention = match &config.populations {
+        None => None,
+        Some(path) => {
+            let membership = EventMask::read_parquet(path)?;
+            Some(if covered {
+                qc_population_retention(
+                    acquisition,
+                    events,
+                    mask,
+                    &membership,
+                    technical.as_deref(),
+                )
+            } else {
+                PopulationRetentionReport::not_assessed(NOT_COVERED)
+            })
+        }
+    };
+    Ok((population_retention, artifact_removal))
 }
 
 fn find_sample<'a>(

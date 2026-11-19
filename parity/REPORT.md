@@ -29,6 +29,7 @@ and a benchmark of what it detects on real data (§2.12).
 | `gate` | FlowKit 1.3.0 `GatingStrategy.gate_sample` | — (new command) | ✅ identical per-event membership for all 11 gates; identical counts at 1M events, ~13× faster than FlowKit |
 | whole chain (§2.9) | flowCore + PeacoQC + FlowKit + FlowSOM, same steps | — (new) | ✅ every stage equals upstream per event on 200,000 golden events (values Δ ≤ 1e-7, masks and gates identical, FlowSOM ARI vs R 0.999), except the margin mask, which deliberately drops flowCore's −111 floor; against the truth: final mask F1 0.971, every population incl. a 0.2% rare one found with precision ≥ 0.997 |
 | `spillqc` (§2.11) | CompensAID 0.99.7 (`db74803`) after its vignette chain, flowDensity 1.44 | — (new command) | ✅ on CompensAID's own example (raw and preprocessed) and three synthetic tubes, every cut-off, segment edge, count and merge message equals R to 7e-15, every SSI and flag is identical, the same events survive margins and PeacoQC, and both injected spillover errors are found by both tools |
+| QC artifact truth (§8) | — (new contract and benchmark) | — | ✅ `qc --artifact-truth` equals an independent NumPy oracle exactly on 14 generated scenarios × 10 seeds; filtering identical to clean main; real-data removal accuracy and acceptance bounds `not_assessed` (no independent truth) |
 | real data (§2.10) | flowCore, PeacoQC, FlowKit, FlowSOM, FlowJo labels, autospill, AutoSpectral | — (new) | ✅ Aurora spectral panel: fluorophore spectra cosine ≥ 0.9998 against AutoSpectral, unmixing solver equal to 4e-8; compensation/logicle Δ ≤ 8e-8, PeacoQC identical, manual Gating-ML identical to FlowKit on all 15 gates; populations match FlowJo with Jaccard 0.98–0.996 (NK T 0.86, a FlowJo export effect); AutoSpill on FACSCelesta (11 colours) and FACSymphony (24 colours) controls: max \|Δ\| 5e-13, gates identical |
 
 **44 deviations** from the upstream algorithms were found and fixed (8 of them in `cytoscan`), plus
@@ -1021,3 +1022,125 @@ These are properties of the estimators under declared synthetic variability,
 not of any instrument. The real repeat controls that would turn them into
 evidence are specified in the
 [scientific guide](scientific/README.md#required-real-data).
+
+## 8. QC artifact truth and population retention (2026-11-19)
+
+No filter, mask, policy or release decision changes in this section. Every
+existing tolerance, golden and frozen reference is unchanged. Clean main
+`5f426a3` and this branch produce identical filtering counts on all 42
+benchmark cases.
+
+**New:**
+- **Contract.** `cytiq.qc.truth.v1` ([contract](../docs/qc-truth.md)) holds
+  independent per-event artifact truth with its provenance.
+- **`qc.json` `artifact_removal`.** `cytiq qc --artifact-truth` adds this
+  section: every mask column and the final keep against that truth. It is
+  `not_assessed` without truth.
+- **Clean-event population retention.** `--populations` gains clean-event
+  retention and the frequency error against clean events.
+- **Benchmark.** `parity/scientific/qc_truth.py` runs 14 predeclared scenarios
+  with an exact NumPy oracle and a frozen clean-main reference. Methods are
+  in the [scientific guide](scientific/README.md#qc-artifact-truth-benchmark).
+
+### What has independent ground truth
+
+| Result | Truth | Truth class | Supports |
+| --- | --- | --- | --- |
+| Debris, doublet, dead-cell and time-anomaly removal (14 scenarios × 10 seeds) | the generator's per-event flags | `synthetic` | algorithm behaviour on simulated data; not biology |
+| Saturation (`margin_pass`) | value ≥ `$PnR − 1` recomputed from the raw file | `definitional` | that the filter implements the definition |
+| Golden chain (`pipeline_cli.rs`) | `data/fixtures/pipeline/truth` | `synthetic` | the CLI's metrics equal the test's own per-event arithmetic |
+| Weak CD19 (`weak_cd19`, `weak_population.py`) | in-silico attenuation of generated cells | `synthetic`, counterfactual | filtering sensitivity to a dimmer marker; not weak-positive biology |
+| CyMAE population retention | published manual gating labels | population labels only | descriptive retention; removal accuracy `not_assessed` |
+| Real-data artifact removal, every domain | none pinned | `not_assessed` | nothing |
+| Population acceptance bounds | none eligible | `not_assessed` | nothing: no bound is proposed |
+
+The CyMAE vocabularies include `Beads` and `Cleanup1` to `Cleanup6`. These are
+likely manual technical exclusions, covering up to a third of an excerpt's
+events. They are not mapped, because their gating parameters are unpublished
+([provenance](../data/fixtures/scientific/README.md)).
+
+### Results (synthetic; 10 seeds, median [min, max])
+
+| Domain, column | Scenario | Sensitivity | Specificity | Precision | Clean loss |
+| --- | --- | ---: | ---: | ---: | ---: |
+| debris, `non_debris` | baseline | 1.000 [0.997, 1.000] | 1.000 | 1.000 [0.999, 1.000] | 0.000 |
+| | `rare_small` | 0.993 [0.985, 1.000] | 0.999 [0.991, 1.000] | 0.992 [0.901, 0.996] | 0.0005 [0.0003, 0.0101] |
+| doublets, `singlets` | baseline | 1.000 | 0.956 [0.952, 0.959] | 0.572 [0.547, 0.592] | 0.0013 [0.0006, 0.0019] |
+| time, `peacoqc_pass` | baseline (6%) | 1.000 | 0.878 [0.816, 0.904] | 0.344 [0.257, 0.400] | 0.122 [0.095, 0.182] |
+| | `time_long` (20%) | 1.000 | 0.896 [0.896, 0.917] | 0.706 [0.706, 0.750] | 0.104 [0.083, 0.107] |
+| | `time_short` (1%) | **0.000** | 1.000 [0.966, 1.000] | 0.000 | 0.000 [0.000, 0.033] |
+| saturation, `margin_pass` | baseline, `saturation_high` | 1.000 | 1.000 | 1.000 | 0.000 |
+| viability, `live` | baseline | 0.995 [0.994, 0.999] | 0.988 [0.984, 0.991] | 0.884 [0.861, 0.908] | 0.000 |
+| | `dead_dim` (7 assessed seeds) | 0.855 [0.827, 0.879] | 0.962 [0.958, 0.966] | 0.677 [0.659, 0.699] | 0.000 [0.000, 0.0003] |
+
+| Scenario | Combined artifact recall | Combined clean retention | `rare` clean retention |
+| --- | ---: | ---: | ---: |
+| baseline | 0.9996 [0.9990, 1.0000] | 0.877 [0.818, 0.904] | 0.855 [0.815, 0.958] |
+| `events_50k` | 0.9997 [0.9996, 0.9999] | 0.956 [0.930, 0.961] | 0.959 [0.920, 0.989] |
+| `rare_small` | 0.9990 [0.9983, 0.9998] | 0.869 [0.866, 0.893] | **0.810 [0.089, 0.871]** |
+| `rare_0.1pct` (8–13 rare cells) | 0.9996 [0.9990, 0.9998] | 0.877 [0.866, 0.887] | 0.894 [0.750, 1.000] |
+| `dead_dim` | **0.966 [0.747, 0.976]** | 0.877 [0.835, 0.904] | — |
+| `weak_cd19` | 0.9996 [0.9990, 0.9998] | 0.885 [0.867, 0.903] | 0.858 [0.815, 0.958] |
+
+Wilson intervals for `rare` (conditional on each acquisition's fitted gates):
+- In the baseline, 27 of 30 rare cells are retained, Wilson [0.744, 0.965].
+- With 8 to 13 rare cells, `rare_0.1pct` intervals are about 0.4 wide. That
+  is too few cells to bound any rare-cell loss usefully.
+
+### Findings
+
+- **Small rare cells and the adaptive debris valley.**
+  - In 2 of 10 `rare_small` seeds the FSC valley lands at 41.3k–41.7k: above
+    the small cells (FSC 35k ± 6k), between them and the lymphocytes. In the
+    other eight it lands at 24.8k–27.1k, between debris and the small cells.
+  - In those two seeds `non_debris` alone keeps 14 of 112 and 15 of 124 clean
+    rare cells. Debris sensitivity stays 1.0, and the filter's clean loss is
+    only 0.91% and 1.01%.
+  - Overall removal therefore cannot show this loss. Population retention
+    shows it, and artifact truth proves the removed events were clean cells.
+- **PeacoQC resolution.**
+  - At 15,000 events PeacoQC uses 60 bins of 500 events. A 150-event anomaly
+    (`time_short`) is missed in every seed.
+  - The 900- and 3,000-event anomalies are always found, at a clean loss of
+    10–12% around them. At 50,000 events that clean loss falls to 4.3%
+    [3.8%, 6.9%].
+  - This is the upstream algorithm, which cytiq matches exactly (§2.4).
+- **Dim viability dye.**
+  - With the dead dye at 2,000 ± 800 against 300 ± 200, the density valley
+    yields sensitivity 0.85 and precision 0.68.
+  - In 3 of 10 seeds no valley is found. `live` is then `not_assessed`, its
+    target is `not_assessed`, and combined artifact recall drops to 0.75.
+  - Because the panel policy marks `live` as required, `qc` fails (exit 3)
+    instead of passing. The nullable assessment does what it was designed to
+    do.
+- **Cross-class removal.**
+  - `singlets` precision for doublets is 0.57 because the same gate also
+    removes most debris (`removed_by_class`). Its clean loss is 0.13%.
+  - Specificity and precision against one class do not measure harm. Clean
+    loss does.
+- **Weak CD19.** A 20-fold dimmer CD19 does not change the clean retention of
+  B or rare cells beyond seed variation (B: 0.876 against 0.873 at baseline).
+
+### Decisions
+
+- **Confirmed improvements (software).**
+  - Removal accuracy is now measured against independent truth, separately
+    from retention, and is `not_assessed`, never passed, without truth.
+  - Clean-event retention distinguishes removed artifacts from lost cells.
+  - The truth reader is fuzzed, and its metrics and retention core are under
+    mutation testing.
+- **No filter algorithm change.**
+  - The three weaknesses above reproduce across seeds, but only on generated
+    data whose scatter and dye models this benchmark chose.
+  - Moving the debris valley, shrinking PeacoQC bins (which would break exact
+    R parity) or changing the viability threshold each trades against cases
+    real data must decide.
+  - Under the predeclared rule, none is adopted without independent real
+    truth.
+- **No acceptance bound.**
+  - `POLICY_PROTOCOL` requires independent or expert-reference truth from at
+    least two real derivation datasets and a disjoint held-out one. None
+    exists, so `policy_derivation` is `not_assessed`.
+  - Descriptive retention changes no status, exit code or release decision.
+  - The data that would be needed is listed in the
+    [scientific guide](scientific/README.md#required-real-data-for-artifact-truth).

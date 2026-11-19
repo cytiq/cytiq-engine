@@ -38,6 +38,68 @@ one computed under a mask is reported as `not_assessed` with a `reason`; an
 unreadable file is an input error. The file is a provenance input, so a changed
 membership invalidates `--reuse skip`.
 
+## Artifact removal
+
+Population labels cannot show that a filter removed only debris, doublets or
+dead cells. `--artifact-truth truth.parquet` takes independent per-event
+truth in the [`cytiq.qc.truth.v1`](../../docs/qc-truth.md) contract (never
+derived from cytiq output) and adds `artifact_removal` to the report:
+
+```bash
+cytiq qc --manifest run.yaml --sample S01 --mask analysis.parquet --output qc.json \
+  --artifact-truth truth.parquet --populations membership.parquet
+```
+
+- `truth`: the contract and, per labelled class, its declared evidence,
+  `truth_class` (`synthetic`, `definitional`, `independent`,
+  `expert_reference`, `exploratory`), selection, method, channels, and its
+  artifact, verified-absent and unlabelled counts.
+- `events`: raw events that are artifacts (any class `true`), clean (every
+  labelled class `false`, listed as `clean_of`) or undetermined.
+- `filters`: every mask column on its own: outcomes (removed, passed, not
+  assessed) by clean, artifact and undetermined events, removals per class,
+  `clean_loss` and `removed_artifact_share`. A column with a target class
+  also has `target`: `sensitivity`, `specificity`, `precision` and the
+  diagnostic `assessed_sensitivity`.
+- `combined`: the final `keep`: `artifact_recall`, `clean_retention`,
+  `removed_artifact_share`, `total_retention` and per-class outcomes.
+
+| Column | Target class |
+| --- | --- |
+| `non_debris` | `debris` |
+| `singlets` | `doublet` |
+| `live` | `dead` |
+| `peacoqc_pass` | `time_anomaly` |
+| `margin_pass`, `margin_upper_pass` | `saturated` |
+| `margin_lower_pass`, other columns | none (clean loss and removals only) |
+
+Each ratio is `{value, lower, upper}`. The value counts events whose truth
+is known. The bounds hold over every assignment of unlabelled or
+undetermined events, each metric on its own. A null in a column keeps the
+event, so a positive the column did not assess counts as missed. A zero
+denominator is null, never 0 or 1. The target is `not_assessed`, with its
+reason and no number, when the truth does not label the class, labels no
+event of it, or the column assessed nothing. Columns are never merged by
+filter name: compensate's physical `margin_pass` and `PeacoQC`'s legacy
+`2.margin_pass` mean different things.
+
+With `--populations`, assessed truth also adds each population's clean
+events (`good_*`), its removed artifacts (`technical_removed`) and
+undetermined events (`undetermined_removed`), its frequency among clean
+events (`clean_frequency`) and the retained frequency's error against it
+(`frequency_error_vs_clean`, `relative_frequency_error_vs_clean`).
+
+Without `--artifact-truth`, `artifact_removal` is `not_assessed`: `status`
+covers the policy checks, not artifact removal. Truth of another
+acquisition, or with a different number of events, is `not_assessed` with
+its reason. A malformed truth file is invalid input (exit 2) and writes no
+report. Like population retention, artifact removal is descriptive: it never
+adds a check, changes the status, the exit code or a release decision, and
+no acceptance bound is derived from it here
+([scientific validation](../../parity/scientific/README.md#qc-artifact-truth-benchmark)).
+The truth is a provenance input (role `artifact_truth`), so a changed file
+invalidates `--reuse skip`. Memory: about six bytes per raw event and class.
+
 The policy is the panel's `qc` section (`cytiq_manifest::QcPolicy`):
 
 ```yaml
@@ -86,9 +148,12 @@ Recombining an already combined mask can add further numeric prefixes
 | Item | Purpose |
 | --- | --- |
 | `QcRunner::run` / `QcConfig` | Run the checks and write `qc.json` |
-| `QcRunner::input_files` | The manifest, the sample FCS, the mask and the optional population membership, for provenance |
+| `QcRunner::input_files` | The manifest, the sample FCS, the mask and the optional population membership and artifact truth, for provenance |
+| `artifacts::artifact_removal`, `ArtifactRemovalReport`, `target_class` | The descriptive `artifact_removal` section of `qc.json` |
 | `retention::population_retention`, `retention::membership_retention` | Per-stage retention of exclusive labels or overlapping gates against the original acquisition |
 | `retention::qc_population_retention`, `PopulationRetentionReport` | The descriptive `population_retention` section of `qc.json` |
+| `truth::ArtifactTruth` (`read_parquet`, `read_from`, `write_parquet`, `event_states`) | Independent per-event artifact truth, [`cytiq.qc.truth.v1`](../../docs/qc-truth.md), read through the bounded Parquet reader |
+| `truth::TruthDescriptor`, `ClassLabels`, `Evidence`, `Selection`, `TruthClass` | Its provenance: who labelled each class, how, with which evidence, and what a report may claim from it |
 | `QcReport` (`ensure_passed`) | The report: status, counts, metrics, checks |
 | `QcMetrics`, `FilterMetrics` | Raw and kept events; per filter: columns, assessed (count and share of raw events), eligible events and the share of them assessed, removed |
 | `evaluate` | The policy rules over metrics, without files |
@@ -100,7 +165,9 @@ Recombining an already combined mask can add further numeric prefixes
 
 [`cytiq-fcs`](../cytiq-fcs) (acquisition identity),
 [`cytiq-manifest`](../cytiq-manifest) (`QcPolicy`),
-[`cytiq-mask`](../cytiq-mask), `serde` / `serde_json`.
+[`cytiq-mask`](../cytiq-mask) (masks and the bounded Parquet reader),
+`arrow-array` / `arrow-schema` / `parquet` (artifact truth tables, already
+dependencies of `cytiq-mask`), `serde` / `serde_json`.
 
 Default features are empty. Feature `preflight` adds `cytiq-compensate` for
 matrix-file checks. Standalone QC and specimen consumers do not enable it.
@@ -118,12 +185,20 @@ The existing root QC API, including `cytiq_qc::CheckStatus`, is preserved.
 
 ## Tests
 
+`artifacts` unit tests pin every count, ratio and bound on hand-computed
+asymmetric cases, and `parity/scientific/qc_truth.py` reproduces the report
+exactly with an independent NumPy port on generated scenarios.
+
 `retention::population_retention` compares ordered filtering masks with labels
 indexed by the original acquisition's source event IDs. It reports conditional
 and cumulative retention, population frequencies and signed absolute/relative
-frequency errors after every stage. Optional technical-good truth separately
-measures retention of good events and removal of known artifacts. Labels alone
-never establish technical removal accuracy. Duplicate/out-of-range IDs and
+frequency errors after every stage. Optional technical truth separately
+measures retention of clean events (`good_*`), removal of known artifacts
+(`technical_removed`) and of events whose truth is undetermined
+(`undetermined_removed`), and each population's frequency among clean events
+(`clean_frequency`) with the retained frequency's error against it
+(`frequency_error_vs_clean`, `relative_frequency_error_vs_clean`). Without truth
+these fields are null. Labels alone never establish technical removal accuracy. Duplicate/out-of-range IDs and
 mixed acquisitions are errors. A small overall removed fraction cannot establish
 safety for a rare or weakly positive population.
 

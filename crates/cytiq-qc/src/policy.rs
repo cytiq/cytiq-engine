@@ -105,7 +105,7 @@ impl QcMetrics {
 
 /// `2.margin_pass` → `margin_pass`: the prefix `cytiq mask combine` adds to a
 /// repeated filter name.
-fn base_name(mut column: &str) -> &str {
+pub(crate) fn base_name(mut column: &str) -> &str {
     while let Some((index, name)) = column.split_once('.') {
         if index.is_empty() || !index.bytes().all(|b| b.is_ascii_digit()) {
             break;

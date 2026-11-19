@@ -57,8 +57,8 @@ parity:
 scientific:
     python3 parity/scientific/check_fixtures.py
     python3 -m unittest discover -s parity/scientific -p 'test_registry.py'
-    cargo test --locked -p cytiq-engine --test parity_smoke --test pipeline_cli --test biological_retention
-    cargo test --locked -p cytiq-qc --lib retention
+    cargo test --locked -p cytiq-engine --test parity_smoke --test pipeline_cli --test biological_retention --test qc_cli
+    cargo test --locked -p cytiq-qc
 
 # Every scientific-metrics unit test and the AF port oracle, in the pinned
 # Python environment (needs `just parity-setup` once).
@@ -68,6 +68,8 @@ scientific-metrics:
     cargo build --release --locked -p cytiq-engine
     rm -rf target/scientific/af-oracle
     parity/.env/py/bin/python parity/scientific/af_benchmark.py oracle --binary target/release/cytiq --source data/fixtures/parity/autospectral --output target/scientific/af-oracle
+    rm -rf target/scientific/qc-truth-baseline
+    parity/.env/py/bin/python parity/scientific/qc_truth.py synthetic --binary target/release/cytiq --output target/scientific/qc-truth-baseline --scenarios baseline --seeds 1
 
 # ---- Validate on real acquisitions shipped with the R packages (and CYTIQ_REAL_DATA)
 [group('validation')]
@@ -149,7 +151,7 @@ parity-smoke-fixture:
 # Targets: cytiq-fcs read_fcs|spillover_keyword, cytiq-population
 # document_json|document_yaml|observations_parquet|projected_parquet|
 # events_parquet|dataset_json|labels_parquet|flowsom_csv, cytiq-specimen
-# specimen_documents, cytiq-gating gatingml. Saved regressions seed every target; read_fcs also takes
+# specimen_documents, cytiq-gating gatingml, cytiq-qc truth_parquet. Saved regressions seed every target; read_fcs also takes
 # the FCS fixtures and $CYTIQ_REAL_DATA, the document targets the JSON
 # fixtures and vendored contracts. Seeds are named after their path, so
 # fixtures that share a file name do not overwrite each other.

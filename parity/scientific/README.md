@@ -14,6 +14,7 @@ maintenance operations, excluded from CI.
 | Numerical parity | `just parity` and `just parity-cytonorm` | all existing tolerances against pinned R/Python |
 | Independent acquisitions | `just parity-real` and `just parity-cytonorm-real` | pinned real acquisitions and held-out donor |
 | Biological retention | commands below | original-population denominators after each assessed filtering stage |
+| Technical artifact removal | [`qc_truth.py`](#qc-artifact-truth-benchmark) | per-column sensitivity, specificity, precision and clean loss against generated (synthetic) and definitional truth; real-data removal `not_assessed` |
 
 `.github/workflows/scientific.yml` conservatively selects full parity for shared
 numerics, relevant crates, fixtures, dependency locks and reference scripts.
@@ -248,6 +249,111 @@ positives, weak and co-expressed PE detection, median shifts against the true
 matrix, the Spearman correlation of FITC→PE coefficient error with the change in
 PE false positives, and asserts the first-order bound
 `‖f − r‖ ≤ ‖r‖·‖E·S⁻¹‖₂` (`metrics.matrix_perturbation`).
+
+## QC artifact-truth benchmark
+
+Population labels show what filtering did to each population, not whether
+the removed events were artifacts. This benchmark measures technical
+artifact removal separately from biological retention, against per-event
+truth in the [`cytiq.qc.truth.v1`](../../docs/qc-truth.md) contract. It never
+changes a filter, a QC policy or a release decision.
+
+```bash
+$PY parity/scientific/qc_truth.py synthetic --binary "$BIN" --output target/scientific/qc-truth [--seeds 10] [--baseline-bin "$BASELINE_BIN"]
+$PY parity/scientific/qc_truth.py table --report target/scientific/qc-truth/report.json --output target/scientific/qc-truth
+```
+
+**Scenarios.** `qc_scenarios.py` predeclares 14 scenarios, ten seeds, and
+`rare` as the population reported on its own. Each scenario is the
+committed `ci` profile of `parity/gen/pipeline.py` with one domain stressed:
+
+| Domain | Scenarios |
+| --- | --- |
+| all | `baseline` (seed 1 reproduces `data/fixtures/pipeline`), `events_50k` |
+| debris | `debris_low` (2%), `debris_high` (25%), `rare_small` (1% rare cells with small, agranular scatter) |
+| doublets | `doublet_high` (15%) |
+| time | `time_short` (1% of the acquisition), `time_long` (20%) |
+| saturation | `saturation_high` (3%) |
+| viability | `dead_high` (30%), `dead_dim` (dead dye 2,000 ± 800 against live 300 ± 200) |
+| weak positive | `weak_cd19` (compensated CD19 ×0.05 in B and rare cells, remixed) |
+| rare | `rare_0.1pct`, `rare_1pct` |
+
+The CI runs seeds 1 to 3; local runs take up to ten.
+
+**Truth.**
+- Debris, doublets, dead cells and the unstable interval come from the
+  generator (`synthetic`).
+- `saturated` is recomputed from the written raw FCS: a value at or above
+  `$PnR − 1` on a spillover detector or scatter channel (`definitional`). It
+  therefore also holds for the remixed weak scenario, where the generator's
+  flags no longer would.
+- Populations are the generator's labels, written as a `cytiq.mask.v2`
+  membership, so gate errors do not enter.
+- Every class labels every event, so no event is undetermined, and each
+  bound equals its value.
+
+**Run.**
+1. The real chain runs on every case: compensate, transform, PeacoQC (FL1 to
+   FL5), clean, mask combine, then `cytiq qc --artifact-truth --populations`.
+   A `qc` exit code of 3 (a failed policy) is a result: truth never changes it.
+2. `metrics.artifact_removal_oracle` and `metrics.membership_retention_oracle`
+   are an independent NumPy port. They recompute every count, ratio and bound
+   from the masks and the truth, and must equal `qc.json` exactly, type
+   included. Both sides make the same single IEEE divisions of exact counts.
+3. The integer counts of the CI seeds must equal
+   `data/fixtures/scientific/qc-truth.json`. Clean main froze that file
+   through the explicit `freeze` operation. `--baseline-bin` requires
+   identical counts from another binary; the oracle needs no `--artifact-truth`
+   support, so any older binary qualifies.
+
+**Report.** Each report gives, per scenario, the seed median and range of
+every column's sensitivity, specificity, precision and clean loss, and the
+combined artifact recall and clean retention. It gives each population's
+clean retention and its frequency error against clean events, with Wilson
+intervals for `rare`. Those intervals are conditional on each acquisition's
+fitted gates; the seeds vary the data.
+
+Specificity counts every event that is not of the target class, including
+other artifacts. `singlets` removing debris lowers its specificity and
+precision without harming any cell. Read the harm in `clean_loss`, and
+cross-class removal in `removed_by_class`.
+
+Every result is labelled `synthetic_only`. Real-data removal accuracy and
+policy derivation are `not_assessed` in every report, and the table prints no
+number for an unassessed class. Results and interpretation are in
+[`parity/REPORT.md`](../REPORT.md#8-qc-artifact-truth-and-population-retention-2026-11-19).
+
+**Policy protocol.** `POLICY_PROTOCOL` (SHA-256 pinned by
+`test_qc_truth.py`) fixes how a population acceptance bound could ever be
+derived:
+- Only `independent` or `expert_reference` truth may derive a bound.
+- At least two real derivation datasets and one held-out dataset are needed.
+  `disjoint_acquisitions` refuses any SHA-256 the two share.
+- Population, metric and bound rule are frozen before evaluation.
+- A bound that holds only opens a reviewed `QcPolicy` change.
+
+With no such dataset registered, no bound is proposed and nothing changes a
+status, an exit code or a release decision.
+
+### Required real data for artifact truth
+
+None of the following is pinned. Until it is, every real-data artifact
+removal result is `not_assessed`, and real acquisitions support only
+descriptive population retention and definitional saturation.
+
+| Domain | Independent truth that would count | Why population labels are not enough |
+| --- | --- | --- |
+| Debris | Buffer-only or bead-only acquisitions on the same instrument settings (every event is debris or noise); FSC-sorted cell fractions reacquired | an FSC/SSC gate drawn by an expert uses the filter's own channels |
+| Doublets | Mixtures of separately barcoded or mutually exclusive-marker cells (heterotypic events are doublets); imaging flow cytometry of the same tubes | expert singlet gates use FSC-A/H, the filter's own ratio |
+| Viability | A second, independent viability readout (another dye or a heat-killed spike-in at a known fraction) | the filter thresholds the same dye |
+| Time anomalies | Acquisitions with deliberate, logged disturbances (pauses, clogs, sheath or fluidics changes) and their time stamps | nothing in the data marks an anomaly independently |
+| Saturation | Definitional only: values at `$PnR − 1` (`just parity-real` margins, `REPORT.md` §2.10) | checks the implementation, not whether saturation should remove an event |
+| Weak positives | FMO controls and titrations, or dim beads, for the dim markers | the CD19 attenuation is a counterfactual on generated data |
+
+Each domain needs at least two independent datasets for derivation and one
+held out (`POLICY_PROTOCOL`). Register them in `parity/real/datasets.json`
+with SHA-256 pins, license, provenance and a `cytiq.qc.truth.v1` table whose
+descriptor states evidence, selection, channels, annotators and agreement.
 
 ## Required real data
 

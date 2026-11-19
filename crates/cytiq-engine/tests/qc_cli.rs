@@ -84,6 +84,50 @@ fn write_membership(directory: &Path, acquisition: String, masked: bool) -> Path
     path
 }
 
+/// Generated time-anomaly truth over `events` raw events: `anomaly(row)`
+/// marks the artifacts, every other event is verified free of them.
+fn write_truth(
+    directory: &Path,
+    acquisition: String,
+    events: usize,
+    anomaly: impl Fn(usize) -> bool,
+) -> PathBuf {
+    use cytiq_qc::truth::{
+        Annotation, ArtifactClass, ClassLabels, Evidence, Selection, TruthClasses, TruthDescriptor,
+    };
+    let path = directory.join("truth.parquet");
+    let descriptor = TruthDescriptor {
+        annotation: Annotation {
+            producer: "qc_cli test".into(),
+            protocol: "synthetic labels".into(),
+            reference: None,
+        },
+        classes: TruthClasses {
+            time_anomaly: Some(ClassLabels {
+                evidence: Evidence::Generative,
+                selection: Selection::AllEvents,
+                method: "chosen rows".into(),
+                channels: Vec::new(),
+                annotators: None,
+                agreement: None,
+            }),
+            ..TruthClasses::default()
+        },
+    };
+    cytiq_qc::ArtifactTruth::new(
+        acquisition,
+        descriptor,
+        vec![(
+            ArtifactClass::TimeAnomaly,
+            (0..events).map(|row| Some(anomaly(row))).collect(),
+        )],
+    )
+    .expect("valid truth")
+    .write_parquet(&path, cytiq_publish::Existing::Replace)
+    .expect("truth should write");
+    path
+}
+
 fn qc(directory: &Path, manifest: &Path, mask: &Path) -> (Output, Option<Value>) {
     qc_with(directory, manifest, mask, &[])
 }
@@ -282,6 +326,197 @@ fn changed_membership_invalidates_reuse() {
         report.expect("report")["population_retention"]["status"],
         "not_assessed"
     );
+}
+
+#[test]
+fn artifact_truth_never_changes_status_checks_or_exit_code() {
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    // Under a failing and a passing policy, with truth the mask matches
+    // (`peacoqc_pass` removed exactly the anomalies) and truth it misses.
+    for (policy, code) in [
+        ("    min_events: 20000\n", 3),
+        ("    min_events: 5000\n", 0),
+    ] {
+        for (name, anomaly) in [
+            ("matched", (|row| row < 1_000) as fn(usize) -> bool),
+            ("missed", |row| (5_000..6_000).contains(&row)),
+        ] {
+            let directory = create_temp_dir(&format!("cytiq-engine-qc-truth-{code}-{name}"));
+            let manifest = write_manifest(&directory, &format!("  qc:\n{policy}"));
+            let mask = write_mask(&directory, acquisition.clone(), 1_000);
+            let membership = write_membership(&directory, acquisition.clone(), false);
+            let truth = write_truth(&directory, acquisition.clone(), EVENTS, anomaly);
+            let (plain_output, plain) = qc(&directory, &manifest, &mask);
+            let (output, report) = qc_with(
+                &directory,
+                &manifest,
+                &mask,
+                &[
+                    "--artifact-truth",
+                    utf8(&truth),
+                    "--populations",
+                    utf8(&membership),
+                ],
+            );
+            let (plain, report) = (plain.expect("report"), report.expect("report"));
+            assert_eq!(output.status.code(), Some(code), "{name}");
+            assert_eq!(plain_output.status.code(), Some(code), "{name}");
+            for key in [
+                "status", "passed", "warnings", "failures", "metrics", "checks",
+            ] {
+                assert_eq!(report[key], plain[key], "{name}: {key}");
+            }
+            let none = &plain["artifact_removal"];
+            assert_eq!(none["status"], "not_assessed");
+            assert!(
+                none["reason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("--artifact-truth")
+            );
+            assert!(none.get("combined").is_none());
+            let removal = &report["artifact_removal"];
+            assert_eq!(removal["status"], "assessed", "{removal}");
+            assert!(
+                removal["basis"]
+                    .as_str()
+                    .unwrap()
+                    .contains("never a QC check")
+            );
+            let recall = &removal["combined"]["artifact_recall"]["value"];
+            let peacoqc = &removal["filters"][0];
+            assert_eq!(peacoqc["column"], "peacoqc_pass");
+            assert_eq!(peacoqc["target"]["class"], "time_anomaly");
+            let live = &removal["filters"][1]["target"];
+            assert_eq!(live["status"], "not_assessed");
+            assert_eq!(live["reason"], "the artifact truth does not label `dead`");
+            if name == "matched" {
+                assert_eq!(*recall, 1.0);
+                assert_eq!(peacoqc["target"]["precision"]["value"], 1.0);
+            } else {
+                assert_eq!(*recall, 0.0);
+                assert_eq!(peacoqc["target"]["precision"]["value"], 0.0);
+            }
+            let truth_class = &removal["truth"]["classes"][0];
+            assert_eq!(truth_class["truth_class"], "synthetic");
+            let t = &report["population_retention"]["combined"]["populations"][0];
+            assert_eq!(t["population"], "T");
+            assert!(t["clean_frequency"].is_number(), "{t}");
+            assert!(plain.get("population_retention").is_none());
+        }
+    }
+}
+
+#[test]
+fn foreign_or_short_artifact_truth_is_not_assessed() {
+    let directory = create_temp_dir("cytiq-engine-qc-truth-foreign");
+    let manifest = write_manifest(&directory, "  qc:\n    min_events: 5000\n");
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    let mask = write_mask(&directory, acquisition.clone(), 1_000);
+    let membership = write_membership(&directory, acquisition.clone(), false);
+    for (owner, events, reason) in [
+        ("f".repeat(64), EVENTS, "belongs to acquisition"),
+        (acquisition, EVENTS - 1, "the raw acquisition 10000"),
+    ] {
+        let truth = write_truth(&directory, owner, events, |row| row < 10);
+        let (output, report) = qc_with(
+            &directory,
+            &manifest,
+            &mask,
+            &[
+                "--artifact-truth",
+                utf8(&truth),
+                "--populations",
+                utf8(&membership),
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report = report.expect("report");
+        let removal = &report["artifact_removal"];
+        assert_eq!(removal["status"], "not_assessed");
+        assert!(
+            removal["reason"].as_str().unwrap().contains(reason),
+            "{removal}"
+        );
+        assert!(removal.get("combined").is_none());
+        // Unassessed truth adds no clean-event retention either.
+        let t = &report["population_retention"]["combined"]["populations"][0];
+        assert!(t["clean_frequency"].is_null(), "{t}");
+    }
+}
+
+#[test]
+fn malformed_artifact_truth_is_invalid_input_and_writes_no_report() {
+    let directory = create_temp_dir("cytiq-engine-qc-truth-malformed");
+    let manifest = write_manifest(&directory, "  qc:\n    min_events: 5000\n");
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    let mask = write_mask(&directory, acquisition, 1_000);
+    // A mask is not artifact truth.
+    let (output, report) = qc_with(
+        &directory,
+        &manifest,
+        &mask,
+        &["--artifact-truth", utf8(&mask)],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(report.is_none());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("invalid artifact truth"), "{stderr}");
+}
+
+#[test]
+fn changed_artifact_truth_invalidates_reuse_and_is_recorded_by_role() {
+    let directory = create_temp_dir("cytiq-engine-qc-truth-reuse");
+    let manifest = write_manifest(&directory, "  qc:\n    min_events: 5000\n");
+    let acquisition = common::acquisition_of(&fixture("sample.fcs"));
+    let mask = write_mask(&directory, acquisition.clone(), 1_000);
+    let truth = write_truth(&directory, acquisition.clone(), EVENTS, |row| row < 1_000);
+    let outcome = directory.join("outcome.json");
+    let flags = [
+        "--artifact-truth",
+        utf8(&truth),
+        "--reuse",
+        "skip",
+        "--outcome",
+        utf8(&outcome),
+    ];
+    let reused = || -> bool {
+        let result: Value = serde_json::from_slice(&fs::read(&outcome).unwrap()).unwrap();
+        result["execution"]["reused"] == true
+    };
+    let (first, _) = qc_with(&directory, &manifest, &mask, &flags);
+    assert!(first.status.success());
+    assert!(!reused());
+    let record: Value =
+        serde_json::from_slice(&fs::read(directory.join("qc.json.provenance.json")).unwrap())
+            .unwrap();
+    let roles = record["inputs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|input| input["role"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(roles.iter().filter(|role| **role == "mask").count(), 1);
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == "artifact_truth")
+            .count(),
+        1
+    );
+    qc_with(&directory, &manifest, &mask, &flags);
+    assert!(reused());
+    write_truth(&directory, acquisition, EVENTS, |row| row < 2_000);
+    let (changed, report) = qc_with(&directory, &manifest, &mask, &flags);
+    assert!(changed.status.success());
+    assert!(!reused());
+    let precision =
+        &report.expect("report")["artifact_removal"]["filters"][0]["target"]["precision"];
+    assert_eq!(precision["value"], 1.0);
 }
 
 #[test]

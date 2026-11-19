@@ -133,10 +133,12 @@ and `--outcome` across command families), `flowsom_cli.rs`, `gate_cli.rs`,
 `mask_cli.rs`, `meta_cli.rs`, `parity_smoke.rs` (autospill, AutoSpectral,
 PeacoQC, CytoScan and CompensAID against the R outputs in
 `data/fixtures/parity`), `peacoqc_cli.rs`, `pipeline_cli.rs` (the whole chain
-on `data/fixtures/pipeline` against per-event truth), `plot_cli.rs` (every
+on `data/fixtures/pipeline` against per-event truth, and `qc --artifact-truth`
+against the test's own per-event arithmetic), `plot_cli.rs` (every
 plot type, masks, gates checked against `cytiq gate`, classes, batch output,
 determinism), `preflight_cli.rs`,
-`qc_cli.rs`, `spillqc_cli.rs`, `transform_cli.rs`, `export_events_cli.rs` (raw, compensated,
+`qc_cli.rs` (policies; population retention and artifact truth never change
+the status, checks or exit code), `spillqc_cli.rs`, `transform_cli.rs`, `export_events_cli.rs` (raw, compensated,
 transformed and externally processed layers, matrix verification against the producing run,
 the asserted `--layer`, malformed or truncated files publishing nothing, parts directories with
 their provenance checksums, channel selection and write-setting refusals),
