@@ -57,8 +57,8 @@ parity:
 scientific:
     python3 parity/scientific/check_fixtures.py
     python3 -m unittest discover -s parity/scientific -p 'test_registry.py'
-    cargo test --locked -p cytiq-engine --test parity_smoke --test pipeline_cli --test biological_retention
-    cargo test --locked -p cytiq-qc --lib retention
+    cargo test --locked -p cytiq-engine --test parity_smoke --test pipeline_cli --test biological_retention --test qc_cli
+    cargo test --locked -p cytiq-qc
 
 # Every scientific-metrics unit test and the AF port oracle, in the pinned
 # Python environment (needs `just parity-setup` once).

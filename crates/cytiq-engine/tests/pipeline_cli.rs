@@ -277,6 +277,137 @@ fn recall_and_good_loss(predicted: &[bool], truth: &[bool], good: &[bool]) -> (f
     )
 }
 
+/// The golden per-event truth as `cytiq.qc.truth.v1` (`truth.parquet`).
+fn write_golden_truth(directory: &Path, truth: &Truth, acquisition: &str) {
+    use cytiq_qc::truth::{
+        Annotation, ArtifactClass, ArtifactTruth, ClassLabels, Evidence, Selection, TruthClasses,
+        TruthDescriptor,
+    };
+    let generated = || {
+        Some(ClassLabels {
+            evidence: Evidence::Generative,
+            selection: Selection::AllEvents,
+            method: "parity/gen/pipeline.py".into(),
+            channels: Vec::new(),
+            annotators: None,
+            agreement: None,
+        })
+    };
+    let descriptor = TruthDescriptor {
+        annotation: Annotation {
+            producer: "pipeline fixture".into(),
+            protocol: "data/fixtures/pipeline/truth/events.csv".into(),
+            reference: None,
+        },
+        classes: TruthClasses {
+            debris: generated(),
+            doublet: generated(),
+            dead: generated(),
+            time_anomaly: generated(),
+            saturated: generated(),
+        },
+    };
+    let classes = [
+        ("debris", ArtifactClass::Debris),
+        ("doublet", ArtifactClass::Doublet),
+        ("dead", ArtifactClass::Dead),
+        ("unstable", ArtifactClass::TimeAnomaly),
+        ("margin", ArtifactClass::Saturated),
+    ]
+    .map(|(flag, class)| (class, truth.flag(flag).iter().map(|f| Some(*f)).collect()));
+    ArtifactTruth::new(acquisition, descriptor, classes.to_vec())
+        .expect("valid truth")
+        .write_parquet(
+            &directory.join("truth.parquet"),
+            cytiq_publish::Existing::Refuse,
+        )
+        .expect("truth should write");
+}
+
+/// `cytiq qc --artifact-truth` with the golden per-event truth reproduces
+/// this test's own arithmetic exactly, and every stage column but `PeacoQC`'s
+/// lower margin targets the class it removes, so a renamed column fails here.
+fn check_artifact_truth(directory: &Path, truth: &Truth, good: &[bool]) {
+    let rows = truth.len();
+    let analysis = read_mask(directory, "analysis.parquet");
+    write_golden_truth(directory, truth, &analysis.acquisition);
+    cytiq(
+        directory,
+        &[
+            "qc",
+            "--manifest",
+            utf8(&fixture("run.yaml")),
+            "--sample",
+            "GOLDEN",
+            "--mask",
+            "analysis.parquet",
+            "--output",
+            "qc-truth.json",
+            "--artifact-truth",
+            "truth.parquet",
+        ],
+    );
+    let report: Value =
+        serde_json::from_str(&fs::read_to_string(directory.join("qc-truth.json")).unwrap())
+            .unwrap();
+    let removal = &report["artifact_removal"];
+    assert_eq!(removal["status"], "assessed", "{removal}");
+    let filters = removal["filters"].as_array().unwrap();
+    for (column, flag) in [
+        ("margin_pass", "margin"),
+        ("peacoqc_pass", "unstable"),
+        ("non_debris", "debris"),
+        ("singlets", "doublet"),
+        ("live", "dead"),
+    ] {
+        let entry = filters
+            .iter()
+            .find(|entry| entry["column"] == column)
+            .unwrap_or_else(|| panic!("no `{column}` entry"));
+        let predicted = removed(&analysis, column, rows);
+        let (recall, loss) = recall_and_good_loss(&predicted, truth.flag(flag), good);
+        assert_eq!(entry["target"]["sensitivity"]["value"], recall, "{column}");
+        assert_eq!(entry["clean_loss"]["value"], loss, "{column}");
+    }
+    let unassessed = filters
+        .iter()
+        .find(|entry| entry["column"] == "2.margin_pass")
+        .expect("PeacoQC's legacy margin column");
+    assert_eq!(unassessed["target"]["status"], "not_assessed");
+    for (column, _) in &analysis.filters {
+        assert_eq!(
+            cytiq_qc::artifacts::target_class(column).is_some(),
+            column != "margin_lower_pass",
+            "{column}"
+        );
+    }
+    let kept = removed(&analysis, "keep", rows)
+        .into_iter()
+        .map(|removed| !removed)
+        .collect::<Vec<_>>();
+    let bad = rows - count(good.iter().copied());
+    let bad_removed = count(kept.iter().zip(good).map(|(k, g)| !*k && !*g));
+    let good_kept = count(kept.iter().zip(good).map(|(k, g)| *k && *g));
+    let combined = &removal["combined"];
+    assert_eq!(
+        combined["artifact_recall"]["value"],
+        fraction(bad_removed, bad)
+    );
+    assert_eq!(
+        combined["clean_retention"]["value"],
+        fraction(good_kept, count(good.iter().copied()))
+    );
+    assert_eq!(
+        combined["artifact_recall"]["lower"],
+        combined["artifact_recall"]["upper"]
+    );
+    // Truth never changes the policy outcome of the chain's own `qc`.
+    let plain: Value =
+        serde_json::from_str(&fs::read_to_string(directory.join("qc.json")).unwrap()).unwrap();
+    assert_eq!(plain["checks"], report["checks"]);
+    assert_eq!(plain["artifact_removal"]["status"], "not_assessed");
+}
+
 struct Thresholds(Value);
 
 impl Thresholds {
@@ -470,6 +601,8 @@ fn golden_chain_recovers_the_known_truth() {
         f1,
         "F1 of the kept events against good",
     );
+
+    check_artifact_truth(&directory, &truth, &good);
 
     // Lineage: every per-event output covers each raw row exactly once.
     let all_rows = (0..rows as u64).collect::<Vec<_>>();
