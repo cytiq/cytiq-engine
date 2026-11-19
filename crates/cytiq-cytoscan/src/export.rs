@@ -1248,20 +1248,24 @@ fn median(values: &[f64]) -> f64 {
 }
 
 fn test_status(row: &CytoScanSummaryRow) -> String {
+    let abstained = row.novelty_decision == Some(crate::runner::NoveltyDecision::Abstain);
     match (row.is_outlier, row.is_novelty) {
         (Some(true), Some(true)) => "outlier+novelty".to_owned(),
         (Some(true), _) => "outlier".to_owned(),
         (_, Some(true)) => "novelty".to_owned(),
         (_, Some(false)) => "non-novelty".to_owned(),
+        // The conformal mode decided nothing: not an inlier.
+        _ if abstained => "novelty-abstained".to_owned(),
         _ => "inlier".to_owned(),
     }
 }
 
-fn status_order() -> [&'static str; 6] {
+fn status_order() -> [&'static str; 7] {
     [
         "reference",
         "inlier",
         "non-novelty",
+        "novelty-abstained",
         "outlier",
         "novelty",
         "outlier+novelty",
@@ -1276,6 +1280,7 @@ fn status_color(status: &str) -> &'static str {
         "outlier" => "#E15759",
         "novelty" => "#F28E2B",
         "outlier+novelty" => "#B07AA1",
+        "novelty-abstained" => "#BAB0AC",
         _ => "#6B7280",
     }
 }

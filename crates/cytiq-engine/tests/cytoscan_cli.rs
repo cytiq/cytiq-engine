@@ -933,6 +933,7 @@ fn conformal_run(directory: &Path, references: u16) -> (PathBuf, std::process::O
     let input_dir = directory.join("test");
     let reference_dir = directory.join("reference");
     let output_dir = directory.join("out");
+    let debug_dir = directory.join("debug");
     write_varied_references(&reference_dir, references);
     write_cytoscan_fixture_set(&input_dir, &[1.0, 900.0, -2.0]);
     let output = run_cytoscan(&[
@@ -942,6 +943,8 @@ fn conformal_run(directory: &Path, references: u16) -> (PathBuf, std::process::O
         utf8(&reference_dir),
         "--output",
         utf8(&output_dir),
+        "--debug-dir",
+        utf8(&debug_dir),
         "--channels",
         "CD3,CD4,CD8",
         "--method",
@@ -1080,6 +1083,18 @@ fn cli_conformal_mode_abstains_below_nineteen_references() {
         "{diagnostics}"
     );
     assert!(String::from_utf8_lossy(&output.stderr).contains("the conformal mode abstained"));
+    // Debug plots label abstained files as such, not as inliers.
+    let pca = read_csv_rows(&directory.join("debug/pca_coordinates.csv"));
+    let tests = pca
+        .iter()
+        .filter(|row| row.get(0) == Some("test"))
+        .collect::<Vec<_>>();
+    assert_eq!(tests.len(), 3);
+    assert!(
+        tests
+            .iter()
+            .all(|row| row.get(1) == Some("novelty-abstained"))
+    );
 }
 
 #[test]
