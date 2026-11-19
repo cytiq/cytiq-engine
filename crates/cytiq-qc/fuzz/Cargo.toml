@@ -1,0 +1,28 @@
+# Fuzz target for the artifact-truth reader. Excluded from the workspace:
+# it needs cargo-fuzz and a nightly toolchain
+# (`just fuzz cytiq-qc truth_parquet`).
+[package]
+name = "cytiq-qc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+bytes = "1"
+cytiq-mask = { path = "../../cytiq-mask" }
+cytiq-qc = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "truth_parquet"
+path = "fuzz_targets/truth_parquet.rs"
+test = false
+doc = false
+bench = false
+
+# Not part of the parent workspace.
+[workspace]
+members = ["."]

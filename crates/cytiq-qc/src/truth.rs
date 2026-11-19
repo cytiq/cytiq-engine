@@ -9,6 +9,7 @@
 //! labelled each class, how, and with which evidence.
 
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -482,6 +483,16 @@ impl ArtifactTruth {
     /// [`TruthError`] when the truth is invalid or the file cannot be
     /// written.
     pub fn write_parquet(&self, path: &Path, existing: Existing) -> Result<(), TruthError> {
+        let mut publication = Publication::new(existing);
+        publication.stage_file(path, |file| self.write_to(file))?;
+        Ok(publication.commit()?)
+    }
+
+    /// Encode the truth as uncompressed Parquet into `writer`.
+    ///
+    /// # Errors
+    /// [`TruthError`] when the truth is invalid or encoding fails.
+    pub fn write_to<W: Write + Send>(&self, writer: W) -> Result<(), TruthError> {
         self.validate()?;
         let encode = |error: &dyn std::fmt::Display| invalid(format!("Parquet: {error}"));
         let mut fields = vec![Field::new(SOURCE_EVENT_ID_COLUMN, DataType::UInt64, false)];
@@ -506,15 +517,11 @@ impl ArtifactTruth {
                 KeyValue::new(TRUTH_DESCRIPTOR_KEY.to_owned(), descriptor),
             ]))
             .build();
-        let mut publication = Publication::new(existing);
-        publication.stage_file(path, |file| {
-            let mut writer =
-                ArrowWriter::try_new(file, schema, Some(properties)).map_err(|e| encode(&e))?;
-            writer.write(&batch).map_err(|e| encode(&e))?;
-            writer.close().map_err(|e| encode(&e))?;
-            Ok::<(), TruthError>(())
-        })?;
-        Ok(publication.commit()?)
+        let mut writer =
+            ArrowWriter::try_new(writer, schema, Some(properties)).map_err(|e| encode(&e))?;
+        writer.write(&batch).map_err(|e| encode(&e))?;
+        writer.close().map_err(|e| encode(&e))?;
+        Ok(())
     }
 }
 
