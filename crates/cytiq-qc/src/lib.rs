@@ -9,6 +9,7 @@
 //! With the `preflight` feature, `preflight` checks run manifests and their
 //! FCS inputs before computation. The feature is disabled by default.
 
+pub mod artifacts;
 mod error;
 mod policy;
 pub mod retention;

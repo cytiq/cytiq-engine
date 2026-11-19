@@ -16,6 +16,9 @@ this crate.
 - `src/truth.rs` — the `cytiq.qc.truth.v1` artifact-truth table
   ([contract](../../docs/qc-truth.md)): reader, writer, descriptor rules;
   tests in `src/truth_tests.rs`.
+- `src/artifacts.rs` — `artifact_removal`: each mask column and the final
+  `keep` against artifact truth, with bounds over unknown truth; the fixed
+  column → class map (`target_class`); tests in `src/artifacts_tests.rs`.
 - `src/error.rs` — `QcError` (`thiserror`).
 - `src/preflight/` — run-manifest and FCS checks, their runner and error enum;
   exposed only with feature `preflight`. Its check table lives in
@@ -34,6 +37,11 @@ this crate.
   `cytiq.*` footer key must be the contract's own, and the descriptor's
   vocabulary is fixed (`deny_unknown_fields`, one field per class). A change
   to columns, footer or descriptor is a new contract version.
+- Artifact removal is descriptive, like population retention: it never adds
+  a check or changes the status, the exit code or a release decision. It
+  reports every mask column on its own (never merged by filter name), a
+  ratio with a zero denominator as null, and a class it cannot assess as
+  `not_assessed` with a reason and no number.
 - Metrics are only computed when the mask belongs to the sample's
   acquisition and has exactly one row per raw event; otherwise the report
   says why and holds no metrics. Filter metrics count mask rows, so they are
