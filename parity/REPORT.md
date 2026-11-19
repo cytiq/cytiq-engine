@@ -11,6 +11,10 @@ and `autospectral` spectra built as AutoSpectral builds them (§2.3, §2.10).
 Updated 2026-10-27: `spillqc`, a port of CompensAID's spillover-error
 detection with flowDensity's `deGate` and flowCore's `estimateLogicle` (§2.11),
 and a benchmark of what it detects on real data (§2.12).
+Updated 2026-11-19: CytoScan novelty stability and calibration (§9): the
+upstream novelty threshold flags 32–100% of independent synthetic normal
+files; flag assessments, `--stability-seeds` and an opt-in calibrated
+`--novelty-mode conformal-ledoit-wolf-v1` chosen by a pre-registered rule.
 
 ## TL;DR
 
@@ -25,6 +29,7 @@ and a benchmark of what it detects on real data (§2.12).
 | `autospectral` | AutoSpectral 1.8.7 (OLS) | ❌ abundances inflated 1.39–1.60× (L2 normalisation); on real Aurora controls spectra down to cosine 0.50 against AutoSpectral | ✅ scale 0.992–1.0002, RMSE within 4% of upstream on the true spectra; real Aurora fluorophore spectra cosine ≥ 0.9998 |
 | `peacoqc` | PeacoQC 1.20.0 | ❌ 82–85% mask agreement, IT precision 0.04; 1.5× slower than R | ✅ 100% mask agreement in every mode; 11× faster than R |
 | `cytoscan` | CytoScan 0.1.0 (`c97f403`) | ❌ binning off by up to 0.004, sample depends on path spelling, outlier scores 3× outside isotree noise, novelty model unlike mclust | ✅ features = R to 5e-13 on identical events; outlier flags = R; novelty ports `Mclust`'s default search: on the same features R picks the same model, G and flags in 12 of 15 cases (the 3 others are a rounding-singular fit cytiq rejects) |
+| `cytoscan` novelty calibration (§9) | — (benchmark) | — | upstream threshold: FPR 0.32–1.00 on held-out synthetic normals; opt-in `conformal-ledoit-wolf-v1`: FPR 0.027–0.053, every anomaly class detected from 32 references; defaults byte-identical |
 | `flowsom` | FlowSOM 2.18.0 | ⚠️ ARI vs R 0.87–0.91 (hard set), 9× slower than R | ✅ ARI vs R 0.93–0.98 (R's own seed-to-seed level), ~8× faster than R |
 | `gate` | FlowKit 1.3.0 `GatingStrategy.gate_sample` | — (new command) | ✅ identical per-event membership for all 11 gates; identical counts at 1M events, ~13× faster than FlowKit |
 | whole chain (§2.9) | flowCore + PeacoQC + FlowKit + FlowSOM, same steps | — (new) | ✅ every stage equals upstream per event on 200,000 golden events (values Δ ≤ 1e-7, masks and gates identical, FlowSOM ARI vs R 0.999), except the margin mask, which deliberately drops flowCore's −111 floor; against the truth: final mask F1 0.971, every population incl. a 0.2% rare one found with precision ≥ 0.997 |
@@ -428,6 +433,9 @@ All 15 comparisons against R satisfy the existing CytoScan tolerance rules.
 - With no more reference files than features the run warns: only spherical
   and diagonal structures fit, and the 5% threshold rests on a handful of
   log-densities.
+- These comparisons measure agreement with R, not calibration. What the
+  in-sample 5% threshold does on independent normal files, its seed
+  stability, and the opt-in calibrated mode are in §9.
 
 **Fixed:**
 1. The subsample used a hand-written LCG seeded with `42 ^ FNV(path)`, so a
@@ -1144,3 +1152,162 @@ Wilson intervals for `rare` (conditional on each acquisition's fitted gates):
   - Descriptive retention changes no status, exit code or release decision.
   - The data that would be needed is listed in the
     [scientific guide](scientific/README.md#required-real-data-for-artifact-truth).
+
+## 9. CytoScan novelty stability and calibration (2026-11-19)
+
+Without the new options, `cytoscan_summary.csv` and `cytoscan_features.csv` are
+byte-identical to clean main (`be8a831`) on all 15 parity cohort/method
+combinations at seeds 42 and 7 and on the benchmark's first replicate; the
+existing parameters and diagnostics are equal and the run time is unchanged
+(median ratio to main 0.91–1.01). §2.7 does not move. Methods are in the
+[scientific guide](scientific/README.md#cytoscan-novelty-benchmark).
+
+**New in production:**
+- **Flag assessments.** `diagnostics.outlier_flag` and `novelty_flag` state each
+  flag's scope (within the test cohort / against the reference), threshold
+  rule, calibration status, exact seed dependence and stability status;
+  `population_false_positive_rate` is `not_assessed`.
+- **`--stability-seeds N`.** Repeats the analysis with `seed + j·2^32`
+  (isolation-tree seeds provably disjoint) and writes per-file flag agreement
+  and every seed's values; seed `j` equals a separate `--seed` run.
+- **`--novelty-mode conformal-ledoit-wolf-v1`.** Opt-in and versioned: the arm
+  the frozen rule made eligible (below). The default `upstream` mode is
+  unchanged.
+
+**Benchmark.** `parity/scientific/novelty_benchmark.py` draws, per replicate, a
+64-file reference pool, 40 held-out normal files and 10 anomalous files
+(`gain_shift`, `wrong_spill`, `population_loss`, `compression`, `debris`, two
+each; 5,000 events) from predeclared generator seeds, and scores production
+runs. Development used seeds 20261201–20261220; confirmation 20261301–20261350
+(50 replicates, 8,340 production invocations, 13 min). Intervals are
+percentile bootstraps over replicates (the independent units).
+
+### Confirmation results (synthetic; 50 replicates, 6 channels)
+
+FPR is the mean share of the 40 held-out normal files flagged, with its 95%
+interval; `P(>0.1)` is the share of replicates whose FPR exceeds 0.10 (a
+perfect split-conformal rule gives 0.12 / 0.05 / 0.07 at 20 / 32 / 64
+references); flips are the probability that two algorithm seeds disagree on a
+normal file; detection is the lowest per-class rate.
+
+| Features, references | Upstream (production) FPR | `P(>0.1)` | flips | mclust + cross-conformal FPR | min detection | **Ledoit–Wolf + cross-conformal FPR** | `P(>0.1)` | flips | min detection |
+|---|---|---|---|---|---|---|---|---|---|
+| summary, 8 | 1.000 | 1.00 | 0.000 | abstains | – | abstains | – | – | – |
+| summary, 16 | 0.560 [0.480, 0.640] | 1.00 | 0.419 | abstains | – | abstains | – | – | – |
+| summary, 20 | 0.336 [0.286, 0.390] | 0.96 | 0.387 | 0.037 [0.026, 0.051] | 1.00 | **0.053** [0.035, 0.072] | 0.16 | 0.058 | 0.90 |
+| summary, 32 | 0.997 [0.994, 1.000] | 1.00 | 0.003 | 0.001 [0.000, 0.003] | **0.54** | **0.028** [0.017, 0.043] | 0.04 | 0.033 | 1.00 |
+| summary, 64 | 0.637 [0.607, 0.664] | 1.00 | 0.405 | 0.035 [0.026, 0.043] | 1.00 | **0.039** [0.030, 0.050] | 0.02 | 0.058 | 1.00 |
+| quantiles, 8 | 1.000 | 1.00 | 0.000 | abstains | – | abstains | – | – | – |
+| quantiles, 16 | 0.952 [0.928, 0.973] | 1.00 | 0.084 | abstains | – | abstains | – | – | – |
+| quantiles, 20 | 0.773 [0.720, 0.828] | 1.00 | 0.269 | 0.026 [0.017, 0.038] | 0.98 | **0.051** [0.036, 0.067] | 0.12 | 0.063 | 1.00 |
+| quantiles, 32 | 0.518 [0.469, 0.563] | 1.00 | 0.345 | 0.015 [0.009, 0.023] | 1.00 | **0.027** [0.017, 0.037] | 0.02 | 0.038 | 1.00 |
+| quantiles, 64 | 1.000 [1.000, 1.000] | 1.00 | 0.000 | 0.000 [0.000, 0.000] | **0.42** | **0.049** [0.038, 0.061] | 0.08 | 0.067 | 1.00 |
+
+Two to four channels (`dimension` family, quantiles, 30 replicates):
+Ledoit–Wolf + cross-conformal FPR 0.044–0.053 (upper bounds ≤ 0.078), mclust
++ cross-conformal 0.023–0.045, upstream 0.32–1.00. Detection is low there for
+every arm because some anomalies act only on channels outside the selected
+set (`gain_shift` on channel 5, `population_loss` on channel 3).
+
+### Findings
+
+- **The upstream threshold is not a 5% rate.** The 5% quantile of the
+  reference files' own log-densities under a mixture fitted on them flags
+  32–100% of independent normal files in every summary/quantiles cell, at
+  every reference size from 8 to 64. It is worst where mclust fits full covariances (summary, 32
+  references > 24 features; quantiles, 64 > 54): the in-sample threshold
+  sits above every held-out density. The reference-only out-of-fold
+  exceedance of that threshold predicts the held-out FPR (Spearman 0.89 over
+  480 replicate cells, bias +0.03), so a cohort can detect this without
+  independent normals.
+- **"Stable" upstream flags are often degenerate.** Where every normal file
+  is flagged, flips are 0; elsewhere two seeds disagree on 8–42% of normal
+  files (Fleiss κ 0.01–0.41), and the novelty margin's per-file SD across
+  seeds reaches 1e13 log units where covariances are near-singular.
+- **Seed ensembles and larger samples stabilise but do not calibrate.**
+  Averaging 5 seeds' margins or using 2,500 / 5,000 events per file reduces
+  flips (to 0 when every event is used), but FPR stays 0.36–1.00 and rises in
+  some cells (`seed_ensemble_5`, `events_*` not eligible: paired FPR
+  difference and flip-rate criteria). Seed variation is not the main error;
+  the threshold is.
+- **Cross-conformal thresholds calibrate both models; only Ledoit–Wolf keeps
+  power.** With mclust, held-out references score so low under each fold's
+  overfitted mixture that anomalies must fall below all of them: detection
+  drops to 0.42–0.54 for some classes at 32–64 references. One shrunk
+  Gaussian keeps detection at 1.00 for every class from 32 references.
+- **The outlier flag is relative to its cohort.** In 40 normal files alone,
+  23–25% are flagged; add 10 anomalies and none are (Wilson upper 0.003). A
+  batch shift of the whole cohort does not change its rate (0.23–0.24 at
+  every level).
+- **Batch and instrument differences are novelty, not noise.** Against a
+  control-batch reference (quantiles, 20 references, 20 replicates), the
+  cross-conformal threshold on the mclust model flags shifted normal files at
+  0.03 (same batch), 0.04 (+5% gain), 0.06 (+10%), 0.22 (+20%) and 1.00 for a
+  ×1.5 true spillover under the nominal `SPILL` (0.51 at 64 references);
+  doubled electronic noise is not detected (0.04). Upstream flags 0.78–1.00
+  at every level, so it cannot tell a shift from its own miscalibration. A
+  reference must match the instrument, panel and processing of the files it
+  judges.
+- **Aggregate methods** (`emd`, `binning`, `fingerprint`, 10 replicates):
+  upstream FPR 0.09–0.51, mclust + cross-conformal 0.008–0.057; descriptive
+  only.
+- **Real donors.** In all 40 leave-one-out runs (4 donors × 5 methods × 4 / 10
+  markers) the held-out normal donor is flagged and every seed gives the
+  identical value (438–881 events, nothing subsampled). With 3 reference
+  donors the conformal mode abstains. Population FPR is `not_assessed`.
+- **The earlier seed study understated forest noise.** Its seeds 1/7/42/101
+  shared 900–994 of 1,000 isolation trees; `run.py` now uses
+  `--stability-seeds`.
+
+### Decision
+
+The rule (`DECISION_RULE` v2, `7a643c44…`) was frozen in `f3a41a0` before any
+confirmation seed was used. It replaced v1 (`7ef5527a…`) after the
+development profile: v1's flip bound (`≤ baseline + 0.02`) cannot be met
+where the baseline flags every file, and the Ledoit–Wolf arm became a
+calibration candidate because development showed the mclust arm losing
+detection; both changes are recorded in the rule's `history`.
+
+| Arm | Claim | Eligible | Failed criteria (confirmation) |
+|---|---|---|---|
+| `shrinkage_ledoit_wolf+cross_conformal` | calibration | **yes** | none, in 14 cells |
+| `cross_conformal` (mclust) | calibration | no | detection at summary-32, quantiles-64 |
+| `seed_ensemble_5` | stability | no | paired FPR difference, flip rate (15) |
+| `events_2500`, `events_5000` | stability | no | paired FPR difference, flip rate (18, 12) |
+
+The eligible arm is production's opt-in `--novelty-mode
+conformal-ledoit-wolf-v1`
+([crate README](../crates/cytiq-cytoscan/README.md#calibrated-novelty-mode)).
+A port of scikit-learn's `LedoitWolf` matches it to 1e-12 in the shrinkage.
+Re-running the confirmation profile with the final binary (`a57129d`,
+`--rust-calibration`) reproduced every family metric above exactly, and
+production's mode equalled the benchmark's composition in all 155,000
+seed × file comparisons over 620 cells (decision and conformal count; no
+near-ties). `events_per_file` stays library-only; no other default changes.
+
+### Performance
+
+Release build, 114 files of 5,000 events, 4 threads, median of 5 runs:
+- **Default runs** take the same time as clean main (ratio 0.91–1.01).
+- **`--stability-seeds N`** loads the files once, so its cost is sublinear:
+  10 seeds take 2.2–3.6× a single run, 20 seeds 3.3–6.2×.
+- **`--novelty-mode conformal-ledoit-wolf-v1`** takes 0.80–1.00× the
+  upstream mode (ten Ledoit–Wolf fits cost less than mclust's model search).
+
+### Limitations
+
+- **FPR claims are synthetic.** The generator draws each channel from a
+  two-normal mixture with per-file proportions; the benchmark shows what each
+  decision rule does under exchangeable references and known shifts, not a
+  clinical false-positive rate.
+- **Marginal guarantee only.** Cross-conformal FPR is near 1/20 on average
+  over reference cohorts; one cohort's rate varies (`P(FPR > 0.10)` 0.02–0.16)
+  and there is no per-cohort guarantee. Below 19 references the mode
+  abstains.
+- **Real data.** Four donors from one CyTOF study, no spillover, too few
+  events to subsample: they show the upstream flag's behaviour but cannot
+  estimate a population FPR, and leave-one-out splits are not independent
+  replications. A pinned real cohort with ≥ 20 independent normal donors,
+  ideally across instruments, is needed for a real-data claim.
+- **Scope of the mode.** Summary and quantiles features with 2–6 channels
+  only; aggregate methods were descriptive and are refused.

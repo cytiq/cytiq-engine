@@ -199,6 +199,10 @@ cytiq cytoscan --input ./test_fcs --output ./cytoscan_results --channels CD3,CD4
 cytiq cytoscan --input ./test_fcs --reference ./reference_fcs \
   --output ./cytoscan_results --channel CD3 --channel CD4 \
   --method fingerprint --flag-method both --debug-dir ./cytoscan_debug
+# calibrated novelty decision with its seed stability (summary or quantiles)
+cytiq cytoscan --input ./test_fcs --reference ./reference_fcs \
+  --output ./cytoscan_calibrated --channels CD3,CD4,CD8 --method quantiles \
+  --flag-method novelty --novelty-mode conformal-ledoit-wolf-v1 --stability-seeds 10
 ```
 
 From Rust:

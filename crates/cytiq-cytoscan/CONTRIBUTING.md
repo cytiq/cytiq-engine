@@ -109,7 +109,9 @@ cargo test -p cytiq-engine --test cytoscan_cli
 - `crates/cytiq-engine/tests/cytoscan_cli.rs` — end-to-end runs for every
   feature method, novelty with reference, debug artifacts, error cases;
   stability rows equal separate `--seed` runs, seed-invariant novelty on short
-  files, the stability-seed range and the stale-output refusal.
+  files, the stability-seed range and the stale-output refusal; the conformal
+  mode's p-values and decisions, abstention below 19 references (and its debug
+  label), its per-seed p-values and its refusals.
 
 The crate's `tests/` directory is currently empty. Reference values in unit
 tests come from the R packages; note the R call used to produce new ones.
