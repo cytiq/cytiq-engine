@@ -28,4 +28,10 @@ pub enum QcError {
     Failed { failed: usize, report: PathBuf },
     #[error("{0}")]
     Publish(#[from] cytiq_publish::PublishError),
+    #[error("failed to read artifact truth `{path}`: {source}")]
+    ArtifactTruth {
+        path: PathBuf,
+        #[source]
+        source: crate::truth::TruthError,
+    },
 }

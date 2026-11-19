@@ -54,6 +54,7 @@ pub(super) fn known(error: &(dyn Error + 'static)) -> Option<OutcomeReason> {
         cytiq_plot::PlotError => plot,
         cytiq_qc::preflight::PreflightError => preflight,
         cytiq_qc::QcError => qc,
+        cytiq_qc::TruthError => truth,
         cytiq_spillqc::SpillQcError => spillqc,
         cytiq_inspect::stats::StatsError => stats,
         cytiq_transform::TransformError => transform,
@@ -160,6 +161,16 @@ fn qc(error: &cytiq_qc::QcError) -> OutcomeReason {
         E::OutputExists { .. } => CONFLICT,
         E::UnknownSample { .. } => INVALID,
         E::Failed { .. } => CHECKS,
+        E::ArtifactTruth { source, .. } => truth(source),
+    }
+}
+
+fn truth(error: &cytiq_qc::TruthError) -> OutcomeReason {
+    use cytiq_qc::TruthError as E;
+    match error {
+        E::Io(source) => io(source),
+        E::Invalid(_) => INVALID,
+        E::Publish(source) => OutcomeReason::of_publish(source),
     }
 }
 

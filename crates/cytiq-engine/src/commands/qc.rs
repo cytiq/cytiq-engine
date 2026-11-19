@@ -35,6 +35,13 @@ pub(crate) struct QcArgs {
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
     populations: Option<PathBuf>,
+    /// Independent artifact truth of every raw event (`cytiq.qc.truth.v1`
+    /// Parquet, never derived from cytiq output). Adds artifact-removal
+    /// metrics per mask column and clean-event population retention;
+    /// descriptive only, it never changes a check or the exit code.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    artifact_truth: Option<PathBuf>,
 }
 
 pub(crate) fn run(
@@ -49,6 +56,7 @@ pub(crate) fn run(
         overwrite,
         require_policy,
         populations,
+        artifact_truth,
     } = args;
     info!(
         "starting qc: manifest={}, sample={sample}, mask={}",
@@ -63,6 +71,7 @@ pub(crate) fn run(
         overwrite,
         require_policy,
         populations,
+        artifact_truth,
     };
     recorder.snapshot_roles(&QcRunner::input_files(&config)?)?;
     let recorder = crate::provenance::begin!(
@@ -97,6 +106,7 @@ pub(crate) fn run(
             (None, None) => {}
         }
     }
+    log_artifact_removal(&report.artifact_removal);
     info!(
         "qc: {} passed, {} warning(s), {} failure(s); wrote {}",
         report.passed,
@@ -120,4 +130,23 @@ pub(crate) fn run(
         outcome.message = failure.to_string();
     }
     Ok(outcome)
+}
+
+fn log_artifact_removal(report: &cytiq_qc::ArtifactRemovalReport) {
+    match (&report.reason, &report.combined) {
+        (Some(reason), _) => debug!("qc: artifact removal not assessed: {reason}"),
+        (None, Some(combined)) => info!(
+            "qc: artifact recall {}, clean retention {} (descriptive)",
+            percent(combined.artifact_recall.value),
+            percent(combined.clean_retention.value)
+        ),
+        (None, None) => {}
+    }
+}
+
+fn percent(value: Option<f64>) -> String {
+    value.map_or_else(
+        || "n/a".to_owned(),
+        |value| format!("{:.2}%", value * 100.0),
+    )
 }

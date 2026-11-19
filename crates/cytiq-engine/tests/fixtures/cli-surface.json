@@ -4866,6 +4866,24 @@
             "value_names": [
               "POPULATIONS"
             ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "artifact_truth",
+            "long": "artifact-truth",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "ARTIFACT_TRUTH"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
