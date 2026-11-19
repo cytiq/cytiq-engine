@@ -58,3 +58,33 @@ CD19 attenuation in the labelled pipeline's B/rare events, independently equal
 to clean-main binary results. Input/truth hashes and baseline commit/binary are
 recorded. It is a post-measurement phenotype perturbation with inherited technical
 flags (including irreversible clipping), not independent weak-positive biology.
+
+`qc-truth.json` freezes the integer counts of the QC artifact-truth benchmark
+(`parity/scientific/qc_truth.py`) for every scenario of `qc_scenarios.py` on the
+three CI seeds. These are the outcomes per mask column and per final keep by
+clean, artifact and undetermined events, the outcomes per labelled class, and
+each population's clean and removed events. Every ratio derives from them.
+Clean main `5f426a32ff4c884de589c420228928a039d7e9ad` produced them. The binary's
+SHA-256 is recorded, and a candidate build produced identical counts. Each case
+records the generated acquisition's SHA-256, so a different numpy or generator
+change is detected rather than silently compared. The truth is generated
+(`synthetic`), and saturation is `definitional`. The file is regression
+evidence for algorithm behaviour on simulated data. It is not biological
+validation and not a source of acceptance bounds. It is refrozen only by the
+explicit `qc_truth.py freeze` operation from a clean-main baseline run, never
+by tests or CI.
+
+The CyMAE label dictionaries (`files/*/_FilterValuesToNames.csv`, verified
+against `cymae.lock.json`) contain technical labels besides cell populations:
+`NA`, `Beads` and `Cleanup1` to `Cleanup6`. The published `readme.md` says only
+that cell identity was "determined by manual gating in the OMIQ platform", and
+`metadata/schema.json` describes files, not labels. The excerpts are dominated
+by these labels: for example, `Cleanup4` has 6,344 of the 20,000 Vaccine events,
+and `Beads` 4,058 of the Acute2020 events. This is consistent with each event
+carrying its deepest OMIQ filter, which would make `Beads` and `CleanupK` events
+manual technical exclusions. However, which parameter each cleanup step gates
+(Gaussian event parameters, DNA, viability or bead channels) is not published.
+They are therefore not mapped to any `cytiq.qc.truth.v1` class. cytiq has no
+CyTOF clean filter to compare with, and labels from one laboratory without a
+published gating definition or measured agreement would be `exploratory` at
+best. CyMAE removal accuracy stays `not_assessed`.

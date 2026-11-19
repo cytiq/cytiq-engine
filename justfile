@@ -68,6 +68,8 @@ scientific-metrics:
     cargo build --release --locked -p cytiq-engine
     rm -rf target/scientific/af-oracle
     parity/.env/py/bin/python parity/scientific/af_benchmark.py oracle --binary target/release/cytiq --source data/fixtures/parity/autospectral --output target/scientific/af-oracle
+    rm -rf target/scientific/qc-truth-baseline
+    parity/.env/py/bin/python parity/scientific/qc_truth.py synthetic --binary target/release/cytiq --output target/scientific/qc-truth-baseline --scenarios baseline --seeds 1
 
 # ---- Validate on real acquisitions shipped with the R packages (and CYTIQ_REAL_DATA)
 [group('validation')]

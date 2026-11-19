@@ -11,6 +11,7 @@
     "data/fixtures/scientific/normal/source.json": "640e9ce770a9603d86b3c5cf7451d0edc605fcc16a99d0b7d7e96da0d4c0a51f",
     "data/fixtures/scientific/normal/subjects.csv": "4e42d08469ac67b79269c1526aa21631d2d0dbec9dec5a3bff77f15b25b96ac4",
     "data/fixtures/scientific/parquet/gzip-size-mismatch.parquet": "d5396e6a86636bda022e344793cdec1ae050cba1c464439b80b65e0cb001f495",
+    "data/fixtures/scientific/qc-truth.json": "cf956318ed363a61d7c9fa4d5065024753d5a9f8d3ef0ea76be4843881e5441c",
     "data/fixtures/scientific/retention/Acute2020.fcs": "e6fd6fbbb01cf34378a8a08883acd97fe3aaabd327c37574af8afe2515e7e59a",
     "data/fixtures/scientific/retention/Acute2020.r-bounded-mask.json": "57cc92d57bac88d781680874ea6d6326ec2b223e34d24a40276044c4a43dddb9",
     "data/fixtures/scientific/retention/Acute2020.r-mask.json": "62db46a2f28d885e7b20c343c40f21c9d66078537572d854921db968eaa1bac8",

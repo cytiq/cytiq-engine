@@ -240,3 +240,182 @@ def gaussian_reduction_study(reference, test):
     variance = np.maximum(np.var(reduced,axis=0),1e-12)
     results["reference_pca"] = {"dimensions": dimensions, "fpr": float(np.mean(np.sum(reduced_test**2/variance,axis=1) > np.quantile(np.sum(reduced**2/variance,axis=1),.95)))}
     return results
+
+
+# ---- QC artifact truth (`cytiq.qc.truth.v1`): an independent port of
+# `cytiq_qc::artifacts` and the clean-event columns of `cytiq_qc::retention`.
+# Counting is vectorized here and per event in Rust; every ratio is one IEEE
+# division of exact counts on both sides, so the results must be identical.
+
+TRUTH_CLASSES = ("debris", "doublet", "dead", "time_anomaly", "saturated")
+CLASS_TARGETS = {"non_debris": "debris", "singlets": "doublet", "live": "dead",
+                 "peacoqc_pass": "time_anomaly", "margin_pass": "saturated",
+                 "margin_upper_pass": "saturated"}
+CLEAN, ARTIFACT, UNDETERMINED = 0, 1, 2
+
+
+def base_name(column):
+    """`2.2.live` -> `live`: the prefixes `cytiq mask combine` adds."""
+    while True:
+        index, dot, name = column.partition(".")
+        if not dot or not index or any(c not in "0123456789" for c in index):
+            return column
+        column = name
+
+
+def tri_state(values):
+    """None/False/True -> -1/0/1."""
+    return np.array([-1 if value is None else int(bool(value)) for value in values], dtype=np.int8)
+
+
+def event_states(truth):
+    """`truth` maps class -> tri-state codes in raw order."""
+    stack = np.stack([truth[name] for name in TRUTH_CLASSES if name in truth])
+    artifact = (stack == 1).any(axis=0)
+    clean = (stack == 0).all(axis=0)
+    return np.where(artifact, ARTIFACT, np.where(clean, CLEAN, UNDETERMINED))
+
+
+def _ratio(part, whole):
+    return part / whole if whole else None
+
+
+def _share(hit, total, unknown_hit, unknown_miss):
+    return {"value": _ratio(hit, total), "lower": _ratio(hit, total + unknown_miss),
+            "upper": _ratio(hit + unknown_hit, total + unknown_hit)}
+
+
+def _purity(wanted, other, unknown):
+    every = wanted + other + unknown
+    return {"value": _ratio(wanted, wanted + other), "lower": _ratio(wanted, every),
+            "upper": _ratio(wanted + unknown, every)}
+
+
+def _outcomes(codes, selected):
+    return {"removed": int(((codes == 0) & selected).sum()), "passed": int(((codes == 1) & selected).sum()),
+            "not_assessed": int(((codes == -1) & selected).sum())}
+
+
+def _kept(outcome):
+    return outcome["passed"] + outcome["not_assessed"]
+
+
+def _total(outcome):
+    return outcome["removed"] + _kept(outcome)
+
+
+def _by_state(codes, states):
+    return {"clean": _outcomes(codes, states == CLEAN), "artifact": _outcomes(codes, states == ARTIFACT),
+            "undetermined": _outcomes(codes, states == UNDETERMINED)}
+
+
+def _by_label(codes, label):
+    return {"positive": _outcomes(codes, label == 1), "negative": _outcomes(codes, label == 0),
+            "unlabelled": _outcomes(codes, label == -1)}
+
+
+def _target(column, target, codes, labels):
+    def not_assessed(reason):
+        return {"class": target, "status": "not_assessed", "reason": reason}
+    if target not in labels:
+        return not_assessed(f"the artifact truth does not label `{target}`")
+    label = labels[target]
+    if (label == -1).all():
+        return not_assessed(f"no event is labelled for `{target}`")
+    if (codes == -1).all():
+        return not_assessed(f"`{column}` assessed no event")
+    outcomes = _by_label(codes, label)
+    positive, negative, unknown = outcomes["positive"], outcomes["negative"], outcomes["unlabelled"]
+    result = {"class": target, "status": "assessed", "outcomes": outcomes,
+              "sensitivity": _share(positive["removed"], _total(positive), unknown["removed"], _kept(unknown))}
+    assessed = positive["removed"] + positive["passed"]
+    if assessed:
+        result["assessed_sensitivity"] = positive["removed"] / assessed
+    result["specificity"] = _share(_kept(negative), _total(negative), _kept(unknown), unknown["removed"])
+    result["precision"] = _purity(positive["removed"], negative["removed"], unknown["removed"])
+    return result
+
+
+def _raw_rows(source_event_ids, events):
+    rows = np.asarray(source_event_ids, dtype=np.int64)
+    if len(rows) != events or not np.array_equal(np.sort(rows), np.arange(events)):
+        raise ValueError("the mask must hold every raw event exactly once")
+    return rows
+
+
+def artifact_removal_oracle(source_event_ids, keep, filters, truth, events):
+    """The `events`, `combined` and `filters` of `qc.json` `artifact_removal`.
+
+    `filters` pairs each mask column with its None/False/True values in mask
+    row order; `truth` maps class -> tri-state codes in raw order.
+    """
+    rows = _raw_rows(source_event_ids, events)
+    labels = {name: truth[name][rows] for name in TRUTH_CLASSES if name in truth}
+    raw_states = event_states(truth)
+    states = raw_states[rows]
+    reported = []
+    for column, values in filters:
+        codes = tri_state(values)
+        by_state = _by_state(codes, states)
+        clean, artifact, unknown = by_state["clean"], by_state["artifact"], by_state["undetermined"]
+        entry = {"column": column, "assessed": int((codes != -1).sum()), "events": by_state,
+                 "removed_by_class": {name: int(((codes == 0) & (label == 1)).sum()) for name, label in labels.items()},
+                 "clean_loss": _share(clean["removed"], _total(clean), unknown["removed"], _kept(unknown)),
+                 "removed_artifact_share": _purity(artifact["removed"], clean["removed"], unknown["removed"])}
+        target = CLASS_TARGETS.get(base_name(column))
+        if target is not None:
+            entry["target"] = _target(column, target, codes, labels)
+        reported.append(entry)
+    codes = np.where(np.asarray(keep, dtype=bool), 1, 0).astype(np.int8)
+    by_state = _by_state(codes, states)
+    clean, artifact, unknown = by_state["clean"], by_state["artifact"], by_state["undetermined"]
+    kept = int(codes.sum())
+    combined = {"kept": kept, "total_retention": _ratio(kept, len(codes)), "events": by_state,
+                "artifact_recall": _share(artifact["removed"], _total(artifact), unknown["removed"], _kept(unknown)),
+                "clean_retention": _share(_kept(clean), _total(clean), _kept(unknown), unknown["removed"]),
+                "removed_artifact_share": _purity(artifact["removed"], clean["removed"], unknown["removed"]),
+                "classes": {name: _by_label(codes, label) for name, label in labels.items()}}
+    counts = {"raw": events, "clean": int((raw_states == CLEAN).sum()),
+              "artifact": int((raw_states == ARTIFACT).sum()),
+              "undetermined": int((raw_states == UNDETERMINED).sum()), "clean_of": list(labels)}
+    return {"events": counts, "combined": combined, "filters": reported}
+
+
+def _relative(error, of):
+    return error / of if error is not None and of not in (None, 0.0) else None
+
+
+def membership_retention_oracle(populations, stages, states):
+    """`population_retention` stages of `qc.json` for gates over every raw
+    event: `populations` pairs names with member flags, `stages` names with
+    raw-order keep flags (each applied alone), `states` the event truth."""
+    events = len(states)
+    base_clean = int((states == CLEAN).sum())
+    reported = []
+    for stage, keep in stages:
+        keep = np.asarray(keep, dtype=bool)
+        kept = int(keep.sum())
+        rows = []
+        for name, members in populations:
+            members = np.asarray(members, dtype=bool)
+            original, retained = int(members.sum()), int((members & keep).sum())
+            original_frequency, retained_frequency = _ratio(original, events), _ratio(retained, kept)
+            error = None if retained_frequency is None or original_frequency is None else retained_frequency - original_frequency
+            clean = members & (states == CLEAN)
+            good_original, good_retained = int(clean.sum()), int((clean & keep).sum())
+            clean_frequency = _ratio(good_original, base_clean)
+            error_clean = None if retained_frequency is None or clean_frequency is None else retained_frequency - clean_frequency
+            rows.append({
+                "population": name, "original": original, "eligible": original, "retained": retained,
+                "conditional_retention": _ratio(retained, original), "cumulative_retention": _ratio(retained, original),
+                "original_frequency": original_frequency, "retained_frequency": retained_frequency,
+                "frequency_error": error, "relative_frequency_error": _relative(error, original_frequency),
+                "good_original": good_original, "good_retained": good_retained,
+                "good_retention": _ratio(good_retained, good_original),
+                "technical_removed": int((members & (states == ARTIFACT) & ~keep).sum()),
+                "undetermined_removed": int((members & (states == UNDETERMINED) & ~keep).sum()),
+                "clean_frequency": clean_frequency, "frequency_error_vs_clean": error_clean,
+                "relative_frequency_error_vs_clean": _relative(error_clean, clean_frequency)})
+        reported.append({"stage": stage, "input_events": events, "kept_events": kept,
+                         "newly_removed": events - kept, "populations": rows})
+    return reported

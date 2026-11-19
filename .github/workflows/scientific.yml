@@ -147,6 +147,11 @@ jobs:
       - name: Weak phenotype retention sensitivity
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python parity/scientific/weak_population.py --binary target/release/cytiq --output target/scientific/results/weak-populations
+      - name: QC artifact-truth benchmark (synthetic)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          parity/.env/py/bin/python parity/scientific/qc_truth.py synthetic --binary target/release/cytiq --output target/scientific/results/qc-truth
+          parity/.env/py/bin/python parity/scientific/qc_truth.py table --report target/scientific/results/qc-truth/report.json --output target/scientific/results/qc-truth
       - name: Save reference environment
         if: success() && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v6
