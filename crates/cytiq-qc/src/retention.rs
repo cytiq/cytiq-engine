@@ -730,4 +730,92 @@ mod tests {
             None
         );
     }
+
+    #[test]
+    fn newly_removed_counts_the_events_each_stage_dropped() {
+        let acquisition = "k".repeat(64);
+        let labels = vec![Some("p".into()); 6];
+        let first = EventMask::new(
+            &acquisition,
+            vec![true, true, false, true, false, true],
+            None,
+        );
+        let second = EventMask::new(
+            &acquisition,
+            vec![true, false, true, false, true, false],
+            None,
+        );
+        let report = population_retention(
+            &acquisition,
+            &labels,
+            None,
+            &[("first", &first), ("second", &second)],
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                report[0].input_events,
+                report[0].kept_events,
+                report[0].newly_removed
+            ),
+            (6, 4, 2)
+        );
+        assert_eq!(
+            (
+                report[1].input_events,
+                report[1].kept_events,
+                report[1].newly_removed
+            ),
+            (4, 1, 3)
+        );
+    }
+
+    #[test]
+    fn stages_reject_foreign_or_malformed_masks() {
+        let acquisition = "l".repeat(64);
+        let labels = vec![Some("p".into()); 3];
+        let rejects = |mask: &EventMask| {
+            population_retention(&acquisition, &labels, None, &[("stage", mask)]).is_err()
+        };
+        assert!(rejects(&EventMask::new(
+            "m".repeat(64),
+            vec![true; 3],
+            None
+        )));
+        let mut ragged = EventMask::new(&acquisition, vec![true; 3], None);
+        ragged.source_event_ids.pop();
+        assert!(rejects(&ragged));
+        assert!(rejects(&EventMask::new(
+            &acquisition,
+            vec![true; 3],
+            Some(vec![0, 1, 3])
+        )));
+        assert!(rejects(&EventMask::new(
+            &acquisition,
+            vec![true; 3],
+            Some(vec![0, 1, 1])
+        )));
+        assert!(!rejects(&EventMask::new(
+            &acquisition,
+            vec![true; 3],
+            Some(vec![2, 1, 0])
+        )));
+    }
+
+    #[test]
+    fn a_membership_computed_under_a_mask_is_not_assessed_either_way() {
+        let acquisition = "n".repeat(64);
+        let qc = EventMask::new(&acquisition, vec![true; 2], None);
+        // Every event kept but one gate value unassessed.
+        let unassessed = EventMask::new(&acquisition, vec![true; 2], None)
+            .with_filter("cells", vec![Some(true), None]);
+        // Every gate value assessed but one event removed.
+        let removed = EventMask::new(&acquisition, vec![true, false], None)
+            .with_filter("cells", vec![Some(true), Some(false)]);
+        for membership in [unassessed, removed] {
+            let report = qc_population_retention(&acquisition, 2, &qc, &membership, None);
+            assert_eq!(report.status, RetentionStatus::NotAssessed);
+            assert!(report.reason.unwrap().contains("--mask"));
+        }
+    }
 }

@@ -44,7 +44,7 @@ nightly in `CYTIQ_FUZZ_TOOLCHAIN`, which `just fuzz` installs on first use.
 - `just crap` reports CRAP and baseline deltas from that coverage run.
 - `just crap-check` tests report validation without coverage tools.
 - `just mutants` runs mutation tests for the CRAP remediation functions;
-  `just mutants cytiq-fcs` selects one of the eleven supported crates.
+  `just mutants cytiq-fcs` selects one of the twelve supported crates.
 - `just package-check` checks crates.io metadata and internal dependency
   versions and packages every crate without uploading anything.
 - `just verify` runs the standard local quality gate.
@@ -221,7 +221,8 @@ just mutants cytiq-gating
 `.cargo/mutants.toml` selects the 15 functions addressed by the initial CRAP
 analysis and their extracted helpers in ten crates, plus the validation,
 reconciliation, anchor-reliability and comparison functions of
-`cytiq-population` and `cytiq-specimen`. Keep this selection in sync
+`cytiq-population` and `cytiq-specimen`, and the artifact-truth contract,
+artifact-removal metrics and retention core of `cytiq-qc`. Keep this selection in sync
 when extracting or renaming helpers: a move must not remove mutation coverage.
 The runner rejects an empty selection and checks the unmodified tests before
 injecting mutations into a scratch copy; the working tree is never mutated.
@@ -251,7 +252,7 @@ matrix in row order, so training is identical. The exact exclusions and their
 rationale live in `.cargo/mutants.toml`.
 
 The **Mutation tests** workflow runs manually and on Mondays at 04:00 UTC,
-separately from PR checks. Its eleven-crate matrix runs up to three jobs at once,
+separately from PR checks. Its twelve-crate matrix runs up to three jobs at once,
 with a 120-minute limit per crate and reports retained for 35 days even on
 failure. `just verify` remains the ordinary quality gate. Neither mutation
 testing nor local CRAP analysis rewrites the reviewed Linux CRAP baseline.

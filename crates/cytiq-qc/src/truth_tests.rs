@@ -326,6 +326,19 @@ fn class_rules_reject_inconsistent_provenance() {
 }
 
 #[test]
+fn limits_are_inclusive() {
+    let mut labels = consensus();
+    labels.channels = vec!["x".into(); MAX_CHANNELS];
+    labels.validate().unwrap();
+    // A descriptor padded with JSON whitespace to exactly the limit reads.
+    let mut text = descriptor_json(&[ArtifactClass::Debris]);
+    text.push_str(&" ".repeat(MAX_DESCRIPTOR_BYTES - text.len()));
+    read(with_footer(footer(text.clone()))).unwrap();
+    text.push(' ');
+    rejected(with_footer(footer(text)), "more than 65536");
+}
+
+#[test]
 fn agreement_is_bounded_and_for_experts_only() {
     rejects("expert evidence only", |l| {
         l.evidence = Evidence::OrthogonalAssay;
