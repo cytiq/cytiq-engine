@@ -19,6 +19,19 @@ from metrics import retention
 from run import ROOT, invoke, read_fcs
 
 
+def attenuate(values,names,matrix,rows,factor=.05,dye=3):
+    """Scale one dye's compensated signal in `rows` and remix it into raw.
+
+    `matrix` is the declared spillover (rows dyes, columns detectors, named by
+    their raw channels). Every other value is unmixed and remixed unchanged.
+    """
+    indices=[names.index(c) for c in matrix.columns]
+    measured=np.linalg.solve(matrix.to_numpy().T,values[:,indices].T).T
+    measured[rows,dye]*=factor
+    values[:,indices]=measured@matrix.to_numpy()
+    return values
+
+
 def evaluate(binary,source,root,labels,good):
     root.mkdir()
     channels=','.join(f'FL{i}-A' for i in range(1,6))
@@ -49,13 +62,11 @@ def run(binary,output,baseline=None):
     source=fixtures/'sample.fcs';truth=pd.read_csv(fixtures/'truth/events.csv')
     values,names=read_fcs(source);flow=flowio.FlowData(str(source))
     if any(k.lower().startswith('cytiq_') for k in flow.text):raise ValueError('expected raw synthetic acquisition')
-    dyes=[f'FL{i}-A' for i in range(1,7)];indices=[names.index(c) for c in dyes]
+    dyes=[f'FL{i}-A' for i in range(1,7)]
     matrix=pd.read_csv(fixtures/'truth/spillover.csv',index_col=0)
     if list(matrix.columns)!=dyes:raise ValueError('spillover detector order changed')
     phenotypes=truth.population.isin(['b','rare']).to_numpy()
-    measured=np.linalg.solve(matrix.to_numpy().T,values[:,indices].T).T
-    measured[phenotypes,3]*=.05
-    values[:,indices]=measured@matrix.to_numpy()
+    values=attenuate(values,names,matrix,phenotypes)
     weak=output/'weak.fcs'
     with weak.open('wb') as handle:
         flowio.create_fcs(handle,values.ravel().tolist(),names,[flow.text.get(f'p{i+1}s','') for i in range(len(names))],flow.text)

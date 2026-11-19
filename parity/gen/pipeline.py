@@ -1,6 +1,6 @@
 """Golden end-to-end dataset for the whole cytiq chain.
 
-Usage: python pipeline.py <out_dir> [ci|full|beads]
+Usage: python pipeline.py <out_dir> [ci|full|beads] [--seed N]
 
 One raw sample in which every event's truth is known:
 
@@ -26,14 +26,18 @@ Writes:
 
 Profiles: `ci` (15,000 events, committed to `data/fixtures/pipeline/`),
 `full` (200,000 events, parity runs) and `beads` (one discrete population:
-degenerate spreads).
+degenerate spreads). A profile may also override, for benchmark scenarios
+(`parity/scientific/qc_scenarios.py`), the population `shares`, the
+`scatter` kind of a population (`small`: rare cells close to debris) and the
+dead cells' viability dye `dead_dye` (mean, spread). The overrides keep the
+random stream: without them, every profile and seed reproduces its output.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -94,12 +98,16 @@ def _marker_signal(rng: np.random.Generator, positive: list[str], count: int) ->
 def _scatter(rng: np.random.Generator, kind: str, count: int) -> tuple[np.ndarray, np.ndarray]:
     if kind == "mono":
         return rng.normal(110_000, 12_000, count), rng.normal(55_000, 9_000, count)
+    if kind == "small":  # small, agranular cells whose tail reaches the debris
+        return rng.normal(35_000, 6_000, count), rng.normal(12_000, 4_000, count)
     return rng.normal(70_000, 8_000, count), rng.normal(22_000, 5_000, count)
 
 
-def _cells(rng: np.random.Generator, count: int) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+def _cells(rng: np.random.Generator, count: int,
+           profile: dict) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     names = list(POPULATIONS)
-    shares = np.array([POPULATIONS[name][0] for name in names])
+    overrides = profile.get("shares", {})
+    shares = np.array([overrides.get(name, POPULATIONS[name][0]) for name in names])
     population = rng.choice(len(names), count, p=shares / shares.sum())
     fsc = np.empty(count)
     ssc = np.empty(count)
@@ -107,6 +115,7 @@ def _cells(rng: np.random.Generator, count: int) -> tuple[np.ndarray, dict[str, 
     for index, name in enumerate(names):
         rows = population == index
         _, kind, positive = POPULATIONS[name]
+        kind = profile.get("scatter", {}).get(name, kind)
         fsc[rows], ssc[rows] = _scatter(rng, kind, int(rows.sum()))
         signal[rows] = _marker_signal(rng, positive, int(rows.sum()))
     ratio = rng.normal(1.15, 0.03, count)
@@ -115,8 +124,8 @@ def _cells(rng: np.random.Generator, count: int) -> tuple[np.ndarray, dict[str, 
 
 def generate(profile: dict, rng: np.random.Generator) -> tuple[np.ndarray, pd.DataFrame]:
     n = profile["events"]
-    population, cells = _cells(rng, n)
-    second_population, second = _cells(rng, n)
+    population, cells = _cells(rng, n, profile)
+    second_population, second = _cells(rng, n, profile)
     fsc_a, ssc, signal = cells["fsc"], cells["ssc"], cells["signal"].copy()
     fsc_h = fsc_a / cells["ratio"]
 
@@ -135,7 +144,8 @@ def generate(profile: dict, rng: np.random.Generator) -> tuple[np.ndarray, pd.Da
     fsc_a = np.where(dead, fsc_a * 0.85, fsc_a)
     fsc_h = np.where(dead, fsc_h * 0.85, fsc_h)
     ssc = np.where(dead, ssc * 1.2, ssc)
-    signal[dead, -1] = rng.normal(15_000, 4_000, int(dead.sum()))
+    dye_mean, dye_spread = profile.get("dead_dye", (15_000, 4_000))
+    signal[dead, -1] = rng.normal(dye_mean, dye_spread, int(dead.sum()))
 
     debris_fsc = rng.lognormal(math.log(9_000), 0.45, n)
     fsc_a = np.where(debris, debris_fsc, fsc_a)
@@ -305,14 +315,17 @@ def write(out: Path, data: np.ndarray, truth: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    out = Path(sys.argv[1])
-    profile = sys.argv[2] if len(sys.argv) > 2 else "ci"
-    rng = np.random.default_rng(SEED)
-    if profile == "beads":
+    parser = argparse.ArgumentParser(description="Golden end-to-end dataset")
+    parser.add_argument("out", type=Path)
+    parser.add_argument("profile", nargs="?", default="ci", choices=[*PROFILES, "beads"])
+    parser.add_argument("--seed", type=int, default=SEED)
+    args = parser.parse_args()
+    rng = np.random.default_rng(args.seed)
+    if args.profile == "beads":
         data, truth = beads(rng)
     else:
-        data, truth = generate(PROFILES[profile], rng)
-    write(out, data, truth)
+        data, truth = generate(PROFILES[args.profile], rng)
+    write(args.out, data, truth)
 
 
 if __name__ == "__main__":
