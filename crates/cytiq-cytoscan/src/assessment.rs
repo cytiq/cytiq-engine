@@ -203,6 +203,11 @@ mod tests {
             novelty_seed_dependence([800], 1000, Some(&[]), 10_000),
             invariant
         );
+        // Files shorter than their share (5000) are taken whole.
+        assert_eq!(
+            novelty_seed_dependence([800], 1000, Some(&[100, 4_999]), 10_000),
+            invariant
+        );
     }
 
     #[test]

@@ -524,9 +524,10 @@ fn flag_stability(
             )
         })
         .count();
+    // A file with a failed seed is `Unstable` already (`decision`).
     let status = if dependence == SeedDependence::SeedInvariant {
         StabilityStatus::SeedInvariant
-    } else if unstable_files > 0 || files.iter().any(|row| decision_of(row).2 < row.seeds) {
+    } else if unstable_files > 0 {
         StabilityStatus::Unstable
     } else {
         StabilityStatus::Stable
@@ -705,6 +706,104 @@ mod tests {
         );
         assert_eq!(stability.status, StabilityStatus::Unstable);
         assert_eq!(stability.pairwise_disagreement, None);
+    }
+
+    /// Three files over three seeds: always flagged, never flagged, and
+    /// flagged at one seed only.
+    fn three_files() -> Vec<CytoScanStabilityFileRow> {
+        let outcomes = [
+            outcome(&[0.9, 0.1, 0.6], Some((&[-9.0, 1.0, -4.0], -3.0))),
+            outcome(&[0.8, 0.2, 0.4], Some((&[-8.0, 2.0, 0.0], -3.0))),
+            outcome(&[0.7, 0.3, 0.4], Some((&[-7.0, 3.0, 1.0], -3.0))),
+        ];
+        (0..3)
+            .map(|index| file_row(index, "f.fcs", std::path::Path::new("f.fcs"), &outcomes))
+            .collect()
+    }
+
+    fn novelty_of(row: &CytoScanStabilityFileRow) -> (FileDecision, usize, usize) {
+        (
+            row.novelty_decision,
+            row.novelty_flag_count,
+            row.novelty_seeds_assessed,
+        )
+    }
+
+    fn novelty_range(row: &CytoScanStabilityFileRow) -> Option<f64> {
+        range(row.novelty_margin_min, row.novelty_margin_max)
+    }
+
+    #[test]
+    fn file_rows_count_flags_and_ranges() {
+        let rows = three_files();
+        let counts = rows
+            .iter()
+            .map(|row| (row.novelty_flag_count, row.outlier_flag_count))
+            .collect::<Vec<_>>();
+        assert_eq!(counts, [(3, 3), (0, 0), (1, 1)]);
+        assert_eq!(rows[0].novelty_decision, FileDecision::StableFlag);
+        assert_eq!(rows[1].novelty_decision, FileDecision::StableNoFlag);
+        assert_eq!(rows[2].novelty_decision, FileDecision::Unstable);
+        // margins of the last file: -1, 3, 4
+        assert_eq!(rows[2].novelty_margin_min, Some(-1.0));
+        assert_eq!(rows[2].novelty_margin_median, Some(3.0));
+        assert_eq!(rows[2].novelty_margin_max, Some(4.0));
+    }
+
+    #[test]
+    fn flag_stability_summarises_the_files() {
+        let rows = three_files();
+        let stability = flag_stability(
+            &rows,
+            3,
+            SeedDependence::SeedDependent,
+            novelty_of,
+            novelty_range,
+            Some(&[-3.0, -2.0, -5.0]),
+        );
+        assert_eq!(stability.status, StabilityStatus::Unstable);
+        assert_eq!(stability.seeds_assessed, 3);
+        assert_eq!(stability.unstable_files, 1);
+        assert!((stability.unanimous_fraction - 2.0 / 3.0).abs() < 1e-15);
+        // flags 3, 0, 1 of 3: 0 + 0 + 2 disagreeing of 9 pairs
+        assert_eq!(stability.pairwise_disagreement, Some(2.0 / 9.0));
+        // margin ranges 2, 2 and 5
+        assert_eq!(stability.max_range, Some(5.0));
+        assert_eq!(stability.threshold_min, Some(-5.0));
+        assert_eq!(stability.threshold_max, Some(-2.0));
+
+        let stable = flag_stability(
+            &rows[..2],
+            3,
+            SeedDependence::SeedDependent,
+            novelty_of,
+            novelty_range,
+            None,
+        );
+        assert_eq!(stable.status, StabilityStatus::Stable);
+        assert_eq!(stable.unstable_files, 0);
+        assert!((stable.unanimous_fraction - 1.0).abs() < 1e-15);
+        assert_eq!(stable.threshold_min, None);
+
+        let invariant = flag_stability(
+            &rows,
+            3,
+            SeedDependence::SeedInvariant,
+            novelty_of,
+            novelty_range,
+            None,
+        );
+        assert_eq!(invariant.status, StabilityStatus::SeedInvariant);
+        let empty = flag_stability(
+            &[],
+            3,
+            SeedDependence::SeedDependent,
+            novelty_of,
+            novelty_range,
+            None,
+        );
+        assert!((empty.unanimous_fraction - 1.0).abs() < 1e-15);
+        assert_eq!(empty.pairwise_disagreement, None);
     }
 
     #[test]
