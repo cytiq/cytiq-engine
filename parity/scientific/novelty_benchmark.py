@@ -143,6 +143,7 @@ class Runner:
         self.root.mkdir(parents=True, exist_ok=True)
         self.invocations = 0
         self.baseline_bin: Path | None = None
+        self.rust_calibration = False
         self._lock = threading.Lock()
 
     def command(self, kind: str, args: list) -> list[str]:
@@ -208,6 +209,7 @@ def parse_run(output: Path, features: bool) -> Run:
             "is_outlier": _bool(row["is_outlier"]), "outlier_score": _float(row["outlier_score"]),
             "is_novelty": _bool(row["is_novelty"]), "ll": _float(row["novelty_log_likelihood"]),
             "threshold": _float(row["novelty_threshold"]),
+            "p_value": _float(row.get("novelty_p_value", "")),
             "ll_text": row["novelty_log_likelihood"]}
     if features:
         matrix = list(csv.DictReader((output / "cytoscan_features.csv").open()))
@@ -508,8 +510,57 @@ def calibration_cells(runner: Runner, replicate: Replicate, family: str, methods
     return cells
 
 
+RUST_MODE = "conformal-ledoit-wolf-v1"
+NEAR_TIE = 1e-6
+"""Benchmark features are read back at 12 decimals, so a Ledoit-Wolf score of
+the benchmark and of production may differ by ~1e-10; a disagreement is
+accepted only where a held-out score lies within this of the test score."""
+
+
+def rust_calibration(runner: Runner, replicate: Replicate, base: dict, references, tests, method,
+                     chosen, n, by_seed: dict, files, normals, records, extras) -> None:
+    """Stage 3: production's `--novelty-mode conformal-ledoit-wolf-v1` must
+    reproduce this benchmark's Ledoit-Wolf cross-conformal decision and count,
+    seed by seed."""
+    run = runner.run(f"{replicate.seed}-{base['family']}-rust-{base['cell']}",
+                     [*run_args(tests, references[:n], method, chosen, "novelty", sc.STABILITY_SEEDS),
+                      "--novelty-mode", RUST_MODE])
+    check = extras.setdefault("rust_calibration", {"cells": 0, "comparisons": 0, "near_tie_mismatches": 0})
+    check["cells"] += 1
+    if run.status != "ok":
+        raise AssertionError(f"{base}: production {RUST_MODE} failed: {run.reason}")
+    for j, outcome in by_seed.items():
+        python = outcome["cross_conformal"]
+        for index, name in enumerate(files):
+            rust = run.seeds[j][name]
+            check["comparisons"] += 1
+            if python["status"] != "decided":
+                if rust["is_novelty"] is not None:
+                    raise AssertionError(f"{base} seed {j} {name}: benchmark {python['status']}, production decided")
+                continue
+            count = round(rust["p_value"] * (n + 1)) - 1 if rust["p_value"] is not None else None
+            if rust["is_novelty"] == python["flags"][index] and count == python["counts"][index]:
+                continue
+            if python["min_gaps"][index] < NEAR_TIE:
+                check["near_tie_mismatches"] += 1
+                continue
+            raise AssertionError(f"{base} seed {j} {name}: production {rust['is_novelty']}/{count} "
+                                 f"!= benchmark {python['flags'][index]}/{python['counts'][index]}")
+    record = base | {"arm": "rust_" + RUST_MODE.replace("-", "_")}
+    flags = {name: run.seeds[0][name]["is_novelty"] for name in files}
+    if any(flag is None for flag in flags.values()):
+        records.append(record | {"status": "abstained"})
+        return
+    seeds = [j for j in range(sc.STABILITY_SEEDS)
+             if all(run.seeds[j][name]["is_novelty"] is not None for name in files)]
+    stability = flip_metrics([{name: run.seeds[j][name]["is_novelty"] for name in files} for j in seeds],
+                             files, set(normals)) | {"seeds_assessed": len(seeds)}
+    records.append(decided(record, flags, {name: -run.seeds[0][name]["p_value"] for name in files},
+                           replicate.truth, normals, stability))
+
+
 def research_arms(runner: Runner, replicate: Replicate, family: str, methods, channel_counts, sizes,
-                  tests, references, records, with_r: bool) -> None:
+                  tests, references, records, with_r: bool, extras: dict) -> None:
     """Covariance arms on production features of the whole pool, computed at
     seeds 0-4 (one feature run per seed) so their flags have a flip rate."""
     files = [p.name for p in tests]
@@ -544,6 +595,9 @@ def research_arms(runner: Runner, replicate: Replicate, family: str, methods, ch
                         records.append(decided(record, dict(zip(files, entry["flags"])),
                                                dict(zip(files, entry["scores"])), replicate.truth, normals,
                                                stability))
+                    if runner.rust_calibration and arm == "shrinkage_ledoit_wolf":
+                        rust_calibration(runner, replicate, base, references, tests, method, chosen, n,
+                                         by_seed, files, normals, records, extras)
                 if with_r:
                     reference, test = matrices[0]
                     records.append(mclust_prior(runner, replicate, base, reference[:n], test, files, normals))
@@ -986,6 +1040,7 @@ def run_benchmark(args) -> dict:
             raise SystemExit(f"confirmation requires a clean tree for the benchmark sources:\n{dirty}")
     runner = Runner(args.binary.resolve(), args.events_bin.resolve(), args.jobs, args.output, args.keep_runs)
     runner.baseline_bin = args.baseline_bin.resolve() if args.baseline_bin else None
+    runner.rust_calibration = args.rust_calibration
     seeds = sc.PROFILE_SEEDS[profile]
     counts = {family: config["replicates"][profile] for family, config in sc.FAMILIES.items()}
     records, extras, digests, timing = [], {}, {}, {}
@@ -1004,14 +1059,14 @@ def run_benchmark(args) -> dict:
             calibration_cells(runner, replicate, "exchangeable", methods, channels, sizes, tests,
                               replicate.references, True, True, records, extras)
             research_arms(runner, replicate, "exchangeable", methods, channels, sizes, tests,
-                          replicate.references, records, args.with_r_prior and profile == "development")
+                          replicate.references, records, args.with_r_prior and profile == "development", extras)
             outlier_within_cohort(runner, replicate, extras)
         if needs["dimension"]:
             methods, channels, sizes = profile_cells("dimension", profile)
             calibration_cells(runner, replicate, "dimension", methods, channels, sizes, tests,
                               replicate.references, False, True, records, extras)
             research_arms(runner, replicate, "dimension", methods, channels, sizes, tests,
-                          replicate.references, records, False)
+                          replicate.references, records, False, extras)
         if needs["aggregate_methods"]:
             methods, channels, sizes = profile_cells("aggregate_methods", profile)
             calibration_cells(runner, replicate, "aggregate_methods", methods, channels, sizes, tests,
@@ -1048,6 +1103,8 @@ def run_benchmark(args) -> dict:
         "real_donors": real_donors(runner),
         "contract": contract_checks(runner, args.output / "contract"),
         "equivalence": extras["equivalence"],
+        "rust_calibration": extras.get("rust_calibration", {"status": "not_assessed",
+                                                            "reason": "run without --rust-calibration"}),
         "inputs_sha256": digests,
         "replicate_seconds": timing,
         "invocations": runner.invocations,
@@ -1161,7 +1218,7 @@ def main() -> None:
     run.add_argument("--jobs", type=int, default=4)
     run.add_argument("--with-r-prior", action="store_true")
     run.add_argument("--rust-calibration", action="store_true",
-                     help="re-run every cross-conformal cell through the Rust mode (Stage 3 only)")
+                     help=f"check production's --novelty-mode {RUST_MODE} against every Ledoit-Wolf cell")
     run.add_argument("--keep-inputs", action="store_true")
     run.add_argument("--keep-runs", action="store_true")
     run.add_argument("--output", type=Path, required=True)
@@ -1171,8 +1228,6 @@ def main() -> None:
     table.add_argument("--output", type=Path, required=True)
     table.set_defaults(func=table_command)
     args = parser.parse_args()
-    if getattr(args, "rust_calibration", False):
-        raise SystemExit("--rust-calibration needs the cross-conformal production mode (Stage 3), which is not implemented")
     args.func(args)
 
 

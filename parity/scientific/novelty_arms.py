@@ -203,9 +203,12 @@ def research_decisions(scorer, reference: np.ndarray, tests: np.ndarray, folds_m
             train = reference[mask]
             per_fold.append((scorer(train, reference[held]).tolist(), scorer(train, tests).tolist()))
         counts = [conformal_count([(held, test[t]) for held, test in per_fold]) for t in range(len(tests))]
+        gaps = [min(abs(value - test[t]) for held, test in per_fold for value in held)
+                for t in range(len(tests))]
         result["cross_conformal"] = {"status": "decided",
                                      "flags": [conformal_novel(c, n) for c in counts],
-                                     "scores": [-conformal_p(c, n) for c in counts]}
+                                     "scores": [-conformal_p(c, n) for c in counts],
+                                     "counts": counts, "min_gaps": gaps}
     except np.linalg.LinAlgError as error:
         result["cross_conformal"] = {"status": "fit_failed", "reason": str(error)}
     return result

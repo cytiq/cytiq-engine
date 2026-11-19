@@ -442,7 +442,11 @@ paired FPR difference whose upper bound is ≤ +0.02, detection within 0.05
 of the baseline at ≥ 32 references and the baseline's decision rate within
 0.02. Every applicable cell must pass (an intersection-union test, so no
 multiplicity correction), and the equivalence checks must pass.
-`--profile confirmation` refuses a modified benchmark source tree.
+`--profile confirmation` refuses a modified benchmark source tree. On the
+confirmation profile `shrinkage_ledoit_wolf+cross_conformal` was eligible
+and is now production's opt-in `--novelty-mode conformal-ledoit-wolf-v1`
+([crate README](../../crates/cytiq-cytoscan/README.md#calibrated-novelty-mode));
+no other arm was.
 
 Rule v2 replaced v1 after the development profile and before any
 confirmation seed was used; `DECISION_RULE["history"]` records both
@@ -459,7 +463,14 @@ without it; the example binary at 1,000 events equals the CLI byte for byte;
 production's `pairwise_disagreement` equals the benchmark's; with
 `--baseline-bin`, the default summary and features equal clean main's byte
 for byte (also under `--stability-seeds`), the parameters and every existing
-diagnostic are equal, and the run-time ratio is reported.
+diagnostic are equal, and the run-time ratio is reported. With
+`--rust-calibration`, every Ledoit–Wolf cell is also run through production's
+`--novelty-mode conformal-ledoit-wolf-v1 --stability-seeds 5`: its decision
+and conformal count must equal the benchmark's for every file and seed (a
+disagreement is accepted only where a held-out score lies within 1e-6 of the
+test score, since the benchmark reads features back at 12 decimals; such
+near-ties are counted), and its results are reported as the arm
+`rust_conformal_ledoit_wolf_v1`.
 
 **Limitations.** FPR claims rest on generated cohorts (a two-normal mixture
 per channel): they show what the decision rule does under exchangeability
