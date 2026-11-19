@@ -11,6 +11,7 @@ mod error;
 mod export;
 mod mixture;
 mod novelty;
+mod outlier;
 mod runner;
 mod sampling;
 

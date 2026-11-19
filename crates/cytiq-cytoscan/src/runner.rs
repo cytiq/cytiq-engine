@@ -16,9 +16,6 @@ use cytiq_fcs::{
 };
 use log::{debug, info};
 use nalgebra::DMatrix;
-use rand::SeedableRng;
-use rand::rngs::StdRng;
-use rand_distr::{Distribution, Uniform};
 use rayon::prelude::*;
 use serde::Serialize;
 
@@ -26,6 +23,7 @@ use crate::error::CytoScanError;
 use crate::export::write_outputs;
 use crate::mixture::MclustModel;
 use crate::novelty;
+use crate::outlier;
 use crate::sampling::sample_indices;
 
 pub const DEFAULT_RANDOM_SEED: u64 = 42;
@@ -308,19 +306,6 @@ struct FingerprintSplit {
     threshold: f64,
 }
 
-#[derive(Clone, Debug)]
-enum IsolationNode {
-    Leaf {
-        size: usize,
-    },
-    Split {
-        feature_index: usize,
-        threshold: f64,
-        left: Box<IsolationNode>,
-        right: Box<IsolationNode>,
-    },
-}
-
 pub struct CytoScanRunner;
 
 impl CytoScanRunner {
@@ -365,134 +350,14 @@ impl CytoScanRunner {
         let test_files = load_files(&test_paths, &config.channels, config.strict)?;
         let reference_files = load_files(&reference_paths, &config.channels, config.strict)?;
         ensure_compatible_preprocessing(&test_files, &reference_files)?;
-        let aggregate_files = if config.flag_method.includes_novelty() {
-            &reference_files
-        } else {
-            &test_files
-        };
-        let aggregate_source = if config.flag_method.includes_novelty() {
-            "reference"
-        } else {
-            "test"
-        };
-        let seed = config.random_seed;
-        let feature_model = build_feature_model(config.feature_method, aggregate_files, seed)?;
-        let test_features =
-            build_feature_matrix(&test_files, config.feature_method, &feature_model, seed)?;
-        let reference_features = if config.flag_method.includes_novelty() {
-            Some(build_feature_matrix(
-                &reference_files,
-                config.feature_method,
-                &feature_model,
-                seed,
-            )?)
-        } else {
-            None
-        };
-        let outlier_scores = if config.flag_method.includes_outlier() {
-            Some(score_outliers(&test_features.values(), seed))
-        } else {
-            None
-        };
-        let novelty = if config.flag_method.includes_novelty() {
-            let reference_features = reference_features
-                .as_ref()
-                .expect("reference features should exist for novelty");
-            ensure_feature_shape(reference_features, &test_features)?;
-            let model = novelty::fit(&reference_features.values(), DEFAULT_NOVELTY_QUANTILE)?;
-            let test_log_likelihoods = test_features
-                .values()
-                .iter()
-                .map(|row| model.log_density(row))
-                .collect::<Vec<_>>();
-            Some((model, test_log_likelihoods))
-        } else {
-            None
-        };
-
-        let mut warnings = collect_warnings(&test_files, &reference_files);
-        let reference_count = reference_features
-            .as_ref()
-            .map_or(0, |matrix| matrix.rows.len());
-        if novelty.is_some() && reference_count <= test_features.feature_names.len() {
-            warnings.push(format!(
-                "novelty: {reference_count} reference file(s) for {} features: as in mclust, only spherical and diagonal covariance models can be fitted, and the {}% threshold rests on {reference_count} log-densities; add reference files (more than features) for a reliable novelty flag",
-                test_features.feature_names.len(),
-                DEFAULT_NOVELTY_QUANTILE * 100.0
-            ));
-        }
-        let summary_rows = build_summary_rows(
-            config,
-            &test_files,
-            &test_features,
-            outlier_scores.as_deref(),
-            novelty.as_ref().map(|(_, values)| values.as_slice()),
-            novelty.as_ref().map(|(model, _)| model.threshold),
-        );
-        let diagnostics = CytoScanDiagnostics {
-            reference_count,
-            reference_effective_rank: reference_features
-                .as_ref()
-                .map(|features| reference_rank(&features.values())),
-            constant_reference_features: reference_features.as_ref().map_or_else(
-                Vec::new,
-                |features| {
-                    (0..features.feature_names.len())
-                        .filter(|&i| {
-                            // Constancy is exact, with +0 and -0 equivalent.
-                            #[allow(clippy::float_cmp)]
-                            features
-                                .rows
-                                .iter()
-                                .all(|row| row.values[i] == features.rows[0].values[i])
-                        })
-                        .map(|i| features.feature_names[i].clone())
-                        .collect()
-                },
-            ),
-            novelty_calibration_status: if novelty.is_none() {
-                "not_assessed"
-            } else if reference_count <= test_features.feature_names.len()
-                || (reference_count as f64 * DEFAULT_NOVELTY_QUANTILE) < 1.0
-                || novelty.as_ref().is_some_and(|(model, _)| {
-                    model
-                        .effective_counts(reference_count)
-                        .iter()
-                        .any(|&n| n <= test_features.feature_names.len() as f64)
-                })
-            {
-                "insufficient_reference"
-            } else {
-                "in_sample_only"
-            }
-            .into(),
-            novelty_component_effective_counts: novelty
-                .as_ref()
-                .map(|(model, _)| model.effective_counts(reference_count)),
-            preprocessing: test_files
-                .first()
-                .map_or_else(Vec::new, |file| file.preprocessing.clone()),
-            aggregate_source: aggregate_source.to_owned(),
-            aggregate_files: aggregate_files
-                .iter()
-                .map(|file| file.path.clone())
-                .collect(),
-            aggregate_events: if config.feature_method.uses_aggregate() {
-                aggregate_event_count(aggregate_files)
-            } else {
-                0
-            },
-            feature_count: test_features.feature_names.len(),
-            outlier_tree_count: config
-                .flag_method
-                .includes_outlier()
-                .then_some(DEFAULT_ISOLATION_TREES),
-            novelty_components: novelty.as_ref().map(|(model, _)| model.components()),
-            novelty_model: novelty.as_ref().map(|(model, _)| model.model()),
-            novelty_bic: novelty.as_ref().map(|(model, _)| model.bic()),
-            novelty_threshold: novelty.as_ref().map(|(model, _)| model.threshold),
-            warnings,
-        };
+        let analysis = analyse(config, &test_files, &reference_files, config.random_seed)?;
+        let diagnostics = build_diagnostics(config, &test_files, &reference_files, &analysis);
+        let summary_rows = build_summary_rows(config, &test_files, &analysis);
+        let SeedAnalysis {
+            test_features,
+            reference_features,
+            ..
+        } = analysis;
         let result = CytoScanResult {
             parameters: build_parameters(config, &test_paths, &reference_paths),
             test_features,
@@ -508,6 +373,170 @@ impl CytoScanRunner {
         );
 
         Ok(result)
+    }
+}
+
+/// What one algorithm seed decides: the features, the outlier scores and the
+/// novelty model with the test files' log-likelihoods.
+pub(crate) struct SeedAnalysis {
+    pub(crate) test_features: CytoScanFeatureMatrix,
+    pub(crate) reference_features: Option<CytoScanFeatureMatrix>,
+    pub(crate) outlier_scores: Option<Vec<f64>>,
+    pub(crate) novelty: Option<(novelty::NoveltyModel, Vec<f64>)>,
+}
+
+/// The files the aggregate (EMD, binning, fingerprint) is drawn from: the
+/// reference cohort when novelty is on, as upstream, else the test cohort.
+fn aggregate_files<'a>(
+    config: &CytoScanConfig,
+    test_files: &'a [LoadedFile],
+    reference_files: &'a [LoadedFile],
+) -> (&'a [LoadedFile], &'static str) {
+    if config.flag_method.includes_novelty() {
+        (reference_files, "reference")
+    } else {
+        (test_files, "test")
+    }
+}
+
+/// Features, outlier scores and novelty model of the loaded files at `seed`.
+/// Loading and preprocessing use no randomness, so the same files serve
+/// every seed.
+pub(crate) fn analyse(
+    config: &CytoScanConfig,
+    test_files: &[LoadedFile],
+    reference_files: &[LoadedFile],
+    seed: u64,
+) -> Result<SeedAnalysis, CytoScanError> {
+    let (aggregate_files, _) = aggregate_files(config, test_files, reference_files);
+    let feature_model = build_feature_model(config.feature_method, aggregate_files, seed)?;
+    let test_features =
+        build_feature_matrix(test_files, config.feature_method, &feature_model, seed)?;
+    let reference_features = if config.flag_method.includes_novelty() {
+        Some(build_feature_matrix(
+            reference_files,
+            config.feature_method,
+            &feature_model,
+            seed,
+        )?)
+    } else {
+        None
+    };
+    let outlier_scores = if config.flag_method.includes_outlier() {
+        Some(outlier::score(&test_features.values(), seed))
+    } else {
+        None
+    };
+    let novelty = if config.flag_method.includes_novelty() {
+        let reference_features = reference_features
+            .as_ref()
+            .expect("reference features should exist for novelty");
+        ensure_feature_shape(reference_features, &test_features)?;
+        let model = novelty::fit(&reference_features.values(), DEFAULT_NOVELTY_QUANTILE)?;
+        let test_log_likelihoods = test_features
+            .values()
+            .iter()
+            .map(|row| model.log_density(row))
+            .collect::<Vec<_>>();
+        Some((model, test_log_likelihoods))
+    } else {
+        None
+    };
+    Ok(SeedAnalysis {
+        test_features,
+        reference_features,
+        outlier_scores,
+        novelty,
+    })
+}
+
+fn build_diagnostics(
+    config: &CytoScanConfig,
+    test_files: &[LoadedFile],
+    reference_files: &[LoadedFile],
+    analysis: &SeedAnalysis,
+) -> CytoScanDiagnostics {
+    let SeedAnalysis {
+        test_features,
+        reference_features,
+        novelty,
+        ..
+    } = analysis;
+    let (aggregate_files, aggregate_source) = aggregate_files(config, test_files, reference_files);
+    let mut warnings = collect_warnings(test_files, reference_files);
+    let reference_count = reference_features
+        .as_ref()
+        .map_or(0, |matrix| matrix.rows.len());
+    if novelty.is_some() && reference_count <= test_features.feature_names.len() {
+        warnings.push(format!(
+            "novelty: {reference_count} reference file(s) for {} features: as in mclust, only spherical and diagonal covariance models can be fitted, and the {}% threshold rests on {reference_count} log-densities; add reference files (more than features) for a reliable novelty flag",
+            test_features.feature_names.len(),
+            DEFAULT_NOVELTY_QUANTILE * 100.0
+        ));
+    }
+    CytoScanDiagnostics {
+        reference_count,
+        reference_effective_rank: reference_features
+            .as_ref()
+            .map(|features| reference_rank(&features.values())),
+        constant_reference_features: reference_features.as_ref().map_or_else(
+            Vec::new,
+            |features| {
+                (0..features.feature_names.len())
+                    .filter(|&i| {
+                        // Constancy is exact, with +0 and -0 equivalent.
+                        #[allow(clippy::float_cmp)]
+                        features
+                            .rows
+                            .iter()
+                            .all(|row| row.values[i] == features.rows[0].values[i])
+                    })
+                    .map(|i| features.feature_names[i].clone())
+                    .collect()
+            },
+        ),
+        novelty_calibration_status: if novelty.is_none() {
+            "not_assessed"
+        } else if reference_count <= test_features.feature_names.len()
+            || (reference_count as f64 * DEFAULT_NOVELTY_QUANTILE) < 1.0
+            || novelty.as_ref().is_some_and(|(model, _)| {
+                model
+                    .effective_counts(reference_count)
+                    .iter()
+                    .any(|&n| n <= test_features.feature_names.len() as f64)
+            })
+        {
+            "insufficient_reference"
+        } else {
+            "in_sample_only"
+        }
+        .into(),
+        novelty_component_effective_counts: novelty
+            .as_ref()
+            .map(|(model, _)| model.effective_counts(reference_count)),
+        preprocessing: test_files
+            .first()
+            .map_or_else(Vec::new, |file| file.preprocessing.clone()),
+        aggregate_source: aggregate_source.to_owned(),
+        aggregate_files: aggregate_files
+            .iter()
+            .map(|file| file.path.clone())
+            .collect(),
+        aggregate_events: if config.feature_method.uses_aggregate() {
+            aggregate_event_count(aggregate_files)
+        } else {
+            0
+        },
+        feature_count: test_features.feature_names.len(),
+        outlier_tree_count: config
+            .flag_method
+            .includes_outlier()
+            .then_some(DEFAULT_ISOLATION_TREES),
+        novelty_components: novelty.as_ref().map(|(model, _)| model.components()),
+        novelty_model: novelty.as_ref().map(|(model, _)| model.model()),
+        novelty_bic: novelty.as_ref().map(|(model, _)| model.bic()),
+        novelty_threshold: novelty.as_ref().map(|(model, _)| model.threshold),
+        warnings,
     }
 }
 
@@ -1445,12 +1474,16 @@ fn ensure_feature_shape(
 fn build_summary_rows(
     config: &CytoScanConfig,
     test_files: &[LoadedFile],
-    test_features: &CytoScanFeatureMatrix,
-    outlier_scores: Option<&[f64]>,
-    novelty_log_likelihoods: Option<&[f64]>,
-    novelty_threshold: Option<f64>,
+    analysis: &SeedAnalysis,
 ) -> Vec<CytoScanSummaryRow> {
-    test_features
+    let outlier_scores = analysis.outlier_scores.as_deref();
+    let novelty_log_likelihoods = analysis
+        .novelty
+        .as_ref()
+        .map(|(_, values)| values.as_slice());
+    let novelty_threshold = analysis.novelty.as_ref().map(|(model, _)| model.threshold);
+    analysis
+        .test_features
         .rows
         .iter()
         .enumerate()
@@ -1479,139 +1512,6 @@ fn build_summary_rows(
             }
         })
         .collect()
-}
-
-/// `isotree::isolation.forest(sample_size = 1, ntrees = 1000, ndim = 1)` scored
-/// with `predict()`: every tree sees all files, depth is limited to
-/// `ceiling(log2(n))`, each split picks a non-constant column uniformly and a
-/// threshold uniformly between that column's node minimum and maximum, and the
-/// standardized score is `2^(-mean depth / c(n))` with `c(n) = 2 (H_n - 1)`.
-/// Tree `t` uses `seed + t` (wrapping), as the upstream default seed 42 does.
-fn score_outliers(features: &[Vec<f64>], seed: u64) -> Vec<f64> {
-    if features.len() < 2 || features.first().is_none_or(Vec::is_empty) {
-        return vec![0.0; features.len()];
-    }
-    let max_depth = (features.len() as f64).log2().ceil() as usize;
-    let normalization = expected_average_depth(features.len());
-    let indexes = (0..features.len()).collect::<Vec<_>>();
-    let depth_sums = (0..DEFAULT_ISOLATION_TREES)
-        .into_par_iter()
-        .map(|tree_index| {
-            let mut rng = StdRng::seed_from_u64(seed.wrapping_add(tree_index as u64));
-            let tree = build_isolation_tree(features, &indexes, 0, max_depth, &mut rng);
-            features
-                .iter()
-                .map(|row| tree.path_length(row, 0.0))
-                .collect::<Vec<_>>()
-        })
-        // collected in tree order and summed sequentially so the result does
-        // not depend on rayon's scheduling
-        .collect::<Vec<_>>()
-        .into_iter()
-        .fold(vec![0.0; features.len()], |mut totals, depths| {
-            for (total, value) in totals.iter_mut().zip(depths) {
-                *total += value;
-            }
-            totals
-        });
-    depth_sums
-        .into_iter()
-        .map(|sum| 2_f64.powf(-(sum / DEFAULT_ISOLATION_TREES as f64) / normalization))
-        .collect()
-}
-
-fn build_isolation_tree(
-    features: &[Vec<f64>],
-    indexes: &[usize],
-    depth: usize,
-    max_depth: usize,
-    rng: &mut StdRng,
-) -> IsolationNode {
-    if indexes.len() <= 1 || depth >= max_depth {
-        return IsolationNode::Leaf {
-            size: indexes.len(),
-        };
-    }
-    let mut candidates = (0..features.first().map_or(0, Vec::len)).collect::<Vec<_>>();
-    while !candidates.is_empty() {
-        let feature_index =
-            candidates.swap_remove(crate::sampling::random_index(rng, candidates.len()));
-        let (minimum, maximum) = feature_min_max(features, indexes, feature_index);
-        if maximum <= minimum {
-            // constant within this node: isotree drops the column and retries
-            continue;
-        }
-        let threshold = Uniform::new(minimum, maximum)
-            .expect("nonconstant feature range must be finite")
-            .sample(rng);
-        let (left, right): (Vec<usize>, Vec<usize>) = indexes
-            .iter()
-            .partition(|index| features[**index][feature_index] <= threshold);
-        if left.is_empty() || right.is_empty() {
-            continue;
-        }
-        return IsolationNode::Split {
-            feature_index,
-            threshold,
-            left: Box::new(build_isolation_tree(
-                features,
-                &left,
-                depth + 1,
-                max_depth,
-                rng,
-            )),
-            right: Box::new(build_isolation_tree(
-                features,
-                &right,
-                depth + 1,
-                max_depth,
-                rng,
-            )),
-        };
-    }
-    IsolationNode::Leaf {
-        size: indexes.len(),
-    }
-}
-
-impl IsolationNode {
-    fn path_length(&self, row: &[f64], depth: f64) -> f64 {
-        match self {
-            Self::Leaf { size } => depth + expected_average_depth(*size),
-            Self::Split {
-                feature_index,
-                threshold,
-                left,
-                right,
-            } => {
-                if row[*feature_index] <= *threshold {
-                    left.path_length(row, depth + 1.0)
-                } else {
-                    right.path_length(row, depth + 1.0)
-                }
-            }
-        }
-    }
-}
-
-fn feature_min_max(features: &[Vec<f64>], indexes: &[usize], feature_index: usize) -> (f64, f64) {
-    indexes.iter().fold(
-        (f64::INFINITY, f64::NEG_INFINITY),
-        |(minimum, maximum), index| {
-            let value = features[*index][feature_index];
-            (minimum.min(value), maximum.max(value))
-        },
-    )
-}
-
-/// isotree's `expected_avg_depth`: `2 (H_n - 1)` with the exact harmonic number
-/// (isotree tabulates it up to 512 and uses an asymptotic series above).
-fn expected_average_depth(size: usize) -> f64 {
-    if size <= 1 {
-        return 0.0;
-    }
-    let harmonic = (1..=size).rev().map(|k| 1.0 / k as f64).sum::<f64>();
-    2.0 * (harmonic - 1.0)
 }
 
 #[cfg(test)]
@@ -1674,40 +1574,6 @@ mod tests {
     }
 
     #[test]
-    fn expected_depth_matches_isotree_table() {
-        // isotree exp_depth_table[n - 1] = 2 (H_n - 1)
-        for (size, expected) in [
-            (1, 0.0),
-            (2, 1.0),
-            (3, 1.666_666_666_666_666_5),
-            (10, 3.857_936_507_936_507_5),
-            (20, 5.195_479_314_287_363),
-        ] {
-            assert!(
-                (expected_average_depth(size) - expected).abs() < 1e-12,
-                "n = {size}"
-            );
-        }
-    }
-
-    #[test]
-    fn outlier_scores_match_isotree_within_monte_carlo_noise() {
-        // 1000-tree isotree scores vary by ~0.014 between independent seeds
-        let scores = score_outliers(&rows(&ISOTREE_POINTS), DEFAULT_RANDOM_SEED);
-        for (actual, expected) in scores.iter().zip(ISOTREE_SCORES) {
-            assert!((actual - expected).abs() < 0.03, "{actual} vs {expected}");
-            assert_eq!(
-                *actual >= DEFAULT_OUTLIER_THRESHOLD,
-                expected >= DEFAULT_OUTLIER_THRESHOLD
-            );
-        }
-        assert_eq!(
-            scores,
-            score_outliers(&rows(&ISOTREE_POINTS), DEFAULT_RANDOM_SEED)
-        );
-    }
-
-    #[test]
     fn subsample_does_not_depend_on_path() {
         let matrix = (0..5_000)
             .map(|index| vec![f64::from(index)])
@@ -1728,7 +1594,7 @@ mod tests {
     }
 
     #[test]
-    fn seed_changes_the_per_file_subsample_and_the_trees() {
+    fn seed_changes_the_per_file_subsample() {
         let file = LoadedFile {
             path: PathBuf::from("a.fcs"),
             filename: "a.fcs".to_owned(),
@@ -1743,13 +1609,6 @@ mod tests {
             sampled_matrix(&file, DEFAULT_EVENTS_PER_FILE, DEFAULT_RANDOM_SEED),
             default
         );
-        let points = rows(&ISOTREE_POINTS);
-        assert_ne!(
-            score_outliers(&points, 7),
-            score_outliers(&points, DEFAULT_RANDOM_SEED)
-        );
-        // Tree seeds wrap instead of overflowing.
-        assert_eq!(score_outliers(&points, u64::MAX).len(), points.len());
     }
 
     #[test]
