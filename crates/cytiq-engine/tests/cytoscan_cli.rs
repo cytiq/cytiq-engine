@@ -914,6 +914,210 @@ fn cli_refuses_to_leave_stale_stability_outputs() {
     assert_eq!(rows.len(), 3 * 3);
 }
 
+/// `count` reference files with deterministic per-file variation in every
+/// channel, so their summary features are not collinear.
+fn write_varied_references(directory: &Path, count: u16) {
+    fs::create_dir_all(directory).expect("reference directory");
+    for index in 0..count {
+        let x = f32::from(index);
+        let offset = (x * 0.37).sin() * 4.0 + (x * 1.3).cos() * 2.0;
+        write_cytoscan_fixture_events(
+            &directory.join(format!("reference_{index:02}.fcs")),
+            offset,
+            80 + index * 7,
+        );
+    }
+}
+
+fn conformal_run(directory: &Path, references: u16) -> (PathBuf, std::process::Output) {
+    let input_dir = directory.join("test");
+    let reference_dir = directory.join("reference");
+    let output_dir = directory.join("out");
+    write_varied_references(&reference_dir, references);
+    write_cytoscan_fixture_set(&input_dir, &[1.0, 900.0, -2.0]);
+    let output = run_cytoscan(&[
+        "--input",
+        utf8(&input_dir),
+        "--reference",
+        utf8(&reference_dir),
+        "--output",
+        utf8(&output_dir),
+        "--channels",
+        "CD3,CD4,CD8",
+        "--method",
+        "summary",
+        "--flag-method",
+        "novelty",
+        "--novelty-mode",
+        "conformal-ledoit-wolf-v1",
+    ]);
+    (output_dir, output)
+}
+
+#[test]
+fn cli_conformal_mode_decides_with_p_values() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-conformal");
+    let (output_dir, output) = conformal_run(&directory, 24);
+    assert_success(&output);
+    let header = read_csv_header(&output_dir.join("cytoscan_summary.csv"));
+    assert_eq!(
+        header[header.len() - 2..],
+        ["novelty_p_value".to_owned(), "novelty_decision".to_owned()]
+    );
+    let rows = read_csv_rows(&output_dir.join("cytoscan_summary.csv"));
+    let column = |name: &str| header.iter().position(|h| h == name).expect(name);
+    // The file 900 units off every reference is below every held-out
+    // reference in every fold: count 0, p = 1/25.
+    let far = &rows[1];
+    assert_eq!(far.get(column("is_novelty")), Some("true"));
+    assert_eq!(far.get(column("novelty_decision")), Some("novel"));
+    assert_eq!(far.get(column("novelty_p_value")), Some("0.040000000000"));
+    for row in &rows {
+        let decision = row.get(column("novelty_decision")).expect("decision");
+        let flagged = row.get(column("is_novelty")).expect("flag");
+        assert_eq!(decision == "novel", flagged == "true");
+        let p: f64 = row
+            .get(column("novelty_p_value"))
+            .expect("p")
+            .parse()
+            .expect("number");
+        assert_eq!(p <= 0.05, flagged == "true", "{p}");
+    }
+    let config = read_json(&output_dir.join("cytoscan_config.json"));
+    let diagnostics = &config["diagnostics"];
+    assert_eq!(diagnostics["novelty_calibration_status"], "cross_conformal");
+    assert_eq!(
+        diagnostics["novelty_flag"]["threshold_rule"],
+        "cross_conformal_p_value"
+    );
+    assert_eq!(diagnostics["novelty_conformal"]["status"], "decided");
+    assert_eq!(diagnostics["novelty_conformal"]["folds"], 10);
+    assert_eq!(diagnostics["novelty_conformal"]["reference_count"], 24);
+    assert!(diagnostics["novelty_model"].is_null());
+    assert!(diagnostics["novelty_threshold"].is_null());
+    assert_eq!(
+        config["parameters"]["novelty_mode"],
+        "conformal-ledoit-wolf-v1"
+    );
+    let record = read_json(&output_dir.join("provenance.json"));
+    assert_eq!(record["config"]["novelty_mode"], "conformal-ledoit-wolf-v1");
+}
+
+#[test]
+fn cli_conformal_mode_stability_rows_carry_p_values() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-conformal-stability");
+    let input_dir = directory.join("test");
+    let reference_dir = directory.join("reference");
+    let output_dir = directory.join("out");
+    write_varied_references(&reference_dir, 20);
+    write_cytoscan_fixture_set(&input_dir, &[1.0, 900.0]);
+    assert_success(&run_cytoscan(&[
+        "--input",
+        utf8(&input_dir),
+        "--reference",
+        utf8(&reference_dir),
+        "--output",
+        utf8(&output_dir),
+        "--channels",
+        "CD3,CD4,CD8",
+        "--method",
+        "quantiles",
+        "--flag-method",
+        "both",
+        "--novelty-mode",
+        "conformal-ledoit-wolf-v1",
+        "--stability-seeds",
+        "2",
+    ]));
+    let header = read_csv_header(&output_dir.join("cytoscan_stability_seeds.csv"));
+    assert_eq!(header.last().map(String::as_str), Some("novelty_p_value"));
+    let seeds = read_csv_rows(&output_dir.join("cytoscan_stability_seeds.csv"));
+    let summary_header = read_csv_header(&output_dir.join("cytoscan_summary.csv"));
+    let summary = read_csv_rows(&output_dir.join("cytoscan_summary.csv"));
+    let p = summary_header
+        .iter()
+        .position(|h| h == "novelty_p_value")
+        .expect("p");
+    for (seed_row, summary_row) in seeds.iter().take(2).zip(&summary) {
+        assert_eq!(seed_row.get(header.len() - 1), summary_row.get(p));
+        // No in-sample threshold in this mode.
+        assert_eq!(seed_row.get(header.len() - 2), Some(""));
+    }
+    // 80-event files: nothing is subsampled, every seed decides alike.
+    let diagnostics = &read_json(&output_dir.join("cytoscan_config.json"))["diagnostics"];
+    assert_eq!(
+        diagnostics["novelty_flag"]["stability_status"],
+        "seed_invariant"
+    );
+}
+
+#[test]
+fn cli_conformal_mode_abstains_below_nineteen_references() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-conformal-abstain");
+    let (output_dir, output) = conformal_run(&directory, 18);
+    assert_success(&output);
+    let header = read_csv_header(&output_dir.join("cytoscan_summary.csv"));
+    let column = |name: &str| header.iter().position(|h| h == name).expect(name);
+    for row in read_csv_rows(&output_dir.join("cytoscan_summary.csv")) {
+        assert_eq!(row.get(column("is_novelty")), Some(""));
+        assert_eq!(row.get(column("novelty_p_value")), Some(""));
+        assert_eq!(row.get(column("novelty_decision")), Some("abstain"));
+        assert_ne!(row.get(column("novelty_log_likelihood")), Some(""));
+    }
+    let diagnostics = &read_json(&output_dir.join("cytoscan_config.json"))["diagnostics"];
+    assert_eq!(
+        diagnostics["novelty_calibration_status"],
+        "abstained_insufficient_reference"
+    );
+    assert_eq!(
+        diagnostics["novelty_conformal"]["status"],
+        "abstained_insufficient_reference"
+    );
+    assert!(
+        diagnostics["warnings"]
+            .to_string()
+            .contains("the conformal mode abstained"),
+        "{diagnostics}"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("the conformal mode abstained"));
+}
+
+#[test]
+fn cli_conformal_mode_refuses_unvalidated_settings() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-conformal-refused");
+    let input_dir = directory.join("test");
+    let reference_dir = directory.join("reference");
+    write_cytoscan_fixture_set(&input_dir, &[0.0, 5.0]);
+    write_varied_references(&reference_dir, 4);
+    for (method, flag) in [("binning", "novelty"), ("summary", "outlier")] {
+        let output_dir = directory.join(format!("out-{method}-{flag}"));
+        let output = run_cytoscan(&[
+            "--input",
+            utf8(&input_dir),
+            "--reference",
+            utf8(&reference_dir),
+            "--output",
+            utf8(&output_dir),
+            "--channels",
+            "CD3,CD4",
+            "--method",
+            method,
+            "--flag-method",
+            flag,
+            "--novelty-mode",
+            "conformal-ledoit-wolf-v1",
+        ]);
+        assert_eq!(output.status.code(), Some(2), "{method} {flag}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("--novelty-mode conformal-ledoit-wolf-v1 is not available"),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!output_dir.exists());
+    }
+}
+
 fn read_csv_header(path: &Path) -> Vec<String> {
     let mut reader = csv::Reader::from_path(path).expect("CSV should open");
     reader

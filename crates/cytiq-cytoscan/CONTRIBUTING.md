@@ -17,6 +17,9 @@ this crate.
   calibration status, the exact seed-dependence rule.
 - `src/stability.rs` — `--stability-seeds`: derived seeds, per-seed analyses
   of the loaded files, per-file and per-flag agreement.
+- `src/calibration.rs` — `--novelty-mode conformal-ledoit-wolf-v1`: the
+  Ledoit–Wolf Gaussian (port of `sklearn.covariance.LedoitWolf`), folds and the
+  cross-conformal integer rule.
 - `src/mixture.rs` — port of `mclust::Mclust`'s default search: `hcEII`
   start (Ward on SVD-whitened data), EM for `EII` … `VVV`, BIC table and
   `pickBIC`; unit tests against mclust's BIC table, `hclass` and `dens`.
@@ -59,6 +62,14 @@ this crate.
   every seed, so a wrong rule fails loudly instead of misreporting.
 - The debug boxplots sample `DISPLAY_EVENTS_PER_FILE` events: every value is
   one row, so they must not follow `events_per_file`.
+- The conformal mode is exactly what the novelty benchmark validated:
+  folds `i mod min(n, 10)` over the resolved reference order, counts with
+  `<=`, the decision `20 (1 + c) <= n + 1` in integers, abstention below 19
+  references, summary/quantiles only. `novelty_benchmark.py run
+  --rust-calibration` compares production with the benchmark's composition
+  seed by seed; a change here needs a new versioned mode, not an edit of v1.
+- The default `upstream` mode's outputs stay byte-identical: the conformal
+  columns are written only in the conformal mode.
 - Preprocessing order is truncate at `$PnR`, compensate, then
   `asinh(x / 150)`. Missing spillover is a warning, not an error.
 - The aggregate takes `ceil(10000 / n_files)` events from every file without
@@ -89,6 +100,9 @@ cargo test -p cytiq-engine --test cytoscan_cli
 - `src/novelty.rs` `#[cfg(test)]` — `XXX` densities, determinism, no model.
 - `src/outlier.rs` `#[cfg(test)]` — isotree expected depth, scores within
   Monte Carlo noise, seed dependence of the trees.
+- `src/calibration.rs` `#[cfg(test)]` — Ledoit–Wolf against scikit-learn,
+  one feature, singular data, folds, the integer rule at 18/19/39 references,
+  abstention, ties, a singular fold.
 - `src/stability.rs` / `src/assessment.rs` `#[cfg(test)]` — seed derivation
   and disjointness, flag boundaries, medians and infinite margins, failed
   seeds, pairwise disagreement, the seed-dependence rule.

@@ -97,6 +97,8 @@ pub enum CytoScanError {
     NoveltyFit { reason: String },
     #[error("events per file must be at least 1")]
     InvalidEventsPerFile,
+    #[error("--novelty-mode {mode} is not available here: {reason}")]
+    UnsupportedNoveltyMode { mode: &'static str, reason: String },
     #[error("--stability-seeds must be between 2 and {max}, got {requested}")]
     InvalidStabilitySeeds { requested: usize, max: usize },
     #[error(

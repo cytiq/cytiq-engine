@@ -8,6 +8,7 @@
 //! <https://github.com/AUMC-HEMA/CytoScan>
 
 mod assessment;
+mod calibration;
 mod error;
 mod export;
 mod mixture;
@@ -21,15 +22,18 @@ pub use crate::assessment::{
     Assessment, CalibrationStatus, FlagAssessment, FlagScope, SeedDependence, StabilityStatus,
     ThresholdRule,
 };
+pub use crate::calibration::{
+    CONFORMAL_ALPHA, CONFORMAL_MAX_FOLDS, ConformalStatus, MIN_CONFORMAL_REFERENCE, NoveltyMode,
+};
 pub use crate::error::CytoScanError;
 pub use crate::mixture::MclustModel;
 pub use crate::runner::{
-    ChannelPreprocessing, CytoScanConfig, CytoScanConstants, CytoScanDiagnostics,
-    CytoScanFeatureMatrix, CytoScanFeatureRow, CytoScanParameters, CytoScanResult, CytoScanRunner,
-    CytoScanSummaryRow, DEFAULT_AGGREGATE_EVENTS, DEFAULT_ARCSINH_COFACTOR,
-    DEFAULT_EVENTS_PER_FILE, DEFAULT_FINGERPRINT_RECURSIONS, DEFAULT_ISOLATION_TREES,
-    DEFAULT_NOVELTY_QUANTILE, DEFAULT_OUTLIER_THRESHOLD, DEFAULT_QUANTILE_STEP,
-    DEFAULT_RANDOM_SEED, FeatureMethod, FlagMethod,
+    ChannelPreprocessing, ConformalDiagnostics, CytoScanConfig, CytoScanConstants,
+    CytoScanDiagnostics, CytoScanFeatureMatrix, CytoScanFeatureRow, CytoScanParameters,
+    CytoScanResult, CytoScanRunner, CytoScanSummaryRow, DEFAULT_AGGREGATE_EVENTS,
+    DEFAULT_ARCSINH_COFACTOR, DEFAULT_EVENTS_PER_FILE, DEFAULT_FINGERPRINT_RECURSIONS,
+    DEFAULT_ISOLATION_TREES, DEFAULT_NOVELTY_QUANTILE, DEFAULT_OUTLIER_THRESHOLD,
+    DEFAULT_QUANTILE_STEP, DEFAULT_RANDOM_SEED, FeatureMethod, FlagMethod, NoveltyDecision,
 };
 pub use crate::stability::{
     CytoScanStability, CytoScanStabilityFileRow, CytoScanStabilitySeedRow, FailedSeed,

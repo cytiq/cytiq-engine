@@ -29,6 +29,9 @@ pub enum ThresholdRule {
     /// The `threshold_parameter` quantile of the reference files' own
     /// log-densities under the model fitted on them, as upstream.
     InSampleQuantile,
+    /// A cross-conformal p-value at most `threshold_parameter`
+    /// (`--novelty-mode conformal-ledoit-wolf-v1`).
+    CrossConformalPValue,
 }
 
 /// What the cut-off's false-positive rate is known to be.
@@ -47,6 +50,15 @@ pub enum CalibrationStatus {
     InSampleOnly,
     /// A fixed score cut-off without any reference: not a rate at all.
     UncalibratedHeuristic,
+    /// Cross-conformal p-values from held-out reference folds: the
+    /// false-positive rate is at most about the nominal rate on average over
+    /// exchangeable reference cohorts (marginal, not per cohort).
+    CrossConformal,
+    /// The conformal mode abstained: fewer than 19 reference files.
+    AbstainedInsufficientReference,
+    /// The conformal mode abstained: a fold's shrunk covariance is not
+    /// positive definite.
+    AbstainedFitFailed,
 }
 
 impl CalibrationStatus {
@@ -57,6 +69,9 @@ impl CalibrationStatus {
             Self::InsufficientReference => "insufficient_reference",
             Self::InSampleOnly => "in_sample_only",
             Self::UncalibratedHeuristic => "uncalibrated_heuristic",
+            Self::CrossConformal => "cross_conformal",
+            Self::AbstainedInsufficientReference => "abstained_insufficient_reference",
+            Self::AbstainedFitFailed => "abstained_fit_failed",
         }
     }
 }
@@ -131,6 +146,21 @@ impl FlagAssessment {
         Self {
             scope: FlagScope::AgainstReference,
             threshold_rule: ThresholdRule::InSampleQuantile,
+            threshold_parameter: DEFAULT_NOVELTY_QUANTILE,
+            calibration_status,
+            population_false_positive_rate: Assessment::NotAssessed,
+            seed_dependence,
+            stability_status: StabilityStatus::NotAssessed,
+        }
+    }
+
+    pub(crate) const fn conformal(
+        calibration_status: CalibrationStatus,
+        seed_dependence: SeedDependence,
+    ) -> Self {
+        Self {
+            scope: FlagScope::AgainstReference,
+            threshold_rule: ThresholdRule::CrossConformalPValue,
             threshold_parameter: DEFAULT_NOVELTY_QUANTILE,
             calibration_status,
             population_false_positive_rate: Assessment::NotAssessed,
@@ -228,11 +258,22 @@ mod tests {
         assert_eq!(json["population_false_positive_rate"], "not_assessed");
         assert_eq!(json["seed_dependence"], "seed_dependent");
         assert_eq!(json["stability_status"], "not_assessed");
+        let conformal = serde_json::to_value(FlagAssessment::conformal(
+            CalibrationStatus::CrossConformal,
+            SeedDependence::SeedInvariant,
+        ))
+        .expect("json");
+        assert_eq!(conformal["threshold_rule"], "cross_conformal_p_value");
+        assert_eq!(conformal["threshold_parameter"], 0.05);
+        assert_eq!(conformal["calibration_status"], "cross_conformal");
         for status in [
             CalibrationStatus::NotAssessed,
             CalibrationStatus::InsufficientReference,
             CalibrationStatus::InSampleOnly,
             CalibrationStatus::UncalibratedHeuristic,
+            CalibrationStatus::CrossConformal,
+            CalibrationStatus::AbstainedInsufficientReference,
+            CalibrationStatus::AbstainedFitFailed,
         ] {
             assert_eq!(serde_json::to_value(status).expect("json"), status.as_str());
         }

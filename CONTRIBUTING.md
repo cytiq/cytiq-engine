@@ -223,7 +223,8 @@ analysis and their extracted helpers in ten crates, plus the validation,
 reconciliation, anchor-reliability and comparison functions of
 `cytiq-population` and `cytiq-specimen`, and the artifact-truth contract,
 artifact-removal metrics and retention core of `cytiq-qc`, and the seed-stability
-aggregation and seed-dependence rules of `cytiq-cytoscan`. Keep this selection in sync
+aggregation, seed-dependence rules and conformal Ledoit–Wolf novelty mode of
+`cytiq-cytoscan`. Keep this selection in sync
 when extracting or renaming helpers: a move must not remove mutation coverage.
 The runner rejects an empty selection and checks the unmodified tests before
 injecting mutations into a scratch copy; the working tree is never mutated.

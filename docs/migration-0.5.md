@@ -224,10 +224,21 @@ its flags depend on the seed. Without `--stability-seeds`,
   `--overwrite`: they would describe other outputs. Delete them, or pass
   `--stability-seeds` again.
 
+- `--novelty-mode conformal-ledoit-wolf-v1` is a new, opt-in novelty
+  decision: a Ledoit–Wolf Gaussian with a cross-conformal p-value at 1/20,
+  for summary and quantiles features, abstaining below 19 references. It
+  appends `novelty_p_value` and `novelty_decision` to `cytoscan_summary.csv`
+  and records `novelty_mode` in provenance; the default `upstream` mode is
+  unchanged.
+
 Rust API: `CytoScanConfig` gains `events_per_file` (default
-`DEFAULT_EVENTS_PER_FILE`) and `stability_seeds` (default `None`);
+`DEFAULT_EVENTS_PER_FILE`), `stability_seeds` (default `None`) and
+`novelty_mode` (default `NoveltyMode::Upstream`);
 `CytoScanResult` gains `stability`, `CytoScanParameters` `stability_seeds`
-and `CytoScanDiagnostics` `outlier_flag`, `novelty_flag` and `stability`.
+and `novelty_mode`, `CytoScanSummaryRow` `novelty_p_value` and
+`novelty_decision`, and `CytoScanDiagnostics` `outlier_flag`,
+`novelty_flag`, `stability` and `novelty_conformal`.
 Struct literals need the new fields; `CytoScanConfig::new` sets the
 defaults. `CytoScanError` gains `InvalidEventsPerFile`,
-`InvalidStabilitySeeds` and `StaleStabilityOutput`.
+`InvalidStabilitySeeds`, `StaleStabilityOutput` and
+`UnsupportedNoveltyMode`.

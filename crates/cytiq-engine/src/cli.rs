@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use cytiq_autospill::MatrixKind;
 use cytiq_clean::{DebrisMode, FilterKind};
 use cytiq_compensate::MatrixKind as CompensateMatrixKind;
-use cytiq_cytoscan::{FeatureMethod, FlagMethod};
+use cytiq_cytoscan::{FeatureMethod, FlagMethod, NoveltyMode};
 use cytiq_gating::OutputFormat as GateOutputFormat;
 use cytiq_peacoqc::PeacoQcMethod;
 use cytiq_plot::{OutputFormat, Palette, PlotKind, RemovedLayer, ScaleChoice};
@@ -418,6 +418,34 @@ impl From<CliCytoScanFlagMethod> for FlagMethod {
             CliCytoScanFlagMethod::Outlier => Self::Outlier,
             CliCytoScanFlagMethod::Novelty => Self::Novelty,
             CliCytoScanFlagMethod::Both => Self::Both,
+        }
+    }
+}
+
+/// `cytoscan --novelty-mode`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum CliNoveltyMode {
+    /// As upstream: mclust mixture, in-sample 5% threshold.
+    Upstream,
+    /// Ledoit–Wolf Gaussian with a cross-conformal p-value at 1/20
+    /// (summary and quantiles; abstains below 19 references).
+    ConformalLedoitWolfV1,
+}
+
+impl CliNoveltyMode {
+    /// The default; not recorded, so upstream runs keep their config.
+    #[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+    pub(crate) const fn is_upstream(&self) -> bool {
+        matches!(self, Self::Upstream)
+    }
+}
+
+impl From<CliNoveltyMode> for NoveltyMode {
+    fn from(value: CliNoveltyMode) -> Self {
+        match value {
+            CliNoveltyMode::Upstream => Self::Upstream,
+            CliNoveltyMode::ConformalLedoitWolfV1 => Self::ConformalLedoitWolfV1,
         }
     }
 }

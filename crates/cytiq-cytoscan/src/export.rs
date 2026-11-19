@@ -143,7 +143,7 @@ pub(crate) fn write_outputs(
             write_stability_csv(path, stability)
         })?;
         publication.stage_path(config.output_dir.join(STABILITY_SEEDS_FILE_NAME), |path| {
-            write_stability_seeds_csv(path, stability)
+            write_stability_seeds_csv(path, stability, !config.novelty_mode.is_upstream())
         })?;
     }
     publication.commit()?;
@@ -153,42 +153,58 @@ pub(crate) fn write_outputs(
     Ok(())
 }
 
+/// The upstream columns; the conformal mode appends `novelty_p_value` and
+/// `novelty_decision` (a versioned output: upstream runs keep these bytes).
 fn write_summary_csv(path: &Path, result: &CytoScanResult) -> Result<(), CytoScanError> {
+    let conformal = !result.parameters.novelty_mode.is_upstream();
     let mut writer = csv::Writer::from_path(path).map_err(|source| CytoScanError::CsvWrite {
         path: path.to_path_buf(),
         source,
     })?;
+    let mut header = vec![
+        "filename",
+        "path",
+        "flag_method",
+        "feature_method",
+        "is_outlier",
+        "outlier_score",
+        "is_novelty",
+        "novelty_log_likelihood",
+        "channels",
+        "warnings",
+    ];
+    if conformal {
+        header.extend(["novelty_p_value", "novelty_decision"]);
+    }
     writer
-        .write_record([
-            "filename",
-            "path",
-            "flag_method",
-            "feature_method",
-            "is_outlier",
-            "outlier_score",
-            "is_novelty",
-            "novelty_log_likelihood",
-            "channels",
-            "warnings",
-        ])
+        .write_record(header)
         .map_err(|source| CytoScanError::CsvWrite {
             path: path.to_path_buf(),
             source,
         })?;
     for row in &result.summary_rows {
+        let mut record = vec![
+            row.filename.clone(),
+            row.path.display().to_string(),
+            row.flag_method.as_str().to_owned(),
+            row.feature_method.as_str().to_owned(),
+            option_bool(row.is_outlier),
+            option_f64(row.outlier_score),
+            option_bool(row.is_novelty),
+            option_f64(row.novelty_log_likelihood),
+            row.channels.clone(),
+            row.warnings.clone(),
+        ];
+        if conformal {
+            record.push(option_f64(row.novelty_p_value));
+            record.push(
+                row.novelty_decision
+                    .map(|decision| decision.as_str().to_owned())
+                    .unwrap_or_default(),
+            );
+        }
         writer
-            .write_record([
-                row.filename.clone(),
-                row.path.display().to_string(),
-                row.flag_method.as_str().to_owned(),
-                row.feature_method.as_str().to_owned(),
-                option_bool(row.is_outlier),
-                option_f64(row.outlier_score),
-                option_bool(row.is_novelty),
-                option_f64(row.novelty_log_likelihood),
-                row.channels.clone(),
-                row.warnings.clone(),
-            ])
+            .write_record(record)
             .map_err(|source| CytoScanError::CsvWrite {
                 path: path.to_path_buf(),
                 source,
@@ -263,40 +279,58 @@ fn write_stability_csv(path: &Path, stability: &CytoScanStability) -> Result<(),
 }
 
 /// Per-seed rows with the summary's formatting, so the `seed_index` 0 rows
-/// repeat `cytoscan_summary.csv` value for value.
+/// repeat `cytoscan_summary.csv` value for value; the conformal mode appends
+/// `novelty_p_value`.
 fn write_stability_seeds_csv(
     path: &Path,
     stability: &CytoScanStability,
+    conformal: bool,
 ) -> Result<(), CytoScanError> {
-    write_csv(
-        path,
+    const HEADER: [&str; 10] = [
+        "seed_index",
+        "seed",
+        "status",
+        "filename",
+        "path",
+        "is_outlier",
+        "outlier_score",
+        "is_novelty",
+        "novelty_log_likelihood",
+        "novelty_threshold",
+    ];
+    let record = |row: &crate::stability::CytoScanStabilitySeedRow| {
         [
-            "seed_index",
-            "seed",
-            "status",
-            "filename",
-            "path",
-            "is_outlier",
-            "outlier_score",
-            "is_novelty",
-            "novelty_log_likelihood",
-            "novelty_threshold",
-        ],
-        stability.seed_rows.iter().map(|row| {
-            [
-                row.seed_index.to_string(),
-                row.seed.to_string(),
-                row.status.as_str().to_owned(),
-                row.filename.clone(),
-                row.path.display().to_string(),
-                option_bool(row.is_outlier),
-                option_f64(row.outlier_score),
-                option_bool(row.is_novelty),
-                option_f64(row.novelty_log_likelihood),
-                option_f64(row.novelty_threshold),
-            ]
-        }),
-    )
+            row.seed_index.to_string(),
+            row.seed.to_string(),
+            row.status.as_str().to_owned(),
+            row.filename.clone(),
+            row.path.display().to_string(),
+            option_bool(row.is_outlier),
+            option_f64(row.outlier_score),
+            option_bool(row.is_novelty),
+            option_f64(row.novelty_log_likelihood),
+            option_f64(row.novelty_threshold),
+        ]
+    };
+    if conformal {
+        let mut header = [""; 11];
+        header[..10].copy_from_slice(&HEADER);
+        header[10] = "novelty_p_value";
+        write_csv(
+            path,
+            header,
+            stability.seed_rows.iter().map(|row| {
+                let mut values: [String; 11] = Default::default();
+                for (slot, value) in values.iter_mut().zip(record(row)) {
+                    *slot = value;
+                }
+                values[10] = option_f64(row.novelty_p_value);
+                values
+            }),
+        )
+    } else {
+        write_csv(path, HEADER, stability.seed_rows.iter().map(record))
+    }
 }
 
 fn write_feature_matrix_csv(

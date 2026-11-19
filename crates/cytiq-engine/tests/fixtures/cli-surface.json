@@ -1897,6 +1897,29 @@
             "value_names": [
               "N"
             ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [
+              "upstream"
+            ],
+            "global": false,
+            "hidden": false,
+            "id": "novelty_mode",
+            "long": "novelty-mode",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "upstream",
+              "conformal-ledoit-wolf-v1"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "NOVELTY_MODE"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,

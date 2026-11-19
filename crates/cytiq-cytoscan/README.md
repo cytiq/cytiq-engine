@@ -35,7 +35,56 @@ the mixture was fitted on: held-out normal files fall below it more often than
 5%. Scores and flags are those of upstream CytoScan; read a flag as a ranking
 under one seed, not as a calibrated decision. The pre-registered novelty
 benchmark ([`parity/scientific`](../../parity/scientific/README.md#cytoscan-novelty-benchmark))
-measures false-positive rates on independent normal cohorts.
+measures false-positive rates on independent normal cohorts: on its synthetic
+confirmation cohorts the upstream flag marks 30–100% of held-out normal files
+in every summary/quantiles cell, at every reference size from 8 to 64.
+
+## Calibrated novelty mode
+
+`--novelty-mode conformal-ledoit-wolf-v1` (`CytoScanConfig::novelty_mode`,
+`NoveltyMode::ConformalLedoitWolfV1`) is the one decision the benchmark's frozen
+rule made eligible (rule v2, confirmation profile). It is opt-in and versioned;
+the default `upstream` mode is unchanged and keeps R parity.
+
+- **Model.** One Gaussian on the reference features with Ledoit–Wolf shrunk
+  covariance, as `sklearn.covariance.LedoitWolf` (unit test against
+  scikit-learn 1.9.1 to 1e-12 in the shrinkage).
+- **Threshold.** Cross-conformal: the references (in resolved order) form
+  `K = min(n, 10)` folds, reference `i` in fold `i mod K`. Each fold's model,
+  fitted without it, scores its held-out references and every test file;
+  `c = Σ_k #{held-out i : ll_k(i) ≤ ll_k(test)}`, `p = (1 + c) / (n + 1)`, and a
+  test file is novel when `20 (1 + c) ≤ n + 1` (`p ≤ 1/20`, decided in
+  integers).
+- **Abstention.** Below 19 references no p-value can reach 1/20, so every
+  file's `is_novelty` is empty, `novelty_decision` is `abstain` and the run
+  warns; a fold whose covariance is not positive definite abstains the same
+  way. The run still succeeds.
+- **Scope.** `summary` and `quantiles` features only, and only with
+  `--flag-method novelty` or `both`; other combinations are refused
+  (`UnsupportedNoveltyMode`, exit 2) because the benchmark did not validate
+  them.
+- **Outputs.** `cytoscan_summary.csv` gains `novelty_p_value` and
+  `novelty_decision` (`novel`, `not_novel`, `abstain`) after the upstream
+  columns; `is_novelty` is the calibrated decision and
+  `novelty_log_likelihood` the log-density under the model of every reference.
+  `diagnostics.novelty_calibration_status` and `novelty_flag.calibration_status`
+  are `cross_conformal`, `abstained_insufficient_reference` or
+  `abstained_fit_failed`; `diagnostics.novelty_conformal` records the folds,
+  shrinkage, guarantee and validation; the mclust fields are `null`. With
+  `--stability-seeds`, `cytoscan_stability_seeds.csv` gains `novelty_p_value`
+  and the margin is `p - 1/20`. The mode is recorded in provenance only when
+  set.
+- **What it guarantees.** On exchangeable references (same instrument, panel,
+  processing and population) the false-positive rate is about 1/20 on average
+  over reference cohorts. That is a marginal guarantee: one cohort's rate
+  varies (see `P(FPR > 0.10)` in the benchmark), and a batch or instrument
+  shift is a real difference that the mode flags. Real-data population FPR is
+  `not_assessed`.
+
+On the confirmation cohorts it gave FPR 0.027–0.053 (bootstrap upper bounds
+≤ 0.078) with every anomaly class detected at ≥ 32 references, and the
+benchmark checks production against its own composition decision for
+decision ([`REPORT.md` §9](../../parity/REPORT.md#9-cytoscan-novelty-stability-and-calibration-2026-11-19)).
 
 Every selected channel must have the same physical name, marker and effective
 preprocessing in every reference/test file. Mixing raw channels with channels
@@ -184,6 +233,7 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 | `FlagAssessment`, `FlagScope`, `ThresholdRule`, `CalibrationStatus`, `Assessment`, `SeedDependence`, `StabilityStatus` | How to read each flag (`diagnostics.outlier_flag`, `novelty_flag`) |
 | `stability_seed`, `MAX_STABILITY_SEEDS`, `STABILITY_SEED_STRIDE` | Seeds of a `--stability-seeds` run |
 | `CytoScanStability`, `CytoScanStabilityFileRow`, `CytoScanStabilitySeedRow`, `StabilitySummary`, `FlagStability`, `FailedSeed`, `FileDecision`, `SeedStatus` | Rows and summary of a stability run (`CytoScanResult::stability`, `diagnostics.stability`) |
+| `NoveltyMode`, `NoveltyDecision`, `ConformalStatus`, `ConformalDiagnostics`, `CONFORMAL_ALPHA`, `CONFORMAL_MAX_FOLDS`, `MIN_CONFORMAL_REFERENCE` | The calibrated novelty mode (`--novelty-mode`) |
 | `MclustModel` | mclust's name of the fitted novelty structure (`VVI`, `XXX`, ...) |
 | `DEFAULT_*` constants | Algorithm settings (default seed 42, overridable with `--seed`; 1,000 events, overridable through `CytoScanConfig::events_per_file`; fixed: 10,000 aggregate, 1,000 trees, 0.5 / 0.05 thresholds, cofactor 150, 4 recursions) |
 | `CytoScanError` | Error type for every failure mode |

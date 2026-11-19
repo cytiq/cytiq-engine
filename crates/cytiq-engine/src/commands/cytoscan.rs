@@ -6,7 +6,7 @@ use cytiq_provenance::{DirSnapshot, record_path_for_dir};
 use log::{info, warn};
 use serde::Serialize;
 
-use crate::cli::{CliCytoScanFeatureMethod, CliCytoScanFlagMethod};
+use crate::cli::{CliCytoScanFeatureMethod, CliCytoScanFlagMethod, CliNoveltyMode};
 use crate::parsers::{parse_channels, parse_stability_seeds, parse_threads};
 use crate::provenance::record_provenance;
 
@@ -57,6 +57,13 @@ pub(crate) struct CytoscanArgs {
     #[arg(long, value_name = "N", value_parser = parse_stability_seeds)]
     #[serde(skip_serializing_if = "Option::is_none")]
     stability_seeds: Option<usize>,
+    /// How the novelty flag is decided. `upstream` reproduces the original tool.
+    /// `conformal-ledoit-wolf-v1` is the mode the novelty benchmark
+    /// validated: a calibrated p-value per test file, written next to the
+    /// upstream columns; it abstains below 19 references.
+    #[arg(long, value_enum, default_value_t = CliNoveltyMode::Upstream)]
+    #[serde(skip_serializing_if = "CliNoveltyMode::is_upstream")]
+    novelty_mode: CliNoveltyMode,
 }
 
 pub(crate) fn run(
@@ -77,6 +84,7 @@ pub(crate) fn run(
         overwrite,
         seed,
         stability_seeds,
+        novelty_mode,
     } = args;
     info!(
         "starting cytoscan: inputs={}, references={}, output={}, method={:?}, flag_method={:?}",
@@ -100,6 +108,7 @@ pub(crate) fn run(
         random_seed: seed,
         events_per_file: cytiq_cytoscan::DEFAULT_EVENTS_PER_FILE,
         stability_seeds,
+        novelty_mode: novelty_mode.into(),
     };
     let (test, reference) = CytoScanRunner::input_files(&config)?;
     recorder.snapshot_inputs("input", &test)?;

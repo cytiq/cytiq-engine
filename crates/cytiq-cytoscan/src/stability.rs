@@ -15,8 +15,8 @@ use serde::Serialize;
 use crate::assessment::{SeedDependence, StabilityStatus};
 use crate::error::CytoScanError;
 use crate::runner::{
-    CytoScanConfig, DEFAULT_ISOLATION_TREES, DEFAULT_OUTLIER_THRESHOLD, LoadedFile, SeedAnalysis,
-    analyse_features, fit_novelty,
+    CytoScanConfig, DEFAULT_ISOLATION_TREES, DEFAULT_OUTLIER_THRESHOLD, LoadedFile,
+    NoveltyAnalysis, NoveltyValue, SeedAnalysis, analyse_features, fit_novelty,
 };
 
 /// Upper bound of `--stability-seeds`: each seed repeats the whole analysis.
@@ -115,11 +115,13 @@ pub struct CytoScanStabilitySeedRow {
     pub is_novelty: Option<bool>,
     pub novelty_log_likelihood: Option<f64>,
     pub novelty_threshold: Option<f64>,
+    /// Cross-conformal p-value (`conformal-ledoit-wolf-v1` only).
+    pub novelty_p_value: Option<f64>,
 }
 
 /// One test file over every seed (`cytoscan_stability.csv`). The novelty
-/// margin is `log-likelihood - threshold` at each seed; the file is flagged
-/// where it is `<= 0`.
+/// margin is `log-likelihood - threshold` at each seed (`p - 1/20` in the
+/// conformal mode); the file is flagged where it is `<= 0`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct CytoScanStabilityFileRow {
     pub filename: String,
@@ -193,8 +195,12 @@ struct SeedOutcome {
     status: SeedStatus,
     reason: Option<String>,
     outlier_scores: Option<Vec<f64>>,
-    /// Test log-likelihoods and the threshold.
-    novelty: Option<(Vec<f64>, f64)>,
+    /// Each test file's novelty values and the threshold (upstream only).
+    novelty: Option<(Vec<NoveltyValue>, Option<f64>)>,
+}
+
+fn novelty_values(analysis: &NoveltyAnalysis) -> (Vec<NoveltyValue>, Option<f64>) {
+    (analysis.values(), analysis.threshold())
 }
 
 impl SeedOutcome {
@@ -203,10 +209,7 @@ impl SeedOutcome {
             status: SeedStatus::Ok,
             reason: None,
             outlier_scores: analysis.outlier_scores.clone(),
-            novelty: analysis
-                .novelty
-                .as_ref()
-                .map(|(model, values)| (values.clone(), model.threshold)),
+            novelty: analysis.novelty.as_ref().map(novelty_values),
         }
     }
 }
@@ -243,8 +246,18 @@ pub(crate) fn run(
     {
         assert_identical(&outcomes, |outcome| {
             outcome.novelty.as_ref().map(|(values, threshold)| {
-                let mut all = bits(values);
-                all.push(threshold.to_bits());
+                let mut all = values
+                    .iter()
+                    .flat_map(|value| {
+                        [
+                            value.log_likelihood.map_or(u64::MAX, f64::to_bits),
+                            value.margin.map_or(u64::MAX, f64::to_bits),
+                            u64::from(value.flagged.unwrap_or(false))
+                                + 2 * u64::from(value.flagged.is_some()),
+                        ]
+                    })
+                    .collect::<Vec<_>>();
+                all.push(threshold.map_or(u64::MAX, f64::to_bits));
                 all
             })
         });
@@ -287,15 +300,23 @@ pub(crate) fn run(
         novelty: config.flag_method.includes_novelty().then(|| {
             let thresholds = outcomes
                 .iter()
-                .filter_map(|o| o.novelty.as_ref().map(|(_, threshold)| *threshold))
+                .filter_map(|o| o.novelty.as_ref().and_then(|(_, threshold)| *threshold))
                 .collect::<Vec<_>>();
+            let assessed = outcomes
+                .iter()
+                .filter(|o| {
+                    o.novelty
+                        .as_ref()
+                        .is_some_and(|(values, _)| values.iter().any(|v| v.flagged.is_some()))
+                })
+                .count();
             flag_stability(
                 &files,
-                thresholds.len(),
+                assessed,
                 novelty_dependence,
                 |row| (row.novelty_decision, row.novelty_flag_count, row.novelty_seeds_assessed),
                 |row| range(row.novelty_margin_min, row.novelty_margin_max),
-                Some(&thresholds),
+                (!thresholds.is_empty()).then_some(thresholds.as_slice()),
             )
         }),
     };
@@ -326,11 +347,7 @@ fn evaluate(
         Err(error) => return Err(error),
     };
     let (status, reason, novelty) = match fit_novelty(config, &analysis) {
-        Ok(novelty) => (
-            SeedStatus::Ok,
-            None,
-            novelty.map(|(model, values)| (values, model.threshold)),
-        ),
+        Ok(novelty) => (SeedStatus::Ok, None, novelty.as_ref().map(novelty_values)),
         Err(error @ CytoScanError::NoveltyFit { .. }) => {
             (SeedStatus::NoveltyFitFailed, Some(error.to_string()), None)
         }
@@ -369,7 +386,7 @@ fn assert_identical(outcomes: &[SeedOutcome], key: impl Fn(&SeedOutcome) -> Opti
 /// `log-likelihood - threshold`; equal values, including two infinities of
 /// the same sign, give 0, as the `<=` flag rule treats them.
 #[allow(clippy::float_cmp)]
-fn margin(log_likelihood: f64, threshold: f64) -> f64 {
+pub(crate) fn margin(log_likelihood: f64, threshold: f64) -> f64 {
     if log_likelihood == threshold {
         0.0
     } else {
@@ -403,8 +420,10 @@ fn range(minimum: Option<f64>, maximum: Option<f64>) -> Option<f64> {
     })
 }
 
+/// A flag never decided at any seed (disabled, or an abstaining conformal
+/// mode) is `NotAssessed`; decided at only some seeds it is `Unstable`.
 fn decision(enabled: bool, seeds: usize, assessed: usize, flagged: usize) -> FileDecision {
-    if !enabled {
+    if !enabled || assessed == 0 {
         FileDecision::NotAssessed
     } else if assessed < seeds || (flagged > 0 && flagged < assessed) {
         FileDecision::Unstable
@@ -426,13 +445,15 @@ fn file_row(
         .iter()
         .filter_map(|outcome| outcome.outlier_scores.as_ref().map(|scores| scores[index]))
         .collect::<Vec<_>>();
+    // Seeds at which this file's novelty flag was decided.
     let novelty = outcomes
         .iter()
         .filter_map(|outcome| {
             outcome
                 .novelty
                 .as_ref()
-                .map(|(values, threshold)| (values[index], *threshold))
+                .map(|(values, _)| values[index])
+                .filter(|value| value.flagged.is_some())
         })
         .collect::<Vec<_>>();
     let outlier_enabled = outcomes[0].outlier_scores.is_some();
@@ -443,16 +464,12 @@ fn file_row(
         .count();
     let novelty_flag_count = novelty
         .iter()
-        .filter(|(value, threshold)| value <= threshold)
+        .filter(|value| value.flagged == Some(true))
         .count();
     let (outlier_score_min, outlier_score_median, outlier_score_max) =
         min_median_max(scores.clone());
-    let (novelty_margin_min, novelty_margin_median, novelty_margin_max) = min_median_max(
-        novelty
-            .iter()
-            .map(|&(value, threshold)| margin(value, threshold))
-            .collect(),
-    );
+    let (novelty_margin_min, novelty_margin_median, novelty_margin_max) =
+        min_median_max(novelty.iter().filter_map(|value| value.margin).collect());
     CytoScanStabilityFileRow {
         filename: filename.to_owned(),
         path: path.to_path_buf(),
@@ -485,6 +502,7 @@ fn seed_rows(
                 .novelty
                 .as_ref()
                 .map(|(values, threshold)| (values[index], *threshold));
+            let value = novelty.map(|(value, _)| value);
             rows.push(CytoScanStabilitySeedRow {
                 seed_index,
                 seed,
@@ -493,9 +511,10 @@ fn seed_rows(
                 path: file.path.clone(),
                 is_outlier: outlier_score.map(|score| score >= DEFAULT_OUTLIER_THRESHOLD),
                 outlier_score,
-                is_novelty: novelty.map(|(value, threshold)| value <= threshold),
-                novelty_log_likelihood: novelty.map(|(value, _)| value),
-                novelty_threshold: novelty.map(|(_, threshold)| threshold),
+                is_novelty: value.and_then(|value| value.flagged),
+                novelty_log_likelihood: value.and_then(|value| value.log_likelihood),
+                novelty_threshold: novelty.and_then(|(_, threshold)| threshold),
+                novelty_p_value: value.and_then(|value| value.p_value),
             });
         }
     }
@@ -525,7 +544,10 @@ fn flag_stability(
         })
         .count();
     // A file with a failed seed is `Unstable` already (`decision`).
-    let status = if dependence == SeedDependence::SeedInvariant {
+    let status = if !files.is_empty() && stable_files + unstable_files == 0 {
+        // Never decided, e.g. an abstaining conformal mode.
+        StabilityStatus::NotAssessed
+    } else if dependence == SeedDependence::SeedInvariant {
         StabilityStatus::SeedInvariant
     } else if unstable_files > 0 {
         StabilityStatus::Unstable
@@ -622,12 +644,25 @@ mod tests {
         let _ = stability_seed(42, MAX_STABILITY_SEEDS);
     }
 
+    fn upstream_values(values: &[f64], threshold: f64) -> Vec<NoveltyValue> {
+        values
+            .iter()
+            .map(|&value| NoveltyValue {
+                log_likelihood: Some(value),
+                flagged: Some(value <= threshold),
+                margin: Some(margin(value, threshold)),
+                p_value: None,
+            })
+            .collect()
+    }
+
     fn outcome(scores: &[f64], novelty: Option<(&[f64], f64)>) -> SeedOutcome {
         SeedOutcome {
             status: SeedStatus::Ok,
             reason: None,
             outlier_scores: Some(scores.to_vec()),
-            novelty: novelty.map(|(values, threshold)| (values.to_vec(), threshold)),
+            novelty: novelty
+                .map(|(values, threshold)| (upstream_values(values, threshold), Some(threshold))),
         }
     }
 
@@ -813,6 +848,75 @@ mod tests {
         assert_eq!(decision(true, 5, 5, 0), FileDecision::StableNoFlag);
         assert_eq!(decision(true, 5, 5, 2), FileDecision::Unstable);
         assert_eq!(decision(true, 5, 4, 0), FileDecision::Unstable);
+        assert_eq!(decision(true, 5, 0, 0), FileDecision::NotAssessed);
+    }
+
+    #[test]
+    fn an_abstaining_flag_is_not_assessed() {
+        let abstain = NoveltyValue {
+            log_likelihood: Some(-2.0),
+            flagged: None,
+            margin: None,
+            p_value: None,
+        };
+        let outcomes = [
+            SeedOutcome {
+                status: SeedStatus::Ok,
+                reason: None,
+                outlier_scores: None,
+                novelty: Some((vec![abstain; 2], None)),
+            },
+            SeedOutcome {
+                status: SeedStatus::Ok,
+                reason: None,
+                outlier_scores: None,
+                novelty: Some((vec![abstain; 2], None)),
+            },
+        ];
+        let rows = (0..2)
+            .map(|index| file_row(index, "f.fcs", std::path::Path::new("f.fcs"), &outcomes))
+            .collect::<Vec<_>>();
+        assert!(
+            rows.iter()
+                .all(|row| row.novelty_decision == FileDecision::NotAssessed)
+        );
+        assert_eq!(rows[0].outlier_decision, FileDecision::NotAssessed);
+        let stability = flag_stability(
+            &rows,
+            0,
+            SeedDependence::SeedDependent,
+            novelty_of,
+            novelty_range,
+            None,
+        );
+        assert_eq!(stability.status, StabilityStatus::NotAssessed);
+        assert_eq!(stability.pairwise_disagreement, None);
+    }
+
+    #[test]
+    fn conformal_margins_are_p_minus_alpha() {
+        let value = |p: f64| NoveltyValue {
+            log_likelihood: Some(-1.0),
+            flagged: Some(p <= 0.05),
+            margin: Some(p - 0.05),
+            p_value: Some(p),
+        };
+        let seed = |p: f64| SeedOutcome {
+            status: SeedStatus::Ok,
+            reason: None,
+            outlier_scores: None,
+            novelty: Some((vec![value(p)], None)),
+        };
+        let row = file_row(
+            0,
+            "f.fcs",
+            std::path::Path::new("f.fcs"),
+            &[seed(0.05), seed(0.025), seed(0.5)],
+        );
+        assert_eq!(row.novelty_flag_count, 2);
+        assert_eq!(row.novelty_decision, FileDecision::Unstable);
+        assert_eq!(row.novelty_margin_min, Some(0.025 - 0.05));
+        assert_eq!(row.novelty_margin_median, Some(0.0));
     }
 
     #[test]

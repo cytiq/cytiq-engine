@@ -424,6 +424,7 @@ fn cytoscan(error: &cytiq_cytoscan::CytoScanError) -> OutcomeReason {
         E::EmptyInputs
         | E::InvalidEventsPerFile
         | E::InvalidStabilitySeeds { .. }
+        | E::UnsupportedNoveltyMode { .. }
         | E::MissingSpillover { .. }
         | E::ChannelNotCompensated { .. }
         | E::ProcessedInput { .. }
