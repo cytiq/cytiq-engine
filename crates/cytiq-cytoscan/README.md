@@ -11,15 +11,31 @@ Each file is reduced to one feature vector over the selected channels, then
 files are flagged either as outliers within the test cohort or as novelties
 against a separate high-quality reference cohort.
 
-Diagnostics expose reference size, numerical feature rank, constant features,
-mixture effective component counts and `novelty_calibration_status`.
+## Reading the flags
+
+The two flags answer different questions, and neither carries a validated
+false-positive rate. `cytoscan_config.json` (and `model_diagnostics.json`)
+describe each flag of the run under `diagnostics.outlier_flag` and
+`diagnostics.novelty_flag` (`null` when the run has no such flag):
+
+| Field | `outlier_flag` | `novelty_flag` |
+| --- | --- | --- |
+| `scope` | `within_test_cohort`: the forest is fitted on the test files, so a file's score depends on the other files of the cohort | `against_reference`: each test file is scored on its own against the reference mixture |
+| `threshold_rule`, `threshold_parameter` | `fixed_score`, 0.5 | `in_sample_quantile`, 0.05 |
+| `calibration_status` | `uncalibrated_heuristic` | `insufficient_reference` or `in_sample_only` (as `novelty_calibration_status`) |
+| `population_false_positive_rate` | `not_assessed` | `not_assessed` |
+| `seed_dependence` | `seed_dependent` when trees are built (≥ 2 test files, ≥ 1 feature) | see below |
+| `stability_status` | `not_assessed` without `--stability-seeds`; else `seed_invariant`, `stable` or `unstable` | same |
+
 `insufficient_reference` means reference size does not exceed feature dimension
 or has fewer than one observation in the nominal 5% tail, or a mixture component
-has no more effective observations than feature dimensions. `in_sample_only` still
-does not imply held-out calibration. Existing scores and flags are preserved;
-small-cohort flags should not be interpreted as a calibrated false-positive rate.
-The independent normal-donor experiment is documented in
-[`parity/scientific`](../../parity/scientific).
+has no more effective observations than feature dimensions. `in_sample_only`
+means the threshold is the 5% quantile of the log-densities of the same files
+the mixture was fitted on: held-out normal files fall below it more often than
+5%. Scores and flags are those of upstream CytoScan; read a flag as a ranking
+under one seed, not as a calibrated decision. The pre-registered novelty
+benchmark ([`parity/scientific`](../../parity/scientific/README.md#cytoscan-novelty-benchmark))
+measures false-positive rates on independent normal cohorts.
 
 Every selected channel must have the same physical name, marker and effective
 preprocessing in every reference/test file. Mixing raw channels with channels
@@ -65,14 +81,53 @@ Event selections and tree-feature choices retain rand 0.8's integer sampling
 semantics when using rand 0.10; golden tests guard those seeded results.
 
 `--seed` (`CytoScanConfig::random_seed`, default `DEFAULT_RANDOM_SEED` = 42)
-seeds both the per-file subsample and the isolation trees (tree `t` uses
-`seed + t`, wrapping). With files of at most 1,000 events only the trees
-depend on it. It is recorded in provenance `constants.random_seed`, so a
-different seed invalidates reuse while runs without the flag keep their
-fingerprints. Vary it to measure seed sensitivity
-(`parity/scientific/run.py novelty` reports score ranges and flag agreement
-across seeds); one seed's flags are one Monte Carlo draw, not a calibrated
-decision.
+seeds the per-file subsample, the aggregate subsample and the isolation trees
+(tree `t` uses `seed + t`, wrapping, so seeds 42 and 43 share 999 of 1000
+trees). It is recorded in provenance `constants.random_seed`, so a different
+seed invalidates reuse while runs without the flag keep their fingerprints.
+One seed's flags are one Monte Carlo draw, not a calibrated decision.
+
+`novelty_flag.seed_dependence` is exact: the novelty flag is `seed_dependent`
+when a test or reference file has more events than the per-file sample
+(1,000), or, for `emd`, `binning` and `fingerprint`, when a reference file has
+more events than its aggregate share `ceil(10000 / n_reference)`. Otherwise no
+random number is drawn for it and it is `seed_invariant`.
+
+## Seed stability
+
+`--stability-seeds N` (`CytoScanConfig::stability_seeds`, 2 to
+`MAX_STABILITY_SEEDS` = 64) repeats the analysis of the loaded files with `N`
+seeds in total: `--seed` and `stability_seed(seed, j) = seed + j * 2^32`
+(wrapping) for `j = 1..N-1`. The stride keeps the generator seeds of every
+tree of every seed disjoint (a unit test checks all 64,000). Each seed rebuilds
+its aggregate, features, forest and mixture, so seed `j` reproduces a separate
+run with `--seed stability_seed(seed, j)` exactly. Only the algorithm seed
+varies: files, reference membership and channels are fixed. The summary and
+feature tables do not change; two files are added:
+
+- `cytoscan_stability.csv`, one row per test file: `seeds`, per flag the
+  number of seeds assessed and flagged, the min/median/max outlier score and
+  novelty margin (`log-likelihood - threshold`, flagged at `<= 0`), and
+  `outlier_decision` / `novelty_decision`: `stable_flag`, `stable_no_flag`,
+  `unstable` or `not_assessed`.
+- `cytoscan_stability_seeds.csv`, one row per seed and test file:
+  `seed_index`, `seed`, `status` (`ok`, `feature_failed`,
+  `novelty_fit_failed`) and the summary's values plus `novelty_threshold`.
+  The `seed_index` 0 rows repeat `cytoscan_summary.csv`.
+
+`diagnostics.stability` records the seeds, failed seeds (kept as observations:
+a seed whose aggregate or mixture cannot be fitted makes the flag `unstable`),
+and per flag the share of files with a unanimous decision, the number of
+unstable files, `pairwise_disagreement` (the probability that two seeds
+disagree on a file) and the largest per-file score or margin range. A
+`seed_invariant` flag is checked to come out bit-identical at every seed. The
+cost is about `N` times that of the analysis; files are loaded once and seeds
+run one after another.
+
+`CytoScanConfig::events_per_file` (library only, default
+`DEFAULT_EVENTS_PER_FILE` = 1,000, upstream's `which.lines`) sets the per-file
+sample; other values deviate from upstream, are recorded in `constants` and
+add a warning. The aggregate share and the debug boxplots do not follow it.
 
 ## Novelty reference cohorts
 
@@ -126,8 +181,11 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 | `CytoScanResult` | `parameters`, test/reference `CytoScanFeatureMatrix`, `summary_rows`, `diagnostics` |
 | `CytoScanParameters`, `CytoScanConstants` | Effective settings, serialized into `cytoscan_config.json`; the constants also go into provenance `constants` |
 | `CytoScanFeatureMatrix`, `CytoScanFeatureRow`, `CytoScanSummaryRow`, `CytoScanDiagnostics` | Result rows and model diagnostics |
+| `FlagAssessment`, `FlagScope`, `ThresholdRule`, `CalibrationStatus`, `Assessment`, `SeedDependence`, `StabilityStatus` | How to read each flag (`diagnostics.outlier_flag`, `novelty_flag`) |
+| `stability_seed`, `MAX_STABILITY_SEEDS`, `STABILITY_SEED_STRIDE` | Seeds of a `--stability-seeds` run |
+| `CytoScanStability`, `CytoScanStabilityFileRow`, `CytoScanStabilitySeedRow`, `StabilitySummary`, `FlagStability`, `FailedSeed`, `FileDecision`, `SeedStatus` | Rows and summary of a stability run (`CytoScanResult::stability`, `diagnostics.stability`) |
 | `MclustModel` | mclust's name of the fitted novelty structure (`VVI`, `XXX`, ...) |
-| `DEFAULT_*` constants | Algorithm settings (default seed 42, overridable with `--seed`; fixed: 1,000 events, 10,000 aggregate, 1,000 trees, 0.5 / 0.05 thresholds, cofactor 150, 4 recursions) |
+| `DEFAULT_*` constants | Algorithm settings (default seed 42, overridable with `--seed`; 1,000 events, overridable through `CytoScanConfig::events_per_file`; fixed: 10,000 aggregate, 1,000 trees, 0.5 / 0.05 thresholds, cofactor 150, 4 recursions) |
 | `CytoScanError` | Error type for every failure mode |
 
 ## Output rules
@@ -139,6 +197,11 @@ for row in &result.summary_rows { /* per-file flags and scores */ }
 - With `debug_dir`: `reference_features.csv`, `aggregate_sampling.csv`,
   `model_diagnostics.json`, `pca_coordinates.csv`, `pca_loadings.csv`,
   `feature_heatmap.csv`, `boxplot_samples.csv` and a Plotly `report.html`.
+- With `stability_seeds`: `cytoscan_stability.csv` and
+  `cytoscan_stability_seeds.csv`, published with the three tables. A run
+  without it refuses (`StaleStabilityOutput`, exit 4) an `output_dir` that
+  holds either file, since `overwrite` would leave them describing other
+  outputs.
 - `strict` (CLI `--strict`) turns the "no spillover metadata" and "channel
   not in the spillover matrix" warnings into errors.
 - Inputs must be raw: a file another cytiq stage compensated, unmixed or

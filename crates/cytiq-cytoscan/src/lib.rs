@@ -7,6 +7,7 @@
 //! Upstream R reference implementation:
 //! <https://github.com/AUMC-HEMA/CytoScan>
 
+mod assessment;
 mod error;
 mod export;
 mod mixture;
@@ -14,7 +15,12 @@ mod novelty;
 mod outlier;
 mod runner;
 mod sampling;
+mod stability;
 
+pub use crate::assessment::{
+    Assessment, CalibrationStatus, FlagAssessment, FlagScope, SeedDependence, StabilityStatus,
+    ThresholdRule,
+};
 pub use crate::error::CytoScanError;
 pub use crate::mixture::MclustModel;
 pub use crate::runner::{
@@ -24,6 +30,11 @@ pub use crate::runner::{
     DEFAULT_EVENTS_PER_FILE, DEFAULT_FINGERPRINT_RECURSIONS, DEFAULT_ISOLATION_TREES,
     DEFAULT_NOVELTY_QUANTILE, DEFAULT_OUTLIER_THRESHOLD, DEFAULT_QUANTILE_STEP,
     DEFAULT_RANDOM_SEED, FeatureMethod, FlagMethod,
+};
+pub use crate::stability::{
+    CytoScanStability, CytoScanStabilityFileRow, CytoScanStabilitySeedRow, FailedSeed,
+    FileDecision, FlagStability, MAX_STABILITY_SEEDS, STABILITY_SEED_STRIDE, SeedStatus,
+    StabilitySummary, stability_seed,
 };
 
 /// Upstream implementations this crate is validated against

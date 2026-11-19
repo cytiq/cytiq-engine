@@ -9,7 +9,7 @@ fi
 
 crates=(cytiq-engine cytiq-clean cytiq-flowsom cytiq-peacoqc
         cytiq-spillqc cytiq-gating cytiq-fcs cytiq-cytonorm cytiq-classify
-        cytiq-population cytiq-specimen cytiq-qc)
+        cytiq-population cytiq-specimen cytiq-qc cytiq-cytoscan)
 if [[ "${1:-all}" != all ]]; then
     selected="$1"
     found=false

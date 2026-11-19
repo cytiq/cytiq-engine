@@ -9,7 +9,14 @@ this crate.
 - `src/lib.rs` — crate docs (paper and upstream links) and re-exports only.
 - `src/runner.rs` — config and result types, input resolution (files,
   directories, globs), FCS preprocessing, subsampling, all five feature
-  methods, isolation-forest outlier scoring, summary rows; most unit tests.
+  methods, `analyse` (one seed's features, outlier scores and novelty model),
+  diagnostics, summary rows; most unit tests.
+- `src/outlier.rs` — the isolation forest (`isotree`), fitted on the test
+  cohort only.
+- `src/assessment.rs` — how to read each flag: scope, threshold rule,
+  calibration status, the exact seed-dependence rule.
+- `src/stability.rs` — `--stability-seeds`: derived seeds, per-seed analyses
+  of the loaded files, per-file and per-flag agreement.
 - `src/mixture.rs` — port of `mclust::Mclust`'s default search: `hcEII`
   start (Ward on SVD-whitened data), EM for `EII` … `VVV`, BIC table and
   `pickBIC`; unit tests against mclust's BIC table, `hclass` and `dens`.
@@ -35,10 +42,23 @@ this crate.
   processing order (`subsample_does_not_depend_on_path`). Isolation trees
   seed per tree index (`seed.wrapping_add(t)`), so results are stable under
   `rayon` parallelism. The seed is the only algorithm setting exposed as a
-  flag; it is recorded in `constants`.
+  flag; it is recorded in `constants`. `--stability-seeds` repeats the run
+  with derived seeds and is recorded in the CLI config only when set.
 - Algorithm settings are fixed `DEFAULT_*` constants, not CLI flags, except
   the seed. Exposing another is a deliberate API change: document it in this
-  crate's [README](README.md).
+  crate's [README](README.md). `events_per_file` is a library field only;
+  it reaches the CLI only if the novelty benchmark's frozen decision rule
+  makes its arm eligible (`parity/scientific/novelty_benchmark.py`).
+- Stability seeds are `seed + j * 2^32`; the stride must stay above the tree
+  count so that no two seeds share a tree (`stability_seeds_never_share_a_generator_seed`).
+  A stability run never changes the primary outputs: seed 0 is the primary
+  analysis itself, and the summary and features are byte-identical with and
+  without `--stability-seeds`.
+- `assessment::novelty_seed_dependence` must match what the sampler does:
+  a stability run asserts that a `seed_invariant` flag is bit-identical at
+  every seed, so a wrong rule fails loudly instead of misreporting.
+- The debug boxplots sample `DISPLAY_EVENTS_PER_FILE` events: every value is
+  one row, so they must not follow `events_per_file`.
 - Preprocessing order is truncate at `$PnR`, compensate, then
   `asinh(x / 150)`. Missing spillover is a warning, not an error.
 - The aggregate takes `ceil(10000 / n_files)` events from every file without
@@ -60,14 +80,22 @@ cargo test -p cytiq-engine --test cytoscan_cli
 ```
 
 - `src/runner.rs` `#[cfg(test)]` — EMD vs `transport::wasserstein1d`, binning
-  vs `cut()`, fingerprint vs flowFP, isotree expected depth and score noise,
-  path-independent subsampling, aggregate shares.
+  vs `cut()`, fingerprint vs flowFP, path-independent subsampling, aggregate
+  shares, the pinned default constants JSON, `events_per_file` and
+  `stability_seeds` validation.
 - `src/mixture.rs` `#[cfg(test)]` — BIC tables of every structure and `G`
   vs `Mclust` (`n > d` and `n <= d`), `hclass` partitions, chosen model and
   log-densities; fixtures from `parity/make_fixtures.R`.
 - `src/novelty.rs` `#[cfg(test)]` — `XXX` densities, determinism, no model.
+- `src/outlier.rs` `#[cfg(test)]` — isotree expected depth, scores within
+  Monte Carlo noise, seed dependence of the trees.
+- `src/stability.rs` / `src/assessment.rs` `#[cfg(test)]` — seed derivation
+  and disjointness, flag boundaries, medians and infinite margins, failed
+  seeds, pairwise disagreement, the seed-dependence rule.
 - `crates/cytiq-engine/tests/cytoscan_cli.rs` — end-to-end runs for every
-  feature method, novelty with reference, debug artifacts, error cases.
+  feature method, novelty with reference, debug artifacts, error cases;
+  stability rows equal separate `--seed` runs, seed-invariant novelty on short
+  files, the stability-seed range and the stale-output refusal.
 
 The crate's `tests/` directory is currently empty. Reference values in unit
 tests come from the R packages; note the R call used to produce new ones.

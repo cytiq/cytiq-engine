@@ -420,7 +420,10 @@ fn cytoscan(error: &cytiq_cytoscan::CytoScanError) -> OutcomeReason {
         E::CsvWrite { source, .. } => csv(source, RUNTIME),
         E::JsonSerialize { source, .. } => json(source, RUNTIME),
         E::Publish(source) => OutcomeReason::of_publish(source),
+        E::StaleStabilityOutput { .. } => CONFLICT,
         E::EmptyInputs
+        | E::InvalidEventsPerFile
+        | E::InvalidStabilitySeeds { .. }
         | E::MissingSpillover { .. }
         | E::ChannelNotCompensated { .. }
         | E::ProcessedInput { .. }

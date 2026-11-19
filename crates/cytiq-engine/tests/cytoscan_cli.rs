@@ -200,6 +200,17 @@ fn cli_runs_cytoscan_novelty_with_reference() {
         diagnostics["novelty_calibration_status"],
         "insufficient_reference"
     );
+    // Novelty only: no outlier flag to describe; the novelty flag is
+    // relative to the reference, not calibrated and not assessed for stability.
+    assert!(diagnostics["outlier_flag"].is_null(), "{diagnostics}");
+    let novelty = &diagnostics["novelty_flag"];
+    assert_eq!(novelty["scope"], "against_reference");
+    assert_eq!(novelty["threshold_rule"], "in_sample_quantile");
+    assert_eq!(novelty["calibration_status"], "insufficient_reference");
+    assert_eq!(novelty["population_false_positive_rate"], "not_assessed");
+    assert_eq!(novelty["seed_dependence"], "seed_invariant");
+    assert_eq!(novelty["stability_status"], "not_assessed");
+    assert!(diagnostics.get("stability").is_none());
     assert!(diagnostics["reference_effective_rank"].is_u64());
     assert!(diagnostics["novelty_component_effective_counts"].is_array());
     assert!(
@@ -537,15 +548,26 @@ fn write_cytoscan_fixture_set(directory: &Path, offsets: &[f32]) {
 }
 
 fn write_cytoscan_fixture_fcs(path: &Path, marker_offset: f32) {
+    write_cytoscan_fixture_events(path, marker_offset, 80);
+}
+
+/// `events` events; beyond 80, a deterministic jitter makes every
+/// subsample's quantiles differ.
+fn write_cytoscan_fixture_events(path: &Path, marker_offset: f32, events: u16) {
     let mut columns = vec![Vec::new(); 6];
-    for event_index in 0_u16..80 {
+    for event_index in 0_u16..events {
         let event = f32::from(event_index);
+        let jitter = if events > 80 {
+            f32::from((event_index.wrapping_mul(7919) ^ (event_index >> 3)) % 97) * 0.9
+        } else {
+            0.0
+        };
         columns[0].push(event);
         columns[1].push(20.0 + event * 0.2);
         columns[2].push(30.0 + event * 0.25);
-        columns[3].push(100.0 + marker_offset + event * 1.2);
-        columns[4].push(160.0 + marker_offset * 0.5 + event * 0.8);
-        columns[5].push(90.0 + marker_offset * 0.25 + event * 0.6);
+        columns[3].push(100.0 + marker_offset + event * 1.2 + jitter);
+        columns[4].push(160.0 + marker_offset * 0.5 + event * 0.8 + jitter * 0.5);
+        columns[5].push(90.0 + marker_offset * 0.25 + event * 0.6 + jitter * 0.25);
     }
     let parameters = vec![
         FcsWriteParameter::new("Time"),
@@ -561,6 +583,335 @@ fn write_cytoscan_fixture_fcs(path: &Path, marker_offset: f32) {
     );
     cytiq_fcs::write_fcs3_1_f32_with_options(path, &parameters, &columns, &options)
         .expect("fixture FCS should write");
+}
+
+/// Test files whose events exceed the per-file sample (1,000), so the event
+/// subsample depends on the seed, and a reference cohort to fit novelty on.
+fn write_subsampled_cohort(directory: &Path) -> (PathBuf, PathBuf) {
+    let test = directory.join("test");
+    let reference = directory.join("reference");
+    fs::create_dir_all(&test).expect("test directory");
+    fs::create_dir_all(&reference).expect("reference directory");
+    for (index, offset) in [0.0, 3.0, 9.0, 160.0].iter().enumerate() {
+        write_cytoscan_fixture_events(&test.join(format!("test_{index:02}.fcs")), *offset, 1_500);
+    }
+    for index in 0_u16..10 {
+        let offset = f32::from(index) * 1.7;
+        write_cytoscan_fixture_events(
+            &reference.join(format!("reference_{index:02}.fcs")),
+            offset,
+            1_500 + index,
+        );
+    }
+    (test, reference)
+}
+
+fn run_cytoscan(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args(["cytoscan"])
+        .args(args)
+        .args(["--threads", "1"])
+        .output()
+        .expect("command should run")
+}
+
+fn assert_success(output: &std::process::Output) {
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn read_json(path: &Path) -> serde_json::Value {
+    serde_json::from_slice(&fs::read(path).expect("JSON file")).expect("valid JSON")
+}
+
+/// The `seed_index` rows of `stable`'s per-seed file equal the summary of the
+/// paired run, and the last pair's threshold equals that run's diagnostics.
+fn assert_seed_rows_repeat_summaries(stable: &Path, expected: &[(usize, &Path)]) {
+    let header = read_csv_header(&stable.join("cytoscan_stability_seeds.csv"));
+    let column = |name: &str| header.iter().position(|h| h == name).expect(name);
+    let seed_rows = read_csv_rows(&stable.join("cytoscan_stability_seeds.csv"));
+    assert_eq!(seed_rows.len(), 3 * 4);
+    let summary_header = read_csv_header(&stable.join("cytoscan_summary.csv"));
+    let summary_column = |name: &str| summary_header.iter().position(|h| h == name).expect(name);
+    for &(index, expected_dir) in expected {
+        let expected = read_csv_rows(&expected_dir.join("cytoscan_summary.csv"));
+        let rows = seed_rows
+            .iter()
+            .filter(|row| row.get(column("seed_index")) == Some(&index.to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), expected.len());
+        for (row, summary) in rows.iter().zip(&expected) {
+            assert_eq!(row.get(column("status")), Some("ok"));
+            for name in [
+                "filename",
+                "is_outlier",
+                "outlier_score",
+                "is_novelty",
+                "novelty_log_likelihood",
+            ] {
+                assert_eq!(
+                    row.get(column(name)),
+                    summary.get(summary_column(name)),
+                    "seed {index} {name}"
+                );
+            }
+        }
+    }
+    let &(index, expected_dir) = expected.last().expect("a seed to compare");
+    let seed_record = read_json(&expected_dir.join("cytoscan_config.json"));
+    let threshold = seed_rows
+        .iter()
+        .find(|row| row.get(column("seed_index")) == Some(&index.to_string()))
+        .and_then(|row| row.get(column("novelty_threshold")))
+        .expect("threshold");
+    assert_eq!(
+        threshold,
+        format!(
+            "{:.12}",
+            seed_record["diagnostics"]["novelty_threshold"]
+                .as_f64()
+                .expect("threshold")
+        )
+    );
+}
+
+/// Provenance and `cytoscan_config.json` carry the stability option and its
+/// results only for the run that asked for them.
+fn assert_stability_is_recorded_only_when_requested(plain: &Path, stable: &Path) {
+    let plain_record = read_json(&plain.join("provenance.json"));
+    let stable_record = read_json(&stable.join("provenance.json"));
+    assert!(plain_record["config"].get("stability_seeds").is_none());
+    assert_eq!(stable_record["config"]["stability_seeds"], 3);
+    assert!(
+        stable_record["outputs"]
+            .to_string()
+            .contains("cytoscan_stability_seeds.csv")
+    );
+    let plain_config = read_json(&plain.join("cytoscan_config.json"));
+    assert!(plain_config["parameters"].get("stability_seeds").is_none());
+    assert!(plain_config["diagnostics"].get("stability").is_none());
+    assert_eq!(
+        plain_config["diagnostics"]["novelty_flag"]["stability_status"],
+        "not_assessed"
+    );
+}
+
+#[test]
+fn cli_stability_seeds_repeat_separate_seed_runs_without_changing_the_summary() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-stability");
+    let (test, reference) = write_subsampled_cohort(&directory);
+    let common = |output: &Path| {
+        vec![
+            "--input".to_owned(),
+            utf8(&test).to_owned(),
+            "--reference".to_owned(),
+            utf8(&reference).to_owned(),
+            "--output".to_owned(),
+            utf8(output).to_owned(),
+            "--channels".to_owned(),
+            "CD3,CD4,CD8".to_owned(),
+            "--method".to_owned(),
+            "summary".to_owned(),
+            "--flag-method".to_owned(),
+            "both".to_owned(),
+        ]
+    };
+    let run = |output: &Path, extra: &[&str]| {
+        let mut args = common(output);
+        args.extend(extra.iter().map(|value| (*value).to_owned()));
+        let output = run_cytoscan(&args.iter().map(String::as_str).collect::<Vec<_>>());
+        assert_success(&output);
+    };
+    let plain = directory.join("plain");
+    let stable = directory.join("stable");
+    let seed_two = directory.join("seed-two");
+    run(&plain, &[]);
+    run(&stable, &["--stability-seeds", "3"]);
+    let derived = cytiq_cytoscan::stability_seed(42, 2);
+    assert_eq!(derived, 42 + 2 * (1_u64 << 32));
+    run(&seed_two, &["--seed", &derived.to_string()]);
+
+    // The primary outputs do not depend on the stability run.
+    for name in ["cytoscan_summary.csv", "cytoscan_features.csv"] {
+        assert_eq!(
+            fs::read(plain.join(name)).expect("plain"),
+            fs::read(stable.join(name)).expect("stable"),
+            "{name}"
+        );
+    }
+    assert!(!plain.join("cytoscan_stability.csv").exists());
+    assert!(!plain.join("cytoscan_stability_seeds.csv").exists());
+
+    assert_seed_rows_repeat_summaries(&stable, &[(0, &stable), (2, &seed_two)]);
+
+    let files = read_csv_rows(&stable.join("cytoscan_stability.csv"));
+    assert_eq!(files.len(), 4);
+    let diagnostics = &read_json(&stable.join("cytoscan_config.json"))["diagnostics"];
+    let stability = &diagnostics["stability"];
+    assert_eq!(
+        stability["seeds"],
+        serde_json::json!([42, cytiq_cytoscan::stability_seed(42, 1), derived])
+    );
+    assert_eq!(stability["failed_seeds"], serde_json::json!([]));
+    assert_eq!(
+        diagnostics["novelty_flag"]["seed_dependence"],
+        "seed_dependent"
+    );
+    assert_eq!(diagnostics["outlier_flag"]["scope"], "within_test_cohort");
+    assert_eq!(diagnostics["novelty_flag"]["scope"], "against_reference");
+    for flag in ["outlier", "novelty"] {
+        let status = stability[flag]["status"].as_str().expect("status");
+        assert!(["stable", "unstable"].contains(&status), "{status}");
+        assert_eq!(
+            diagnostics[format!("{flag}_flag")]["stability_status"],
+            status
+        );
+        assert_eq!(stability[flag]["seeds_assessed"], 3);
+    }
+
+    assert_stability_is_recorded_only_when_requested(&plain, &stable);
+}
+
+#[test]
+fn cli_stability_on_short_files_reports_seed_invariant_novelty() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-stability-invariant");
+    let input_dir = directory.join("test");
+    let reference_dir = directory.join("reference");
+    let output_dir = directory.join("out");
+    write_cytoscan_fixture_set(&reference_dir, &[0.0, 3.0, 6.0, 9.0, 12.0]);
+    write_cytoscan_fixture_set(&input_dir, &[2.0, 260.0, 5.0]);
+    let output = run_cytoscan(&[
+        "--input",
+        utf8(&input_dir),
+        "--reference",
+        utf8(&reference_dir),
+        "--output",
+        utf8(&output_dir),
+        "--channels",
+        "CD3,CD4,CD8",
+        "--method",
+        "summary",
+        "--flag-method",
+        "both",
+        "--stability-seeds",
+        "4",
+    ]);
+    assert_success(&output);
+    // 80 events per file: nothing is subsampled, so every seed computes the
+    // same novelty values; only the isolation trees change.
+    let diagnostics = &read_json(&output_dir.join("cytoscan_config.json"))["diagnostics"];
+    assert_eq!(
+        diagnostics["novelty_flag"]["seed_dependence"],
+        "seed_invariant"
+    );
+    assert_eq!(
+        diagnostics["novelty_flag"]["stability_status"],
+        "seed_invariant"
+    );
+    assert_eq!(
+        diagnostics["stability"]["novelty"]["status"],
+        "seed_invariant"
+    );
+    assert_eq!(
+        diagnostics["stability"]["novelty"]["pairwise_disagreement"],
+        0.0
+    );
+    assert_eq!(
+        diagnostics["outlier_flag"]["seed_dependence"],
+        "seed_dependent"
+    );
+    let seeds = read_csv_rows(&output_dir.join("cytoscan_stability_seeds.csv"));
+    let header = read_csv_header(&output_dir.join("cytoscan_stability_seeds.csv"));
+    let likelihood = header
+        .iter()
+        .position(|h| h == "novelty_log_likelihood")
+        .expect("column");
+    for file in 0..3 {
+        let values = seeds
+            .iter()
+            .skip(file)
+            .step_by(3)
+            .map(|row| row.get(likelihood).expect("value").to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(values.len(), 4);
+        assert!(
+            values.windows(2).all(|pair| pair[0] == pair[1]),
+            "{values:?}"
+        );
+    }
+}
+
+#[test]
+fn cli_rejects_out_of_range_stability_seed_counts() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-stability-range");
+    let input_dir = directory.join("test");
+    write_cytoscan_fixture_set(&input_dir, &[0.0, 5.0]);
+    for count in ["0", "1", "65", "many"] {
+        let output_dir = directory.join(format!("out-{count}"));
+        let output = run_cytoscan(&[
+            "--input",
+            utf8(&input_dir),
+            "--output",
+            utf8(&output_dir),
+            "--channels",
+            "CD3",
+            "--stability-seeds",
+            count,
+        ]);
+        assert_eq!(output.status.code(), Some(2), "{count}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("from 2 to 64"),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!output_dir.exists());
+    }
+}
+
+#[test]
+fn cli_refuses_to_leave_stale_stability_outputs() {
+    let directory = create_temp_dir("cytiq-engine-cytoscan-stability-stale");
+    let input_dir = directory.join("test");
+    let output_dir = directory.join("out");
+    write_cytoscan_fixture_set(&input_dir, &[0.0, 5.0, 260.0]);
+    let args = |extra: &[&'static str]| {
+        let mut args = vec![
+            "--input",
+            utf8(&input_dir),
+            "--output",
+            utf8(&output_dir),
+            "--channels",
+            "CD3,CD4",
+        ];
+        args.extend_from_slice(extra);
+        args
+    };
+    assert_success(&run_cytoscan(&args(&["--stability-seeds", "2"])));
+    let summary = fs::read(output_dir.join("cytoscan_summary.csv")).expect("summary");
+    // A plain rerun would publish next to stability files it does not
+    // describe: refused before any work, exit 4, nothing changed.
+    let refused = run_cytoscan(&args(&["--overwrite"]));
+    assert_eq!(refused.status.code(), Some(4));
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("earlier --stability-seeds run"),
+        "{}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    assert_eq!(
+        fs::read(output_dir.join("cytoscan_summary.csv")).expect("summary"),
+        summary
+    );
+    // Rerunning the stability run replaces both files.
+    assert_success(&run_cytoscan(&args(&[
+        "--overwrite",
+        "--stability-seeds",
+        "3",
+    ])));
+    let rows = read_csv_rows(&output_dir.join("cytoscan_stability_seeds.csv"));
+    assert_eq!(rows.len(), 3 * 3);
 }
 
 fn read_csv_header(path: &Path) -> Vec<String> {

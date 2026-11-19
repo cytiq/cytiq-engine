@@ -13,6 +13,17 @@ pub(crate) fn parse_threads(raw: &str) -> Result<usize, String> {
     }
 }
 
+/// `cytoscan --stability-seeds`: 2 to [`cytiq_cytoscan::MAX_STABILITY_SEEDS`].
+pub(crate) fn parse_stability_seeds(raw: &str) -> Result<usize, String> {
+    let max = cytiq_cytoscan::MAX_STABILITY_SEEDS;
+    match raw.parse::<usize>() {
+        Ok(seeds) if (2..=max).contains(&seeds) => Ok(seeds),
+        _ => Err(format!(
+            "expected a seed count from 2 to {max}, got `{raw}`"
+        )),
+    }
+}
+
 pub(crate) fn parse_fraction(raw: &str) -> Result<f64, String> {
     match raw.parse::<f64>() {
         Ok(value) if value > 0.0 && value <= 1.0 => Ok(value),

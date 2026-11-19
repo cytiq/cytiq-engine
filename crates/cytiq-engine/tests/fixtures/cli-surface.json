@@ -1879,6 +1879,24 @@
             "value_names": [
               "SEED"
             ]
+          },
+          {
+            "action": "set",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "stability_seeds",
+            "long": "stability-seeds",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "N"
+            ]
           }
         ],
         "args_conflict_with_subcommands": false,
