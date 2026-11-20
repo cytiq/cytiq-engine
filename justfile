@@ -71,6 +71,16 @@ scientific-metrics:
     rm -rf target/scientific/qc-truth-baseline
     parity/.env/py/bin/python parity/scientific/qc_truth.py synthetic --binary target/release/cytiq --output target/scientific/qc-truth-baseline --scenarios baseline --seeds 1
 
+# CytoScan novelty stability and calibration benchmark (pre-registered rule in
+# parity/scientific/novelty_benchmark.py). `profile` is ci (minutes),
+# development or confirmation (the only decision profile, about an hour);
+# extra arguments go to `run`, e.g. `--baseline-bin <main build> --jobs 6`.
+[group('validation')]
+novelty-benchmark profile="ci" output=("target/scientific/novelty-" + profile) *args:
+    cargo build --release --locked -p {{ CLI_PACKAGE }} --bin cytiq --example cytoscan_events
+    parity/.env/py/bin/python parity/scientific/novelty_benchmark.py run --profile {{ profile }} --binary target/release/cytiq --events-bin target/release/examples/cytoscan_events --output {{ output }} {{ args }}
+    parity/.env/py/bin/python parity/scientific/novelty_benchmark.py table --report {{ output }}/report.json --output {{ output }}/table
+
 # ---- Validate on real acquisitions shipped with the R packages (and CYTIQ_REAL_DATA)
 [group('validation')]
 parity-real:

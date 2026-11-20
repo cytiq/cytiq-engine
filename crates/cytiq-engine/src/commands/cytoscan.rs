@@ -6,8 +6,8 @@ use cytiq_provenance::{DirSnapshot, record_path_for_dir};
 use log::{info, warn};
 use serde::Serialize;
 
-use crate::cli::{CliCytoScanFeatureMethod, CliCytoScanFlagMethod};
-use crate::parsers::{parse_channels, parse_threads};
+use crate::cli::{CliCytoScanFeatureMethod, CliCytoScanFlagMethod, CliNoveltyMode};
+use crate::parsers::{parse_channels, parse_stability_seeds, parse_threads};
 use crate::provenance::record_provenance;
 
 #[derive(Debug, Serialize, Args)]
@@ -50,6 +50,20 @@ pub(crate) struct CytoscanArgs {
     #[arg(long, default_value_t = cytiq_cytoscan::DEFAULT_RANDOM_SEED)]
     #[serde(skip)]
     seed: u64,
+    /// Repeat the analysis with N seeds in total (2 to 64): --seed and
+    /// seed + j * 2^32 for j = 1..N-1, so no two share an isolation tree.
+    /// Writes each file's flag agreement and every seed's values next to the
+    /// summary, which does not change.
+    #[arg(long, value_name = "N", value_parser = parse_stability_seeds)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stability_seeds: Option<usize>,
+    /// How the novelty flag is decided. `upstream` reproduces the original tool.
+    /// `conformal-ledoit-wolf-v1` is the mode the novelty benchmark
+    /// validated: a calibrated p-value per test file, written next to the
+    /// upstream columns; it abstains below 19 references.
+    #[arg(long, value_enum, default_value_t = CliNoveltyMode::Upstream)]
+    #[serde(skip_serializing_if = "CliNoveltyMode::is_upstream")]
+    novelty_mode: CliNoveltyMode,
 }
 
 pub(crate) fn run(
@@ -69,6 +83,8 @@ pub(crate) fn run(
         strict,
         overwrite,
         seed,
+        stability_seeds,
+        novelty_mode,
     } = args;
     info!(
         "starting cytoscan: inputs={}, references={}, output={}, method={:?}, flag_method={:?}",
@@ -90,6 +106,9 @@ pub(crate) fn run(
         strict,
         overwrite,
         random_seed: seed,
+        events_per_file: cytiq_cytoscan::DEFAULT_EVENTS_PER_FILE,
+        stability_seeds,
+        novelty_mode: novelty_mode.into(),
     };
     let (test, reference) = CytoScanRunner::input_files(&config)?;
     recorder.snapshot_inputs("input", &test)?;
@@ -109,6 +128,22 @@ pub(crate) fn run(
         "cytoscan wrote {} summary row(s) and {} feature column(s)",
         result.summary_rows.len(),
         result.test_features.feature_names.len()
+    );
+    let flag_status = |flag: Option<&cytiq_cytoscan::FlagAssessment>| {
+        flag.map_or_else(
+            || "not computed".to_owned(),
+            |flag| {
+                format!(
+                    "{:?} calibration, {:?}, stability {:?}",
+                    flag.calibration_status, flag.seed_dependence, flag.stability_status
+                )
+            },
+        )
+    };
+    info!(
+        "cytoscan flags: outlier (within test cohort): {}; novelty (against reference): {}",
+        flag_status(result.diagnostics.outlier_flag.as_ref()),
+        flag_status(result.diagnostics.novelty_flag.as_ref())
     );
     if let Some(debug_dir) = config.debug_dir.as_ref() {
         info!("wrote cytoscan debug artifacts to {}", debug_dir.display());

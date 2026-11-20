@@ -28,6 +28,9 @@ examine_globs = [
     "crates/cytiq-specimen/src/reconcile.rs",
     "crates/cytiq-specimen/src/layout.rs",
     "crates/cytiq-specimen/src/compare.rs",
+    "crates/cytiq-cytoscan/src/stability.rs",
+    "crates/cytiq-cytoscan/src/assessment.rs",
+    "crates/cytiq-cytoscan/src/calibration.rs",
 ]
 examine_re = [
     'crates/cytiq-fcs/src/inputs.rs:.*\b(resolve_inputs|resolve_glob|filename_matcher|collect_files|is_fcs_path)\b',
@@ -55,6 +58,9 @@ examine_re = [
     'crates/cytiq-specimen/src/reconcile.rs:.*\b(reference_ratio|anchor_checks|measured_count|estimate_precision|check_consistency|validate_quantities|index_sources|descriptor_counts_are_consistent|SpecimenResult::validate|SpecimenResult::outcome_reason)\b',
     'crates/cytiq-specimen/src/layout.rs:.*\b(SpecimenLayout::validate|AnchorLimits::validate)\b',
     'crates/cytiq-specimen/src/compare.rs:.*\b(SpecimenComparison::outcome_reason|compare_row|compare_checks)\b',
+    'crates/cytiq-cytoscan/src/stability.rs:.*\b(stability_seed|margin|min_median_max|range|decision|file_row|flag_stability|pairwise_disagreement)\b',
+    'crates/cytiq-cytoscan/src/assessment.rs:.*\b(novelty_seed_dependence|outlier_seed_dependence)\b',
+    'crates/cytiq-cytoscan/src/calibration.rs:.*\b(LedoitWolf::fit|LedoitWolf::log_density|folds|conformal_novel|conformal_p_value|ConformalNovelty::decisions|ConformalNovelty::p_values|decide)\b',
 ]
 exclude_globs = ["**/tests/**", "**/*tests.rs", "**/examples/**", "**/benches/**", "**/fuzz/**", "**/build.rs"]
 # Near 1, an f32 sum differs from 1 by a multiple of 2^-24. The f32

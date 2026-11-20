@@ -163,7 +163,11 @@ peaks at 1.2M events to stay within 10% of their peaks at 300k. The counting all
 does not see memory that C libraries allocate (zstd's per-column contexts); the
 events benchmark (`performance/events.py`) measures it as RSS.
 `examples/events_layouts.rs` generates the benchmark and interop inputs and writes
-the benchmark-only list layout; it is a development tool, not a subcommand. `src/cli_surface.rs` compares
+the benchmark-only list layout; it is a development tool, not a subcommand.
+`examples/cytoscan_events.rs` runs `cytiq cytoscan` with a per-file event sample other
+than upstream's 1,000 (`CytoScanConfig::events_per_file`) for the novelty benchmark
+(`parity/scientific/novelty_benchmark.py`); it records no provenance, and at 1,000 events
+the benchmark checks it against the CLI byte for byte. `src/cli_surface.rs` compares
 every flag, default and recorded config key with
 `tests/fixtures/cli-surface.json`; update that fixture by hand, in the same
 change, only for an intended CLI change.

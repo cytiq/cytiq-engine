@@ -14,6 +14,7 @@ maintenance operations, excluded from CI.
 | Numerical parity | `just parity` and `just parity-cytonorm` | all existing tolerances against pinned R/Python |
 | Independent acquisitions | `just parity-real` and `just parity-cytonorm-real` | pinned real acquisitions and held-out donor |
 | Biological retention | commands below | original-population denominators after each assessed filtering stage |
+| CytoScan novelty calibration and stability | [`novelty_benchmark.py`](#cytoscan-novelty-benchmark) | FPR with replicate-bootstrap intervals on independent synthetic normal cohorts, seed agreement, per-class detection, batch shifts; real-donor FPR `not_assessed` |
 | Technical artifact removal | [`qc_truth.py`](#qc-artifact-truth-benchmark) | per-column sensitivity, specificity, precision and clean loss against generated (synthetic) and definitional truth; real-data removal `not_assessed` |
 
 `.github/workflows/scientific.yml` conservatively selects full parity for shared
@@ -112,9 +113,15 @@ measures sensitivity to event selection, not independent AF donor variability.
 Novelty experiments vary reference count, feature method/dimension and five
 reference-membership seeds at the default algorithm seed 42.
 `production_seed_stability` then fixes 32 reference files and the test cohort
-and varies only `cytoscan --seed` (event subsample and isolation trees) over
-1/7/42/101/2026, reporting per-file outlier-score ranges and how often each
-outlier and novelty flag agrees across seeds. It is reported, not gated.
+and varies only the algorithm seed (event subsample, aggregate subsample and
+isolation trees) with production's `cytoscan --stability-seeds 5`, reporting
+per-file outlier-score ranges and how often each outlier and novelty flag
+agrees across seeds. It is reported, not gated. Its earlier seeds
+1/7/42/101/2026 shared 900–994 of 1000 isolation trees pairwise (tree `t` is
+seeded `seed + t`) and understated the forest's seed variance; the stability
+seeds `42 + j * 2^32` share none. The pre-registered
+[CytoScan novelty benchmark](#cytoscan-novelty-benchmark) supersedes these
+exploratory runs for every FPR and stability claim.
 `subsampling.py` additionally tests 250/1,000/2,000 available events and five
 seeded event permutations at fixed reference membership, exercising the actual
 1,000-event production cap with summary/quantile features.
@@ -354,6 +361,128 @@ Each domain needs at least two independent datasets for derivation and one
 held out (`POLICY_PROTOCOL`). Register them in `parity/real/datasets.json`
 with SHA-256 pins, license, provenance and a `cytiq.qc.truth.v1` table whose
 descriptor states evidence, selection, channels, annotators and agreement.
+
+## CytoScan novelty benchmark
+
+`cytiq cytoscan`'s novelty flag thresholds a reference-fitted mclust mixture
+at the 5% quantile of the reference files' own log-densities. This benchmark
+measures what that decision does on independent normal files, how much it
+depends on the algorithm seed, and whether a predeclared alternative is
+better. It changes no default output: an arm that the frozen rule makes
+eligible becomes an opt-in, versioned production mode.
+
+```bash
+just novelty-benchmark ci                                   # every arm and check, 3 replicates
+just novelty-benchmark development target/scientific/novelty-dev --jobs 6 --with-r-prior
+just novelty-benchmark confirmation target/scientific/novelty-confirmation --jobs 6 --baseline-bin "$BASELINE_BIN"
+```
+
+**Cohorts.** Every replicate draws a fresh reference pool (64 files), 40
+held-out normal test files and 10 anomalous files (two each of `gain_shift`,
+`wrong_spill`, `population_loss`, `compression`, `debris`) from
+`parity/gen/cytoscan.py`, 5,000 events each. Each role has its own
+`SeedSequence` stream and each file its own spawned generator, so file `i`
+does not depend on the pool size and reference sizes are nested prefixes.
+Generator seeds are predeclared in `novelty_scenarios.py`: development
+`20261201–20261220` (CI: the first three) and confirmation
+`20261301–20261350`, disjoint from each other and from every other
+generator seed in this repository. Replicates are the independent units:
+intervals are percentile bootstraps over replicates (2,000 resamples, seed
+`20261119`); pooled Wilson intervals, which ignore that test files of one
+replicate share a reference model, are secondary.
+
+| Family | Role | Cells |
+| --- | --- | --- |
+| `exchangeable` | decision | summary, quantiles × reference 8/16/20/32/64 × 6 channels |
+| `dimension` | decision (calibration) | quantiles × 2 and 4 channels × reference 20/64 |
+| `large_events` | decision (stability) | 20,000-event files, summary, quantiles × reference 20/32 |
+| `batch_shift` | descriptive | normal test files from another batch: gain +2.5/5/10/20%, true spillover ×1.5 under the nominal `SPILL`, noise SD 40; paired latent draws |
+| `aggregate_methods` | descriptive | emd, binning, fingerprint × reference 20/64 |
+| real donors | descriptive | the four unstimulated donors, leave one out, 5 methods × 4 / 10 type markers |
+| contract | check | a missing channel and, with `--strict`, missing spillover are refused (exit 2), not scored |
+
+**Arms.** Every decision uses seed 42; flag agreement uses
+`--stability-seeds` (seeds `42 + j·2^32`, which share no isolation tree).
+
+| Arm | What changes | Status in rule v2 |
+| --- | --- | --- |
+| `baseline` | production, `--stability-seeds 10` | reference |
+| `cross_conformal` | the mclust model of each of `K = min(n, 10)` folds (`i mod K` over the resolved reference order, aggregates rebuilt per fold) scores its held-out references and every test file; `c = Σ_k #{i ∈ F_k : ll_k(i) ≤ ll_k(t)}`; novel iff `20 (1 + c) ≤ n + 1`; abstains for `n < 19` | calibration candidate |
+| `seed_ensemble_5` | novel iff the mean margin over seeds 0–4 is ≤ 0; stability = disagreement with seeds 5–9 | stability candidate |
+| `events_2500`, `events_5000` | `CytoScanConfig::events_per_file` through `examples/cytoscan_events.rs` | stability candidates |
+| `shrinkage_ledoit_wolf+cross_conformal` | one Gaussian with Ledoit–Wolf shrunk covariance (scikit-learn) on production features, computed per seed, with the same folds and integer rule | calibration candidate (from v2) |
+| `cross_conformal_ensemble_5`, `shrinkage_ledoit_wolf`, `pca_gaussian`, `pca_gaussian+cross_conformal`, `mclust_prior` (R `priorControl()`, development only) | research models on production features | never promoted |
+
+The cross-conformal arm is composed from ordinary production runs
+(`--reference` = the training folds, `--input` = held-out references and
+test files), so a production implementation can be checked against it
+exactly.
+
+**Metrics.** Per cell and arm: decision rate (abstentions and fit failures
+stay in the denominator), mean FPR on held-out normals with its interval,
+P50/P90/max of the per-replicate FPR and `P(FPR > 0.10)` next to the exact
+beta-binomial value a perfect split-conformal rule would give, detection
+per anomaly class, AUROC, pairwise seed disagreement (all files and normals
+only), unanimity, Fleiss κ, the per-file SD of the novelty margin across
+seeds, paired FPR differences to the baseline, flag rates per batch shift,
+and whether the reference-only out-of-fold exceedance of the in-sample
+threshold predicts the held-out FPR.
+
+**Frozen rule.** `DECISION_RULE` (hashed into every report and pinned by
+`test_novelty_benchmark.py`; `table` refuses reports under another rule)
+decides on the confirmation profile only; any other profile makes every
+arm ineligible. The calibration claim needs, in every summary/quantiles
+cell of `exchangeable` and `dimension`: abstention below 19 references; at
+20 or more, decision rate ≥ 0.95, mean FPR ≤ 0.07 and its upper bound ≤
+0.10, a flip rate on normals ≤ 0.10; and in
+`exchangeable` cells with ≥ 32 references, detection ≥ 0.80 for every
+anomaly class. The stability claim needs, in every cell where the
+baseline's flip rate is at least 0.01, half the baseline's flip rate, a
+paired FPR difference whose upper bound is ≤ +0.02, detection within 0.05
+of the baseline at ≥ 32 references and the baseline's decision rate within
+0.02. Every applicable cell must pass (an intersection-union test, so no
+multiplicity correction), and the equivalence checks must pass.
+`--profile confirmation` refuses a modified benchmark source tree. On the
+confirmation profile `shrinkage_ledoit_wolf+cross_conformal` was eligible
+and is now production's opt-in `--novelty-mode conformal-ledoit-wolf-v1`
+([crate README](../../crates/cytiq-cytoscan/README.md#calibrated-novelty-mode));
+no other arm was.
+
+Rule v2 replaced v1 after the development profile and before any
+confirmation seed was used; `DECISION_RULE["history"]` records both
+changes and v1's hash. In development every calibrated arm failed only v1's
+relative flip bound (`≤ baseline + 0.02`), which a baseline that flags every
+normal file (0 flips) makes unattainable; v2 bounds flips absolutely. The
+mclust cross-conformal arm lost detection at ≥ 32 references
+(min 0.42–0.60 per class) where the Ledoit–Wolf arm kept it (1.00), so v2
+makes `shrinkage_ledoit_wolf+cross_conformal` a calibration candidate.
+
+**Equivalence checks** (any mismatch fails the run): `--stability-seeds`
+rows equal separate `--seed` runs; its summary and features equal a run
+without it; the example binary at 1,000 events equals the CLI byte for byte;
+production's `pairwise_disagreement` equals the benchmark's; with
+`--baseline-bin`, the default summary and features equal clean main's byte
+for byte (also under `--stability-seeds`), the parameters and every existing
+diagnostic are equal, and the run-time ratio is reported. With
+`--rust-calibration`, every Ledoit–Wolf cell is also run through production's
+`--novelty-mode conformal-ledoit-wolf-v1 --stability-seeds 5`: its decision
+and conformal count must equal the benchmark's for every file and seed (a
+disagreement is accepted only where a held-out score lies within 1e-6 of the
+test score, since the benchmark reads features back at 12 decimals; such
+near-ties are counted), and its results are reported as the arm
+`rust_conformal_ledoit_wolf_v1`.
+
+**Limitations.** FPR claims rest on generated cohorts (a two-normal mixture
+per channel): they show what the decision rule does under exchangeability
+and known shifts, not the false-positive rate of a clinical cohort. The four
+real donors have 438–881 events and no spillover keyword, so no method
+subsamples and every seed is identical; they are reported per donor, their
+population FPR is `not_assessed`, and leave-one-out splits are not
+independent replications. A reference must come from the same instrument,
+panel and processing as the test files: the batch family shows how quickly
+novelty reacts to a shift, which is a property of the question, not a false
+positive to be calibrated away. Results are in
+[`REPORT.md` §9](../REPORT.md#9-cytoscan-novelty-stability-and-calibration-2026-11-19).
 
 ## Required real data
 

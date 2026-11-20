@@ -31,7 +31,10 @@ def run(binary, output):
               "source_sha256": sha256(fixtures/"source.json"),
               "inputs": {p.name: sha256(p) for p in files}, "subjects": 4,
               "seed": 42, "normal_definition": "published unstimulated Ref samples from four healthy PBMC donors",
-              "calibration_status": "insufficient_reference", "results": []}
+              "calibration_status": "insufficient_reference",
+              "population_fpr": {"status": "not_assessed",
+                                 "reason": "4 subjects from one study and instrument; see novelty_benchmark.py for synthetic FPR estimates"},
+              "results": []}
     start = time.monotonic()
     try:
         for dimension in sorted({4, len(channels)}):

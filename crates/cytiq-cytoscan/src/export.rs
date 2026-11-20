@@ -20,10 +20,17 @@ use crate::runner::{
     CytoScanFeatureMatrix, CytoScanResult, CytoScanSummaryRow, DEFAULT_EVENTS_PER_FILE, LoadedFile,
     sampled_matrix,
 };
+use crate::stability::CytoScanStability;
 
 const SUMMARY_FILE_NAME: &str = "cytoscan_summary.csv";
 const FEATURES_FILE_NAME: &str = "cytoscan_features.csv";
 const CONFIG_FILE_NAME: &str = "cytoscan_config.json";
+const STABILITY_FILE_NAME: &str = "cytoscan_stability.csv";
+const STABILITY_SEEDS_FILE_NAME: &str = "cytoscan_stability_seeds.csv";
+/// Written only by a `stability_seeds` run; a run without it refuses to
+/// publish next to them.
+pub(crate) const STABILITY_OUTPUT_FILE_NAMES: [&str; 2] =
+    [STABILITY_FILE_NAME, STABILITY_SEEDS_FILE_NAME];
 const REFERENCE_FEATURES_FILE_NAME: &str = "reference_features.csv";
 const AGGREGATE_SAMPLING_FILE_NAME: &str = "aggregate_sampling.csv";
 const MODEL_DIAGNOSTICS_FILE_NAME: &str = "model_diagnostics.json";
@@ -33,6 +40,9 @@ const FEATURE_HEATMAP_FILE_NAME: &str = "feature_heatmap.csv";
 const BOXPLOT_SAMPLES_FILE_NAME: &str = "boxplot_samples.csv";
 const REPORT_FILE_NAME: &str = "report.html";
 const TOP_LOADING_COUNT: usize = 10;
+/// Events per file drawn for the debug boxplots; fixed whatever
+/// `events_per_file` is, since every value becomes one boxplot row.
+const DISPLAY_EVENTS_PER_FILE: usize = DEFAULT_EVENTS_PER_FILE;
 const SCALE_EPSILON: f64 = 1.0e-12;
 
 #[derive(Serialize)]
@@ -117,7 +127,7 @@ pub(crate) fn write_outputs(
     test_files: &[LoadedFile],
     reference_files: &[LoadedFile],
 ) -> Result<(), CytoScanError> {
-    // The three outputs describe one run: publish them together.
+    // The outputs describe one run: publish them together.
     let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     publication.stage_path(config.output_dir.join(SUMMARY_FILE_NAME), |path| {
         write_summary_csv(path, result)
@@ -128,6 +138,14 @@ pub(crate) fn write_outputs(
     publication.stage_path(config.output_dir.join(CONFIG_FILE_NAME), |path| {
         write_config_json(path, result)
     })?;
+    if let Some(stability) = result.stability.as_ref() {
+        publication.stage_path(config.output_dir.join(STABILITY_FILE_NAME), |path| {
+            write_stability_csv(path, stability)
+        })?;
+        publication.stage_path(config.output_dir.join(STABILITY_SEEDS_FILE_NAME), |path| {
+            write_stability_seeds_csv(path, stability, !config.novelty_mode.is_upstream())
+        })?;
+    }
     publication.commit()?;
     if let Some(debug_dir) = config.debug_dir.as_deref() {
         write_debug_artifacts(debug_dir, result, test_files, reference_files)?;
@@ -135,42 +153,58 @@ pub(crate) fn write_outputs(
     Ok(())
 }
 
+/// The upstream columns; the conformal mode appends `novelty_p_value` and
+/// `novelty_decision` (a versioned output: upstream runs keep these bytes).
 fn write_summary_csv(path: &Path, result: &CytoScanResult) -> Result<(), CytoScanError> {
+    let conformal = !result.parameters.novelty_mode.is_upstream();
     let mut writer = csv::Writer::from_path(path).map_err(|source| CytoScanError::CsvWrite {
         path: path.to_path_buf(),
         source,
     })?;
+    let mut header = vec![
+        "filename",
+        "path",
+        "flag_method",
+        "feature_method",
+        "is_outlier",
+        "outlier_score",
+        "is_novelty",
+        "novelty_log_likelihood",
+        "channels",
+        "warnings",
+    ];
+    if conformal {
+        header.extend(["novelty_p_value", "novelty_decision"]);
+    }
     writer
-        .write_record([
-            "filename",
-            "path",
-            "flag_method",
-            "feature_method",
-            "is_outlier",
-            "outlier_score",
-            "is_novelty",
-            "novelty_log_likelihood",
-            "channels",
-            "warnings",
-        ])
+        .write_record(header)
         .map_err(|source| CytoScanError::CsvWrite {
             path: path.to_path_buf(),
             source,
         })?;
     for row in &result.summary_rows {
+        let mut record = vec![
+            row.filename.clone(),
+            row.path.display().to_string(),
+            row.flag_method.as_str().to_owned(),
+            row.feature_method.as_str().to_owned(),
+            option_bool(row.is_outlier),
+            option_f64(row.outlier_score),
+            option_bool(row.is_novelty),
+            option_f64(row.novelty_log_likelihood),
+            row.channels.clone(),
+            row.warnings.clone(),
+        ];
+        if conformal {
+            record.push(option_f64(row.novelty_p_value));
+            record.push(
+                row.novelty_decision
+                    .map(|decision| decision.as_str().to_owned())
+                    .unwrap_or_default(),
+            );
+        }
         writer
-            .write_record([
-                row.filename.clone(),
-                row.path.display().to_string(),
-                row.flag_method.as_str().to_owned(),
-                row.feature_method.as_str().to_owned(),
-                option_bool(row.is_outlier),
-                option_f64(row.outlier_score),
-                option_bool(row.is_novelty),
-                option_f64(row.novelty_log_likelihood),
-                row.channels.clone(),
-                row.warnings.clone(),
-            ])
+            .write_record(record)
             .map_err(|source| CytoScanError::CsvWrite {
                 path: path.to_path_buf(),
                 source,
@@ -180,6 +214,123 @@ fn write_summary_csv(path: &Path, result: &CytoScanResult) -> Result<(), CytoSca
         path: path.to_path_buf(),
         source,
     })
+}
+
+fn write_csv<const N: usize>(
+    path: &Path,
+    header: [&str; N],
+    records: impl Iterator<Item = [String; N]>,
+) -> Result<(), CytoScanError> {
+    let csv_error = |source| CytoScanError::CsvWrite {
+        path: path.to_path_buf(),
+        source,
+    };
+    let mut writer = csv::Writer::from_path(path).map_err(csv_error)?;
+    writer.write_record(header).map_err(csv_error)?;
+    for record in records {
+        writer.write_record(record).map_err(csv_error)?;
+    }
+    writer.flush().map_err(|source| CytoScanError::CsvFlush {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn write_stability_csv(path: &Path, stability: &CytoScanStability) -> Result<(), CytoScanError> {
+    write_csv(
+        path,
+        [
+            "filename",
+            "path",
+            "seeds",
+            "outlier_seeds_assessed",
+            "outlier_flag_count",
+            "outlier_score_min",
+            "outlier_score_median",
+            "outlier_score_max",
+            "outlier_decision",
+            "novelty_seeds_assessed",
+            "novelty_flag_count",
+            "novelty_margin_min",
+            "novelty_margin_median",
+            "novelty_margin_max",
+            "novelty_decision",
+        ],
+        stability.files.iter().map(|row| {
+            [
+                row.filename.clone(),
+                row.path.display().to_string(),
+                row.seeds.to_string(),
+                row.outlier_seeds_assessed.to_string(),
+                row.outlier_flag_count.to_string(),
+                option_f64(row.outlier_score_min),
+                option_f64(row.outlier_score_median),
+                option_f64(row.outlier_score_max),
+                row.outlier_decision.as_str().to_owned(),
+                row.novelty_seeds_assessed.to_string(),
+                row.novelty_flag_count.to_string(),
+                option_f64(row.novelty_margin_min),
+                option_f64(row.novelty_margin_median),
+                option_f64(row.novelty_margin_max),
+                row.novelty_decision.as_str().to_owned(),
+            ]
+        }),
+    )
+}
+
+/// Per-seed rows with the summary's formatting, so the `seed_index` 0 rows
+/// repeat `cytoscan_summary.csv` value for value; the conformal mode appends
+/// `novelty_p_value`.
+fn write_stability_seeds_csv(
+    path: &Path,
+    stability: &CytoScanStability,
+    conformal: bool,
+) -> Result<(), CytoScanError> {
+    const HEADER: [&str; 10] = [
+        "seed_index",
+        "seed",
+        "status",
+        "filename",
+        "path",
+        "is_outlier",
+        "outlier_score",
+        "is_novelty",
+        "novelty_log_likelihood",
+        "novelty_threshold",
+    ];
+    let record = |row: &crate::stability::CytoScanStabilitySeedRow| {
+        [
+            row.seed_index.to_string(),
+            row.seed.to_string(),
+            row.status.as_str().to_owned(),
+            row.filename.clone(),
+            row.path.display().to_string(),
+            option_bool(row.is_outlier),
+            option_f64(row.outlier_score),
+            option_bool(row.is_novelty),
+            option_f64(row.novelty_log_likelihood),
+            option_f64(row.novelty_threshold),
+        ]
+    };
+    if conformal {
+        let mut header = [""; 11];
+        header[..10].copy_from_slice(&HEADER);
+        header[10] = "novelty_p_value";
+        write_csv(
+            path,
+            header,
+            stability.seed_rows.iter().map(|row| {
+                let mut values: [String; 11] = Default::default();
+                for (slot, value) in values.iter_mut().zip(record(row)) {
+                    *slot = value;
+                }
+                values[10] = option_f64(row.novelty_p_value);
+                values
+            }),
+        )
+    } else {
+        write_csv(path, HEADER, stability.seed_rows.iter().map(record))
+    }
 }
 
 fn write_feature_matrix_csv(
@@ -767,7 +918,7 @@ fn append_boxplot_samples(
     file: &LoadedFile,
     seed: u64,
 ) {
-    for row in sampled_matrix(file, DEFAULT_EVENTS_PER_FILE, seed) {
+    for row in sampled_matrix(file, DISPLAY_EVENTS_PER_FILE, seed) {
         for (channel_index, channel) in file.channel_names.iter().enumerate() {
             if let Some(value) = row.get(channel_index) {
                 samples.push(BoxplotSample {
@@ -1097,20 +1248,24 @@ fn median(values: &[f64]) -> f64 {
 }
 
 fn test_status(row: &CytoScanSummaryRow) -> String {
+    let abstained = row.novelty_decision == Some(crate::runner::NoveltyDecision::Abstain);
     match (row.is_outlier, row.is_novelty) {
         (Some(true), Some(true)) => "outlier+novelty".to_owned(),
         (Some(true), _) => "outlier".to_owned(),
         (_, Some(true)) => "novelty".to_owned(),
         (_, Some(false)) => "non-novelty".to_owned(),
+        // The conformal mode decided nothing: not an inlier.
+        _ if abstained => "novelty-abstained".to_owned(),
         _ => "inlier".to_owned(),
     }
 }
 
-fn status_order() -> [&'static str; 6] {
+fn status_order() -> [&'static str; 7] {
     [
         "reference",
         "inlier",
         "non-novelty",
+        "novelty-abstained",
         "outlier",
         "novelty",
         "outlier+novelty",
@@ -1125,6 +1280,7 @@ fn status_color(status: &str) -> &'static str {
         "outlier" => "#E15759",
         "novelty" => "#F28E2B",
         "outlier+novelty" => "#B07AA1",
+        "novelty-abstained" => "#BAB0AC",
         _ => "#6B7280",
     }
 }
