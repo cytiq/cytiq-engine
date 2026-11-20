@@ -324,6 +324,18 @@ mod tests {
     }
 
     #[test]
+    fn two_files_suffice_and_zero_features_have_no_model() {
+        let pair = rows(&[&[1.0], &[3.0]]);
+        let slices = pair.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        let model = LedoitWolf::fit(&slices).expect("two distinct files");
+        // variance 1 (divided by n), mean 2
+        let expected = -0.5 * (2.0 * std::f64::consts::PI).ln();
+        assert!((model.log_density(&[2.0]) - expected).abs() < 1e-12);
+        let empty: [&[f64]; 2] = [&[], &[]];
+        assert!(LedoitWolf::fit(&empty).is_none());
+    }
+
+    #[test]
     fn folds_partition_by_index() {
         let twenty = folds(20);
         assert_eq!(twenty.len(), 10);
@@ -394,6 +406,32 @@ mod tests {
         assert!(count >= 1, "the test row ties with its own copy");
         reference.truncate(19);
         assert_eq!(decide(&reference, &tests).folds, 10);
+    }
+
+    #[test]
+    fn each_fold_is_scored_by_a_model_fitted_without_it() {
+        let reference = cohort(23);
+        let tests = vec![
+            vec![0.1, 0.2, -0.1],
+            vec![0.9, -0.4, 0.3],
+            vec![-0.6, 1.0, 0.2],
+        ];
+        let mut expected = vec![0_u64; tests.len()];
+        for held in folds(reference.len()) {
+            let training = (0..reference.len())
+                .filter(|i| !held.contains(i))
+                .map(|i| reference[i].as_slice())
+                .collect::<Vec<_>>();
+            let model = LedoitWolf::fit(&training).expect("fit");
+            for (count, test) in expected.iter_mut().zip(&tests) {
+                let value = model.log_density(test);
+                *count += held
+                    .iter()
+                    .filter(|&&i| model.log_density(&reference[i]) <= value)
+                    .count() as u64;
+            }
+        }
+        assert_eq!(decide(&reference, &tests).counts, Some(expected));
     }
 
     #[test]

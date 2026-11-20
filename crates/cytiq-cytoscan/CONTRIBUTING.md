@@ -101,8 +101,9 @@ cargo test -p cytiq-engine --test cytoscan_cli
 - `src/outlier.rs` `#[cfg(test)]` — isotree expected depth, scores within
   Monte Carlo noise, seed dependence of the trees.
 - `src/calibration.rs` `#[cfg(test)]` — Ledoit–Wolf against scikit-learn,
-  one feature, singular data, folds, the integer rule at 18/19/39 references,
-  abstention, ties, a singular fold.
+  one feature, two files, singular data and zero features, folds, each fold
+  scored by a model fitted without it, the integer rule at 18/19/39
+  references, abstention, ties, a singular fold.
 - `src/stability.rs` / `src/assessment.rs` `#[cfg(test)]` — seed derivation
   and disjointness, flag boundaries, medians and infinite margins, failed
   seeds, pairwise disagreement, the seed-dependence rule.
