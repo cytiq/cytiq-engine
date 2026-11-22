@@ -172,27 +172,28 @@ the full parity suites run locally. Regenerate reference fixtures only for
 intentional generator, dataset or upstream-version changes; see
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Install with Cargo
+## Install from source with Cargo
 
-Releases use the crates.io package `cytiq-engine`, which installs the `cytiq`
-binary; [`crates/cytiq-engine`](crates/cytiq-engine/README.md#build-and-distribute)
-gives the `cargo install --locked` command that builds it with the release
-profile of the Docker image.
+```bash
+cargo install --git https://github.com/cytiq/cytiq-engine --tag 0.5.0 --locked cytiq-engine
+```
 
-For an existing `cargo install cytiq-cli` installation, add `--force` to that
-install command to replace the `cytiq` executable owned by the old package.
+For an existing `cargo install cytiq-cli` installation, add `--force` to replace
+the executable. See [crates.io publication](CONTRIBUTING.md#cratesio-publication)
+for registry setup.
 
 ## Docker
 
 ```bash
-just docker-build
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/data" cytiq:dev autospill \
+docker pull ghcr.io/cytiq/cytiq-engine:0.5.0
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/data" ghcr.io/cytiq/cytiq-engine:0.5.0 autospill \
   --controls data/fixtures/autospill/controls.csv \
   --input-dir data/fixtures/autospill --output compensation.csv
 ```
 
 The image runs as an unprivileged user (UID 10001), with `/data` as its working
 directory. `--user` makes outputs in the mounted directory belong to you.
+For source development, `just docker-build` builds `cytiq:dev`.
 
 Releases are published as `ghcr.io/cytiq/cytiq-engine:<version>` (and `:latest`)
 for `linux/amd64` and `linux/arm64`, with SBOM and provenance attestations, so
