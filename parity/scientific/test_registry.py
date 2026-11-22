@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from datasets import verify
+from datasets import download, verify
 from r_packages import dependency_closure, installation_order, restore
 from selection import relevant
 
@@ -20,6 +20,16 @@ class ScientificRegistryTests(unittest.TestCase):
             (root/"events.fcs").unlink()
             with self.assertRaises(FileNotFoundError): verify(lock,root)
             with self.assertRaises(ValueError): verify({"complete":False,"files":[]},root)
+
+    def test_download_retries_transport_errors_and_hides_signed_urls(self):
+        url = "https://example.invalid/events.fcs?signature=fixture"
+        with patch("datasets.subprocess.run") as curl:
+            curl.return_value.returncode = 35
+            with self.assertRaisesRegex(RuntimeError, "curl exit 35") as error:
+                download(url, Path("events.fcs.partial"))
+        self.assertIn("--retry-all-errors", curl.call_args.args[0])
+        self.assertTrue(curl.call_args.kwargs["capture_output"])
+        self.assertNotIn(url, str(error.exception))
 
     def test_shared_numerics_and_dependencies_require_parity(self):
         for path in ("Cargo.lock","crates/cytiq-fcs/src/data.rs","crates/cytiq-autospectral/src/runner.rs","crates/cytiq-manifest/src/lib.rs","crates/cytiq-provenance/src/input.rs","parity/tolerances.json","data/fixtures/parity/versions.txt"):

@@ -31,6 +31,21 @@ def request(url, payload=None):
     return json.loads(subprocess.check_output(command))
 
 
+def download(url, destination):
+    # A TLS reset can fail before curl receives an HTTP response.
+    result = subprocess.run(
+        [
+            "curl", "--fail", "--silent", "--retry", "5", "--retry-all-errors",
+            "--retry-max-time", "300", "--max-time", "1800",
+            "--output", str(destination), url,
+        ],
+        capture_output=True,
+    )
+    if result.returncode:
+        # CalledProcessError includes the presigned URL in the traceback.
+        raise RuntimeError(f"Pennsieve download failed (curl exit {result.returncode}): {destination}")
+
+
 def browse(path):
     offset = 0
     while True:
@@ -77,7 +92,7 @@ def import_cymae(lock, cache):
                 raise ValueError("download manifest did not select exactly one file")
             url = manifest["data"][0]["url"]
             temporary = path.with_suffix(path.suffix + ".partial")
-            subprocess.run(["curl", "--fail", "--silent", "--show-error", "--retry", "3", "--max-time", "1800", "--output", str(temporary), url], check=True)
+            download(url, temporary)
             if temporary.stat().st_size != item["size"]:
                 raise ValueError(f"published size mismatch: {relative}")
             temporary.replace(path)
@@ -114,7 +129,7 @@ def main():
             manifest = request(API+"/download-manifest", {"paths":[item["path"]]})
             if len(manifest["data"]) != 1: raise ValueError("ambiguous download manifest")
             partial = path.with_suffix(path.suffix+".partial")
-            subprocess.run(["curl","--fail","--silent","--show-error","--retry","3","--max-time","1800","--output",str(partial),manifest["data"][0]["url"]],check=True)
+            download(manifest["data"][0]["url"], partial)
             if partial.stat().st_size != item["bytes"] or sha256(partial) != item["sha256"]: raise ValueError(f"dataset checksum mismatch: {item['path']}")
             partial.replace(path)
         verify(registry,args.cache)
