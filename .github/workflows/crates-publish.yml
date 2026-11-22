@@ -1,8 +1,8 @@
 name: Publish to crates.io
 
 # Publishes every workspace crate at the version of a stable release tag.
-# cd.yml dispatches this workflow on the tag once the GitHub Release exists;
-# a failed run can be re-run, or dispatched by hand on the tag, and skips the
+# Dispatch this workflow on the stable tag after first-time crate registration.
+# Failed runs can be retried; the workflow skips the
 # versions already published. crates.io trusts this file in the `crates-io`
 # environment (trusted publishing), so the repository stores no registry token.
 # Third-party actions are pinned by commit: this job can mint a publish token.

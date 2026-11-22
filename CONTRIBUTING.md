@@ -60,8 +60,8 @@ Before opening a pull request, run `just verify`. CI enforces the equivalent che
 
 Releases go through `.github/workflows/cd.yml`, which calls the reusable changelog and Docker workflows of [`cytiq-ci`](https://github.com/cytiq/cytiq-ci).
 1. Pushing an `X.Y.Z-rcN` tag opens a `chore/update-changelog-X.Y.Z` PR with `CHANGELOG.md`, `RELEASE_NOTES.md` (git-cliff, `cliff.toml`) and the workspace version bump in `Cargo.toml`/`Cargo.lock`. It also publishes `ghcr.io/cytiq/cytiq-engine:X.Y.Z-rcN` for `linux/amd64` and `linux/arm64`, each built on a native runner.
-2. Merging that PR pushes the signed `X.Y.Z` tag and the GitHub Release, and publishes `:X.Y.Z` and `:latest` built from the merge commit.
-3. The same merge dispatches `.github/workflows/crates-publish.yml` on the `X.Y.Z` tag, which publishes all 24 crates to crates.io (see [crates.io publication](#cratesio-publication)); release candidates are never published there.
+2. Merging that PR validates the merge commit, publishes the `:X.Y.Z` and `:latest` images from it, then creates the signed tag and GitHub Release.
+3. After first-time registration, dispatch `.github/workflows/crates-publish.yml` on the stable tag (see [crates.io publication](#cratesio-publication)).
 
 Images record that commit in `CYTIQ_BUILD_COMMIT` and carry SBOM and provenance attestations. The release jobs need the `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`, `GPG_FINGERPRINT` and `GH_TOKEN` secrets.
 
@@ -76,8 +76,7 @@ cargo-chef in a layer of their own, keyed by a recipe of the manifests and lockf
 Source changes and release version bumps reuse that layer; any dependency change in `Cargo.lock` rebuilds it. The
 workspace crates and the fat-LTO link of `cytiq` always rebuild. The `package.yml` job reads the amd64 release cache
 and never writes it. Keep the reusable workflow pinned to a released tag after rollout validation.
-The changelog and Docker calls use `cytiq-ci@0.4.0`, which includes the workspace-version fix from
-`cytiq-ci#24`.
+The changelog and Docker calls use `cytiq-ci@0.6.0`. The image revision label records the checked-out commit.
 If GitHub cannot resolve an annotated release tag, pin its peeled commit SHA
 and retain the version in a comment; this keeps the same reviewed workflow
 code without rewriting the upstream release tag.
@@ -132,8 +131,7 @@ orders the crates by their dependencies. The workflow verifies every package by
 building it from its `.crate` archive first, then mints a 30-minute token through
 trusted publishing (OIDC) and uploads without building again. A failed run is
 safe to re-run, or to dispatch by hand on the tag (**Run workflow**, tag
-`X.Y.Z`). The dispatch job stops if the tag does not point to the merge commit
-the images were built from.
+`X.Y.Z`). Compare the tag commit with the image revision label before dispatching.
 
 Trusted publishing cannot create a crate. The first version of a crate, and of
 any crate added to the workspace later, is published once by hand. The
