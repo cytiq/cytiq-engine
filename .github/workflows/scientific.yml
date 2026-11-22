@@ -12,6 +12,10 @@ on:
         description: Include the complete pinned CyMAE biological cohort
         type: boolean
         default: true
+      novelty_confirmation:
+        description: Run the CytoScan novelty benchmark's confirmation profile (about an hour)
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       ref:
@@ -144,6 +148,15 @@ jobs:
       - name: Independent normal donors
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python parity/scientific/normal.py --binary target/release/cytiq --output target/scientific/results/normal-donors
+      # The CI profile exercises every arm, the equivalence checks against
+      # production and the real donors on three replicates; it is never the
+      # decision profile. Confirmation runs weekly and on demand only.
+      - name: CytoScan novelty benchmark (CI profile)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: just novelty-benchmark ci target/scientific/results/novelty-ci --jobs 2
+      - name: CytoScan novelty benchmark (confirmation)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && (github.event_name == 'schedule' || inputs.novelty_confirmation) }}
+        run: just novelty-benchmark confirmation target/scientific/results/novelty-confirmation --jobs 2
       - name: Weak phenotype retention sensitivity
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: parity/.env/py/bin/python parity/scientific/weak_population.py --binary target/release/cytiq --output target/scientific/results/weak-populations

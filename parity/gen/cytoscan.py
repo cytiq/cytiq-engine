@@ -8,6 +8,7 @@ file with it.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -58,6 +59,61 @@ def _file(rng: np.random.Generator, n: int, anomaly: str | None) -> tuple[np.nda
     observed = true @ SPILL + rng.normal(0.0, 20.0, true.shape)
     spill_keyword = np.eye(len(CHANNELS)) if anomaly == "wrong_spill" else SPILL
     return np.clip(observed, -PNR, PNR - 1), spill_keyword
+
+
+@dataclass(frozen=True)
+class Batch:
+    """An acquisition batch or instrument relative to the control batch.
+
+    `gain` multiplies every channel's true signal by `1 + gain` (detector
+    voltage); `spill_scale` scales the true off-diagonal spillover while the
+    written `SPILL` keyword stays nominal (an instrument whose spillover
+    differs from its recorded matrix); `noise_sd` is the electronic noise.
+    `Batch()` is the control batch: `_file` with its own arithmetic.
+    """
+
+    gain: float = 0.0
+    spill_scale: float = 1.0
+    noise_sd: float = 20.0
+
+
+def _file_batch(rng: np.random.Generator, n: int, anomaly: str | None,
+                batch: Batch) -> tuple[np.ndarray, np.ndarray]:
+    """`_file` under `batch`. The random draws come in the same order for every
+    batch, so files with the same generator differ only by the batch effect."""
+    proportions = rng.uniform(0.4, 0.6, len(CHANNELS))
+    if anomaly == "population_loss":
+        proportions[2] = 0.03
+    true = _true_signal(rng, n, proportions)
+    if anomaly == "compression":
+        true *= 0.3
+    if anomaly == "debris":
+        debris = rng.random(n) < 0.4
+        true[debris] = rng.gamma(1.5, 30.0, (debris.sum(), len(CHANNELS)))
+    if anomaly == "gain_shift":
+        true[:, 4] *= 4.0
+    true = true * (1.0 + batch.gain)
+    identity = np.eye(len(CHANNELS))
+    spill = identity + batch.spill_scale * (SPILL - identity)
+    observed = true @ spill + rng.normal(0.0, batch.noise_sd, true.shape)
+    spill_keyword = identity if anomaly == "wrong_spill" else SPILL
+    return np.clip(observed, -PNR, PNR - 1), spill_keyword
+
+
+def write_files(directory: Path, seed: np.random.SeedSequence, specs: list[tuple[str, str | None]],
+                events: int, batch: Batch | None = None) -> None:
+    """Write one FCS file per `(name, anomaly)` in `specs`, each from its own
+    generator spawned from `seed`, so a file does not depend on the others
+    and the same `seed` gives paired files under different batches."""
+    batch = batch or Batch()
+    for (name, anomaly), child in zip(specs, seed.spawn(len(specs)), strict=True):
+        rng = np.random.default_rng(child)
+        data, spill = _file_batch(rng, events, anomaly, batch)
+        time = np.arange(events, dtype=float)
+        fsc = rng.normal(90_000, 9_000, events)
+        ssc = rng.normal(50_000, 7_000, events)
+        write_fcs(directory / name, np.column_stack([time, fsc, ssc, data]),
+                  ["Time", "FSC-A", "SSC-A", *CHANNELS], extra_keywords={"spill": _spill_keyword(spill)})
 
 
 def write_cohort(out: Path, seed: int, n_test: int, n_reference: int, events: int,

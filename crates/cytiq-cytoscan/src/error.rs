@@ -95,6 +95,16 @@ pub enum CytoScanError {
     },
     #[error("novelty model fitting failed: {reason}")]
     NoveltyFit { reason: String },
+    #[error("events per file must be at least 1")]
+    InvalidEventsPerFile,
+    #[error("--novelty-mode {mode} is not available here: {reason}")]
+    UnsupportedNoveltyMode { mode: &'static str, reason: String },
+    #[error("--stability-seeds must be between 2 and {max}, got {requested}")]
+    InvalidStabilitySeeds { requested: usize, max: usize },
+    #[error(
+        "`{path}` is from an earlier --stability-seeds run and would be left next to outputs it does not describe; delete it or pass --stability-seeds"
+    )]
+    StaleStabilityOutput { path: PathBuf },
     #[error("failed to create output directory `{path}`: {source}")]
     OutputDirectoryCreate {
         path: PathBuf,

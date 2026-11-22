@@ -200,3 +200,45 @@ Rust API:
 - `dataset::ArtifactEntry::labels` lists a label table; `dataset::contracts::LABELS`.
 - `DatasetManifest` gains the field `design`; struct literals need
   `design: None`.
+
+## CytoScan flag assessments and seed stability (additive)
+
+`cytiq cytoscan` describes how to read each flag and can measure how much
+its flags depend on the seed. Without `--stability-seeds`,
+`cytoscan_summary.csv` and `cytoscan_features.csv` are byte-identical to
+0.4.1; see the [crate README](../crates/cytiq-cytoscan/README.md#reading-the-flags).
+
+- `cytoscan_config.json` (and `--debug-dir`'s `model_diagnostics.json`) gain
+  `diagnostics.outlier_flag` and `diagnostics.novelty_flag`: scope (within
+  the test cohort / against the reference), threshold rule, calibration
+  status (`uncalibrated_heuristic`, `insufficient_reference`,
+  `in_sample_only`), `population_false_positive_rate: not_assessed`, seed
+  dependence and stability status. `novelty_calibration_status` is unchanged.
+- `--stability-seeds N` (2 to 64) repeats the analysis with `N` seeds
+  (`seed + j * 2^32`) and adds `cytoscan_stability.csv`,
+  `cytoscan_stability_seeds.csv` and `diagnostics.stability`. It is recorded
+  in provenance `config` only when set, so other runs keep their
+  fingerprints.
+- A run without `--stability-seeds` refuses an output directory that holds
+  stability files from an earlier run (exit 4, `output_conflict`), even with
+  `--overwrite`: they would describe other outputs. Delete them, or pass
+  `--stability-seeds` again.
+
+- `--novelty-mode conformal-ledoit-wolf-v1` is a new, opt-in novelty
+  decision: a Ledoit–Wolf Gaussian with a cross-conformal p-value at 1/20,
+  for summary and quantiles features, abstaining below 19 references. It
+  appends `novelty_p_value` and `novelty_decision` to `cytoscan_summary.csv`
+  and records `novelty_mode` in provenance; the default `upstream` mode is
+  unchanged.
+
+Rust API: `CytoScanConfig` gains `events_per_file` (default
+`DEFAULT_EVENTS_PER_FILE`), `stability_seeds` (default `None`) and
+`novelty_mode` (default `NoveltyMode::Upstream`);
+`CytoScanResult` gains `stability`, `CytoScanParameters` `stability_seeds`
+and `novelty_mode`, `CytoScanSummaryRow` `novelty_p_value` and
+`novelty_decision`, and `CytoScanDiagnostics` `outlier_flag`,
+`novelty_flag`, `stability` and `novelty_conformal`.
+Struct literals need the new fields; `CytoScanConfig::new` sets the
+defaults. `CytoScanError` gains `InvalidEventsPerFile`,
+`InvalidStabilitySeeds`, `StaleStabilityOutput` and
+`UnsupportedNoveltyMode`.

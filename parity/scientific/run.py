@@ -176,30 +176,34 @@ def novelty(binary, root, events, sizes):
             "production_seed_stability": production_seed_stability(binary, root, test, reference[:32])}
 
 
-ALGORITHM_SEEDS = (1, 7, 42, 101, 2026)
+STABILITY_SEEDS = 5
+"""`cytoscan --stability-seeds`: seed 42 and 42 + j * 2^32. The earlier seeds
+1/7/42/101/2026 shared 900-994 of 1000 isolation trees pairwise (tree t uses
+seed + t), which understated the forest's seed variance."""
 
 
 def production_seed_stability(binary, root, test, reference):
-    """Vary only `cytoscan --seed` (event subsample and isolation trees) with
-    fixed files and reference membership. Reports per-file outlier-score ranges
+    """Vary only the algorithm seed (event subsample, aggregate subsample and
+    isolation trees) with fixed files and reference membership, through
+    production's `--stability-seeds`. Reports per-file outlier-score ranges
     and whether each flag agrees across seeds; nothing is gated."""
     methods = {}
     for method in ("summary", "quantiles"):
-        runs = {}
-        for seed in ALGORITHM_SEEDS:
-            output = root / f"algorithm-seed-{seed}-{method}"
-            args = ["cytoscan", "--output", output, "--channels", ",".join(CHANNELS), "--method", method, "--flag-method", "both", "--seed", str(seed)]
-            for path in test: args += ["--input", path]
-            for path in reference: args += ["--reference", path]
-            invoke(binary, args, root / f"algorithm-seed-{seed}-{method}.log")
-            runs[seed] = pd.read_csv(output / "cytoscan_summary.csv").set_index("filename")
-        files = sorted(runs[ALGORITHM_SEEDS[0]].index)
-        flag = lambda frame, column: frame[column].astype(str).str.lower().isin(["true", "1"])
+        output = root / f"algorithm-seeds-{method}"
+        args = ["cytoscan", "--output", output, "--channels", ",".join(CHANNELS), "--method", method,
+                "--flag-method", "both", "--stability-seeds", str(STABILITY_SEEDS)]
+        for path in test: args += ["--input", path]
+        for path in reference: args += ["--reference", path]
+        invoke(binary, args, root / f"algorithm-seeds-{method}.log")
+        rows = pd.read_csv(output / "cytoscan_stability_seeds.csv")
+        stability = json.loads((output / "cytoscan_config.json").read_text())["diagnostics"]["stability"]
+        flag = lambda column: rows[column].astype(str).str.lower().isin(["true", "1"])
+        rows = rows.assign(outlier=flag("is_outlier"), novelty=flag("is_novelty"))
         per_file = []
-        for name in files:
-            scores = [float(runs[seed].loc[name, "outlier_score"]) for seed in ALGORITHM_SEEDS]
-            outlier = [bool(flag(runs[seed], "is_outlier")[name]) for seed in ALGORITHM_SEEDS]
-            novelty = [bool(flag(runs[seed], "is_novelty")[name]) for seed in ALGORITHM_SEEDS]
+        for name, group in rows.groupby("filename", sort=True):
+            group = group.sort_values("seed_index")
+            scores = group["outlier_score"].astype(float).tolist()
+            outlier, novelty = group["outlier"].tolist(), group["novelty"].tolist()
             per_file.append({"filename": name, "outlier_score_min": min(scores), "outlier_score_max": max(scores),
                              "outlier_score_range": max(scores) - min(scores),
                              "outlier_flags": outlier, "novelty_flags": novelty,
@@ -207,9 +211,11 @@ def production_seed_stability(binary, root, test, reference):
         methods[method] = {"files": per_file,
                            "max_outlier_score_range": max(f["outlier_score_range"] for f in per_file),
                            "outlier_flag_stable_fraction": float(np.mean([f["outlier_stable"] for f in per_file])),
-                           "novelty_flag_stable_fraction": float(np.mean([f["novelty_stable"] for f in per_file]))}
-    return {"seeds": list(ALGORITHM_SEEDS), "reference_files": len(reference), "test_files": len(test),
-            "scope": "algorithm seed only: event subsample and isolation trees; files and reference membership fixed",
+                           "novelty_flag_stable_fraction": float(np.mean([f["novelty_stable"] for f in per_file])),
+                           "production_stability": stability}
+    return {"seeds": stability["seeds"], "seed_rule": stability["seed_rule"],
+            "reference_files": len(reference), "test_files": len(test),
+            "scope": "algorithm seed only: event subsample, aggregate subsample and isolation trees; files and reference membership fixed",
             "methods": methods}
 
 
