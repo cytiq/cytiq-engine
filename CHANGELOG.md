@@ -1,4 +1,32 @@
 # Changelog
+## [0.5.0](https://github.com/cytiq/cytiq-engine/compare/0.4.1..0.5.0) - 2026-11-22
+
+### ⛰️  Features
+
+- *(cytoscan)* Novelty stability measurement and calibrated conformal mode ([#215](https://github.com/cytiq/cytiq-engine/issues/215)) - ([ef457f0](https://github.com/cytiq/cytiq-engine/commit/ef457f0e9b9b2720023033dab009261025bbc25d))
+- *(qc)* Independent artifact truth and artifact-removal benchmark ([#213](https://github.com/cytiq/cytiq-engine/issues/213)) - ([be8a831](https://github.com/cytiq/cytiq-engine/commit/be8a831fcb3da744c6d30f0c3c6b4466546b73e6))
+- AF reference benchmark and repeat-control compensation study ([#212](https://github.com/cytiq/cytiq-engine/issues/212)) - ([ce777e9](https://github.com/cytiq/cytiq-engine/commit/ce777e90296bb448a985b8de2e6306021f561c18))
+- [**breaking**] Event labels and cohort analytics (cytiq export labels, cytiq dataset export) ([#210](https://github.com/cytiq/cytiq-engine/issues/210)) - ([217d85e](https://github.com/cytiq/cytiq-engine/commit/217d85ecb08df80a7766b66e38dc7a8051596f40))
+- [**breaking**] Cytiq export events: streaming FCS to verified Parquet ([#208](https://github.com/cytiq/cytiq-engine/issues/208)) - ([37a9b29](https://github.com/cytiq/cytiq-engine/commit/37a9b2935812d606a311f81ba1eecfa84a6097d2))
+- Lakehouse data contract (cytiq.events.v1) and dataset manifest v1 ([#206](https://github.com/cytiq/cytiq-engine/issues/206)) - ([2106861](https://github.com/cytiq/cytiq-engine/commit/21068618f56be9f081185292bafbdb4502855569))
+- [**breaking**] Simplify execution and extend FlowSOME and Gating-ML ([#204](https://github.com/cytiq/cytiq-engine/issues/204)) - ([eb9ebd2](https://github.com/cytiq/cytiq-engine/commit/eb9ebd2eb26fe11ab52ed63204b87f922be640e5))
+
+### 🐛 Bug Fixes
+
+- *(ci)* Retry interrupted CyMAE downloads ([#217](https://github.com/cytiq/cytiq-engine/issues/217)) - ([5373b60](https://github.com/cytiq/cytiq-engine/commit/5373b603e62b26d811b028363ed4c8ddfb037f7c))
+- *(ci)* Clear cached evidence before scientific validation ([#209](https://github.com/cytiq/cytiq-engine/issues/209)) - ([f2f97b9](https://github.com/cytiq/cytiq-engine/commit/f2f97b9b52dbeb95b7947299a241522f8b5df8c2))
+- *(ci)* Pin cytiq-ci 0.5.0 ([#203](https://github.com/cytiq/cytiq-engine/issues/203)) - ([9bbc05d](https://github.com/cytiq/cytiq-engine/commit/9bbc05d6ae079e5f5d31bdb5302bd8751675c9dd))
+- Enforce P0 scientific correctness and safe QC release ([#200](https://github.com/cytiq/cytiq-engine/issues/200)) - ([6826fc0](https://github.com/cytiq/cytiq-engine/commit/6826fc0216b02d128b216a1f5b57f0a33d30608b))
+
+### 📚 Documentation
+
+- *(cli)* Identify the 0.4.1 exit-code transition ([#199](https://github.com/cytiq/cytiq-engine/issues/199)) - ([8120eff](https://github.com/cytiq/cytiq-engine/commit/8120eff3a315f2053ca0d4b514ce411fac55b94b))
+- Require Cytiq wiki updates in agent instructions ([#214](https://github.com/cytiq/cytiq-engine/issues/214)) - ([67847ec](https://github.com/cytiq/cytiq-engine/commit/67847ec9752e18fa067806c333370bfbcca2dde9))
+- Link the dataset contract and analytics product to cytiq-lake ([#211](https://github.com/cytiq/cytiq-engine/issues/211)) - ([5f426a3](https://github.com/cytiq/cytiq-engine/commit/5f426a32ff4c884de589c420228928a039d7e9ad))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Prepare engine 0.5.0 and document ready images ([#216](https://github.com/cytiq/cytiq-engine/issues/216)) - ([bd46abc](https://github.com/cytiq/cytiq-engine/commit/bd46abcb89c59af1c0e7800b1715e39750fe2a48))
 ## [0.4.1](https://github.com/cytiq/cytiq-engine/compare/0.4.0..0.4.1) - 2026-11-07
 
 ### ⛰️  Features
@@ -22,6 +50,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(agents)* Configure Serena and grepai ([#195](https://github.com/cytiq/cytiq-engine/issues/195)) - ([f845dd9](https://github.com/cytiq/cytiq-engine/commit/f845dd95414c9cc4066b5029e91ad1bf155a4352))
+- *(release)* Update changelog for 0.4.1 ([#198](https://github.com/cytiq/cytiq-engine/issues/198)) - ([2febbd2](https://github.com/cytiq/cytiq-engine/commit/2febbd2567454e5dd4f5b986f701d22af4389bee))
 - *(skills)* Add token-efficient-coding for Codex and Claude ([#189](https://github.com/cytiq/cytiq-engine/issues/189)) - ([9884fe9](https://github.com/cytiq/cytiq-engine/commit/9884fe9067bb92d2feeb5b574a4391c516b27409))
 - Deduplicate shared agent skills ([#194](https://github.com/cytiq/cytiq-engine/issues/194)) - ([7cee617](https://github.com/cytiq/cytiq-engine/commit/7cee617ec0f9c01490fcdecaf4ba493e0430ceb2))
 - Pin development and CI tools with mise ([#188](https://github.com/cytiq/cytiq-engine/issues/188)) - ([26e59cb](https://github.com/cytiq/cytiq-engine/commit/26e59cbc03cf873342d2919815cae310f8c507d9))
