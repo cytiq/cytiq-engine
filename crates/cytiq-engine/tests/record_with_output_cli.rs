@@ -150,6 +150,10 @@ struct Inputs {
     compensated: String,
     /// A stable acquisition `PeacoQC` keeps.
     peacoqc: String,
+    /// Two separated populations, with CD3, CD4 and CD8.
+    clusters: String,
+    /// A `FlowSOM` model trained on `clusters`.
+    flowsom_model: String,
     /// `cytonorm` samples, their manifest and a trained model.
     cytonorm: PathBuf,
     transformed: String,
@@ -201,9 +205,26 @@ impl Inputs {
             ],
         )
         .unwrap();
+        let clusters = work.join("clusters.fcs");
+        write_clusters(&clusters);
+        let flowsom_model = text(&work.join("flowsom.json"));
+        prepare(&[
+            "flowsom",
+            "train",
+            "--input",
+            &text(&clusters),
+            "--output",
+            &flowsom_model,
+            "--channels",
+            "CD3,CD4,CD8",
+            "--threads",
+            "1",
+        ]);
         Self {
             compensated: text(&compensated),
             peacoqc: text(&peacoqc),
+            clusters: text(&clusters),
+            flowsom_model,
             cytonorm,
             mask: text(&compensated.with_extension("masks.parquet")),
             compensate_record: text(&cytiq_provenance::record_path_for_file(&compensated)),
@@ -219,7 +240,148 @@ fn cases(work: &Path) -> Vec<Case> {
     let mut cases = exports(&inputs);
     cases.extend(reports(work, &inputs));
     cases.extend(fcs_stages(&inputs));
+    cases.extend(matrices());
+    cases.extend(models(&inputs));
     cases
+}
+
+/// 60 events in two populations (`flowsom_cli.rs`).
+fn write_clusters(path: &Path) {
+    let mut columns = vec![Vec::new(); 6];
+    for raw_index in 0_u16..60 {
+        let offset = if raw_index < 30 { 0.0 } else { 350.0 };
+        let index = f32::from(raw_index);
+        columns[0].push(index);
+        columns[1].push(50.0 + index * 0.5);
+        columns[2].push(70.0 + index * 0.25);
+        columns[3].push(100.0 + offset + index * 1.5);
+        columns[4].push(180.0 + offset * 0.5 + index);
+        columns[5].push(80.0 + offset * 0.25 + index * 0.75);
+    }
+    let parameters = [
+        cytiq_fcs::FcsWriteParameter::new("Time"),
+        cytiq_fcs::FcsWriteParameter::new("FSC-A"),
+        cytiq_fcs::FcsWriteParameter::new("SSC-A"),
+        cytiq_fcs::FcsWriteParameter::with_label("FL1-A", "CD3"),
+        cytiq_fcs::FcsWriteParameter::with_label("FL2-A", "CD4"),
+        cytiq_fcs::FcsWriteParameter::with_label("FL3-A", "CD8"),
+    ];
+    cytiq_fcs::write_fcs3_1_f32(path, &parameters, &columns).unwrap();
+}
+
+fn matrices() -> Vec<Case> {
+    let file = |name, output, args: &[&str]| Case::new(name, output, Record::Beside, args);
+    let controls = |set: &str| {
+        let directory = fixture(set);
+        (text(&directory.join("controls.csv")), text(&directory))
+    };
+    let (spill_controls, spill_dir) = controls("autospill");
+    let (spread_controls, spread_dir) = controls("autospread");
+    let detectors = text(&fixture("autospread/detectors.csv"));
+    vec![
+        file(
+            "autospill",
+            "matrix.csv",
+            &[
+                "autospill",
+                "--controls",
+                &spill_controls,
+                "--input-dir",
+                &spill_dir,
+                "--output",
+                OUT,
+            ],
+        ),
+        file(
+            "autospread",
+            "spread.csv",
+            &[
+                "autospread",
+                "--controls",
+                &spread_controls,
+                "--input-dir",
+                &spread_dir,
+                "--detectors",
+                &detectors,
+                "--output",
+                OUT,
+            ],
+        ),
+    ]
+}
+
+fn models(inputs: &Inputs) -> Vec<Case> {
+    let file = |name, output, args: &[&str]| Case::new(name, output, Record::Beside, args);
+    let channels = ["--channels", "CD3,CD4,CD8", "--threads", "1"];
+    vec![
+        file(
+            "flowsom",
+            "clusters.flowsom.csv",
+            &[
+                &["flowsom", "--input", &inputs.clusters, "--output", OUT],
+                &channels[..],
+            ]
+            .concat(),
+        ),
+        file(
+            "flowsom train",
+            "flowsom.json",
+            &[
+                &[
+                    "flowsom",
+                    "train",
+                    "--input",
+                    &inputs.clusters,
+                    "--output",
+                    OUT,
+                ],
+                &channels[..],
+            ]
+            .concat(),
+        ),
+        file(
+            "flowsom apply",
+            "clusters.apply.csv",
+            &[
+                "flowsom",
+                "apply",
+                "--input",
+                &inputs.clusters,
+                "--model",
+                &inputs.flowsom_model,
+                "--output",
+                OUT,
+            ],
+        ),
+        Case::in_directory(
+            "classify",
+            "predictions",
+            "predictions.parquet",
+            &[
+                "classify",
+                "--input",
+                &text(&fixture("classify/raw.fcs")),
+                "--model",
+                &text(&fixture("classify/lightgbm")),
+                "--output",
+                OUT,
+                "--threads",
+                "1",
+            ],
+        ),
+        Case::in_directory(
+            "spillqc",
+            "spillqc",
+            "summary.json",
+            &[
+                "spillqc",
+                "--input",
+                &text(&fixture("parity/spillqc/tube_1.fcs")),
+                "--output",
+                OUT,
+            ],
+        ),
+    ]
 }
 
 fn fcs_stages(inputs: &Inputs) -> Vec<Case> {

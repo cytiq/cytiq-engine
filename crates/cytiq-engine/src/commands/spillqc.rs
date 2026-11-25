@@ -123,7 +123,8 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(config.output.clone())
     );
-    let result = SpillQcRunner::run(&config)?;
+    let prepared = SpillQcRunner::prepare(&config)?;
+    let result = prepared.summary;
     let counts = &result.summary.counts;
     for file in &result.summary.files {
         for flag in &file.flags {
@@ -156,12 +157,14 @@ pub(crate) fn run(
     } else {
         cytiq_provenance::outcome::OutcomeReason::Success
     };
-    let mut outcome = crate::provenance::record_with_reason(
+    let mut outcome = crate::provenance::publish(
         recorder,
+        prepared.publication,
         &result.outputs,
         &record_path_for_dir(&config.output),
         reason,
     )?;
+    result.remove_stale()?;
     if let (Some(outcome), Some(failure)) = (&mut outcome, failure) {
         outcome.message = failure.to_string();
     }

@@ -150,9 +150,12 @@ pub(crate) fn publish(
     // The output stays locked until its record is published.
     let Run { recorder, _lock } = run;
     let record = recorder.stage(&mut publication, outputs, record_path, reason)?;
+    // Directories published whole are targets, not recorded outputs.
+    let targets = publication.targets();
     publication.commit()?;
     // The run succeeded: what an earlier one left behind cannot undo that.
-    if let Err(error) = cytiq_provenance::recovery::discard_abandoned(outputs) {
+    if let Err(error) = cytiq_provenance::recovery::discard_abandoned(targets.iter().chain(outputs))
+    {
         log::warn!("abandoned temporary files remain: {error}");
     }
     Ok(Some(completed(record, reason)))

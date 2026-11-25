@@ -1,7 +1,7 @@
 //! Portable SOM inference and independently implemented consensus clustering.
 
 use cytiq_fcs::{SignalState, TransformContract};
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -74,6 +74,19 @@ impl FlowSomModel {
         method: Metaclustering,
         overwrite: bool,
     ) -> Result<Self, FlowSomError> {
+        Ok(Self::prepare_train_to_file(inputs, output, config, method, overwrite)?.commit()?)
+    }
+    /// [`Self::train_to_file`] up to publication: the model file is staged.
+    ///
+    /// # Errors
+    /// As [`Self::train_to_file`], except what publishing returns.
+    pub fn prepare_train_to_file(
+        inputs: &[PathBuf],
+        output: &Path,
+        config: &FlowSomConfig,
+        method: Metaclustering,
+        overwrite: bool,
+    ) -> Result<Prepared<Self>, FlowSomError> {
         let sources = inputs
             .iter()
             .chain(&config.masks)
@@ -81,8 +94,11 @@ impl FlowSomModel {
             .collect::<Vec<_>>();
         check_file_outputs(output, &sources, overwrite)?;
         let model = Self::train_files(inputs, config, method)?;
-        model.save(output, overwrite)?;
-        Ok(model)
+        let publication = model.stage(output, overwrite)?;
+        Ok(Prepared {
+            summary: model,
+            publication,
+        })
     }
     /// Apply a model file after protecting it and masks from output collisions.
     ///
@@ -95,12 +111,28 @@ impl FlowSomModel {
         masks: &[PathBuf],
         overwrite: bool,
     ) -> Result<usize, FlowSomError> {
+        Ok(
+            Self::prepare_apply_model_file(model_path, input, output, masks, overwrite)?
+                .commit()?,
+        )
+    }
+    /// [`Self::apply_model_file`] up to publication: the assignments are staged.
+    ///
+    /// # Errors
+    /// As [`Self::apply_model_file`], except what publishing returns.
+    pub fn prepare_apply_model_file(
+        model_path: &Path,
+        input: &Path,
+        output: &Path,
+        masks: &[PathBuf],
+        overwrite: bool,
+    ) -> Result<Prepared<usize>, FlowSomError> {
         let sources = std::iter::once(input.to_path_buf())
             .chain(std::iter::once(model_path.to_path_buf()))
             .chain(masks.iter().cloned())
             .collect::<Vec<_>>();
         check_file_outputs(output, &sources, overwrite)?;
-        Self::load(model_path)?.apply_file(input, output, masks, overwrite)
+        Self::load(model_path)?.prepare_apply_file(input, output, masks, overwrite)
     }
     /// Train reusable SOM geometry on a row-major matrix in channel order.
     ///
@@ -443,11 +475,16 @@ impl FlowSomModel {
     /// # Errors
     /// Returns I/O or model validation errors.
     pub fn save(&self, path: &Path, overwrite: bool) -> Result<(), FlowSomError> {
+        Ok(self.stage(path, overwrite)?.commit()?)
+    }
+
+    fn stage(&self, path: &Path, overwrite: bool) -> Result<Publication, FlowSomError> {
         self.validate()?;
-        Publication::new(Existing::overwrite(overwrite)).check(path)?;
-        cytiq_publish::write_file(path, Existing::overwrite(overwrite), |writer| {
+        let mut publication = Publication::new(Existing::overwrite(overwrite));
+        publication.stage_file(path, |writer| {
             serde_json::to_writer_pretty(writer, self).map_err(FlowSomError::from)
-        })
+        })?;
+        Ok(publication)
     }
 
     /// Assign an FCS and write the existing assignment CSV schema.
@@ -461,6 +498,18 @@ impl FlowSomModel {
         masks: &[PathBuf],
         overwrite: bool,
     ) -> Result<usize, FlowSomError> {
+        Ok(self
+            .prepare_apply_file(input, output, masks, overwrite)?
+            .commit()?)
+    }
+
+    fn prepare_apply_file(
+        &self,
+        input: &Path,
+        output: &Path,
+        masks: &[PathBuf],
+        overwrite: bool,
+    ) -> Result<Prepared<usize>, FlowSomError> {
         let sources = std::iter::once(input.to_path_buf())
             .chain(masks.iter().cloned())
             .collect::<Vec<_>>();
@@ -530,8 +579,10 @@ impl FlowSomModel {
         publication.stage_file(output, |writer| {
             write_assignments(writer, output, &assignments)
         })?;
-        publication.commit()?;
-        Ok(assignments.len())
+        Ok(Prepared {
+            summary: assignments.len(),
+            publication,
+        })
     }
 }
 

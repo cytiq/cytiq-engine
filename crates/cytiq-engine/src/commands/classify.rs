@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 
 use clap::Args;
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_dir;
 use log::info;
 use serde::Serialize;
 
 use crate::parsers::{parse_non_negative_f64, parse_positive_usize, parse_threads};
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct ClassifyArgs {
@@ -76,8 +77,19 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(config.output.clone())
     );
-    let result =
-        cytiq_classify::ClassifyRunner::run_with_policy(&config, decision_policy.as_deref())?;
+    let prepared =
+        cytiq_classify::ClassifyRunner::prepare_with_policy(&config, decision_policy.as_deref())?;
+    let result = prepared.summary;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &[
+            config.output.join("predictions.parquet"),
+            config.output.join("summary.json"),
+        ],
+        &record_path_for_dir(&config.output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "inferred {} of {} events; {} legacy abstentions",
         result.assessed, result.events, result.unknown
@@ -99,12 +111,5 @@ pub(crate) fn run(
     {
         log::warn!("OOD was not assessed; probabilities describe only the declared class set");
     }
-    record_provenance(
-        recorder,
-        &[
-            config.output.join("predictions.parquet"),
-            config.output.join("summary.json"),
-        ],
-        &record_path_for_dir(&config.output),
-    )
+    Ok(outcome)
 }

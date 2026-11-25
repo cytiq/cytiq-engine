@@ -2,16 +2,17 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_autospill::{
-    AutospillConfig, AutospillRunner, export_matrix, read_controls_manifest,
-    read_detectors_manifest, read_transform_manifest,
+    AutospillConfig, AutospillRunner, read_controls_manifest, read_detectors_manifest,
+    read_transform_manifest, stage_matrix,
 };
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::{debug, info};
 use serde::Serialize;
 
 use crate::cli::CliMatrixKind;
 use crate::parsers::parse_threads;
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct AutospillArgs {
@@ -114,13 +115,27 @@ pub(crate) fn run(
     // Refuse an existing output before the computation, not after it.
     let existing = cytiq_publish::Existing::overwrite(overwrite);
     cytiq_publish::Publication::new(existing).check(&output)?;
-    let result = AutospillRunner::run(&manifest, &input_dir, &config)?;
+    let prepared = AutospillRunner::prepare(&manifest, &input_dir, &config)?;
+    let (result, mut publication) = (prepared.summary, prepared.publication);
     info!(
         "autospill finished computation for {} dyes across {} detectors",
         result.dyes.len(),
         result.detectors.len()
     );
-    export_matrix(&result, config.matrix_kind, &output, existing)?;
+    stage_matrix(
+        &mut publication,
+        &result,
+        config.matrix_kind,
+        &output,
+        existing,
+    )?;
+    let outcome = publish(
+        recorder,
+        publication,
+        std::slice::from_ref(&output),
+        &record_path_for_file(&output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "wrote {:?} matrix to {}",
         config.matrix_kind,
@@ -130,9 +145,5 @@ pub(crate) fn run(
         info!("wrote debug artifacts to {}", debug_dir.display());
     }
     info!("autospill completed successfully");
-    record_provenance(
-        recorder,
-        std::slice::from_ref(&output),
-        &record_path_for_file(&output),
-    )
+    Ok(outcome)
 }
