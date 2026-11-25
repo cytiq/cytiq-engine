@@ -1,7 +1,11 @@
 use std::error::Error;
+use std::num::NonZero;
 use std::path::PathBuf;
 
-use cytiq_fcs::{ColumnData, FcsReader, FcsVersion, FcsWriteOptions, FcsWriteParameter};
+use cytiq_fcs::{
+    ColumnData, Error as FcsError, FcsReadLimits, FcsReader, FcsVersion, FcsWriteOptions,
+    FcsWriteParameter,
+};
 
 mod common;
 
@@ -83,6 +87,74 @@ fn merges_supplemental_text_keywords() -> Result<(), Box<dyn Error>> {
     let dataset = FcsReader::new(std::io::Cursor::new(bytes)).read()?;
     assert_eq!(dataset.text.get("EXTRA"), Some("value"));
 
+    Ok(())
+}
+
+/// One event of one 16-bit parameter, with the given `$NEXTDATA`.
+fn single_event_with_next_data(next_data: &str) -> Vec<u8> {
+    build_fcs(
+        "FCS3.1",
+        vec![
+            ("$BYTEORD", "1,2,3,4"),
+            ("$DATATYPE", "I"),
+            ("$MODE", "L"),
+            ("$NEXTDATA", next_data),
+            ("$PAR", "1"),
+            ("$TOT", "1"),
+            ("$P1B", "16"),
+            ("$P1E", "0,0"),
+            ("$P1N", "Time"),
+            ("$P1R", "1024"),
+        ],
+        None,
+        encode_u16_rows(&[[42]], true),
+        None,
+    )
+}
+
+#[test]
+fn files_with_more_than_one_data_set_are_refused() {
+    // The first data set names the second by its offset. Reading only the
+    // first would drop the second's events without a word.
+    let length = single_event_with_next_data("00000000").len();
+    let mut bytes = single_event_with_next_data(&format!("{length:08}"));
+    assert_eq!(bytes.len(), length);
+    bytes.extend(single_event_with_next_data("00000000"));
+
+    let error = FcsReader::new(std::io::Cursor::new(&bytes))
+        .read()
+        .unwrap_err();
+    assert!(
+        matches!(error, FcsError::UnsupportedLayout(message) if message.contains("$NEXTDATA")),
+        "{error}"
+    );
+    let streamed = FcsReader::new(std::io::Cursor::new(&bytes))
+        .stream(NonZero::<usize>::MIN, FcsReadLimits::default())
+        .map(|_| ());
+    assert!(matches!(streamed, Err(FcsError::UnsupportedLayout(_))));
+}
+
+#[test]
+fn a_next_data_offset_that_is_not_a_number_is_refused() {
+    for value in ["next", "-1", "1.5"] {
+        let bytes = single_event_with_next_data(value);
+        let error = FcsReader::new(std::io::Cursor::new(bytes))
+            .read()
+            .unwrap_err();
+        assert!(
+            matches!(&error, FcsError::InvalidKeywordValue { key, .. } if key == "$NEXTDATA"),
+            "{value}: {error}"
+        );
+    }
+}
+
+#[test]
+fn zero_next_data_offsets_are_read() -> Result<(), Box<dyn Error>> {
+    for value in ["0", "00000000", "000000000000", "           0"] {
+        let bytes = single_event_with_next_data(value);
+        let dataset = FcsReader::new(std::io::Cursor::new(bytes)).read()?;
+        assert_uint_column(dataset.data.column(0), &[42]);
+    }
     Ok(())
 }
 

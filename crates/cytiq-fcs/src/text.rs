@@ -134,7 +134,7 @@ fn split_tokens(buffer: &[u8], delimiter: u8) -> Result<Vec<Vec<u8>>, FcsError> 
     Ok(tokens)
 }
 
-fn parse_offset_value(key: &str, value: &str) -> Result<u64, FcsError> {
+pub(crate) fn parse_offset_value(key: &str, value: &str) -> Result<u64, FcsError> {
     value
         .trim()
         .parse::<u64>()

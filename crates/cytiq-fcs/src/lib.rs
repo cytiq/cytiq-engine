@@ -29,7 +29,7 @@ use crate::error::FcsError;
 use crate::header::read_header;
 use crate::layout::{ResolvedLayout, resolve_layout};
 use crate::limits::TEXT_BYTES_MAX;
-use crate::text::{build_text, parse_segment_range, read_text_segment};
+use crate::text::{build_text, parse_offset_value, parse_segment_range, read_text_segment};
 use crate::types::{ByteRange, FcsText, Header};
 
 pub use crate::acquisition::{ACQUISITION_KEYWORD, acquisition_id, is_sha256, set_acquisition};
@@ -217,6 +217,8 @@ fn read_prelude<R: Read + Seek>(
         text.add_supplemental(segment)?;
     }
 
+    ensure_single_data_set(&text)?;
+
     let data_range = resolve_required_range(&header, &text, "$BEGINDATA", "$ENDDATA", "DATA")?;
     let analysis_range =
         resolve_optional_range(&header, &text, "$BEGINANALYSIS", "$ENDANALYSIS", "ANALYSIS")?;
@@ -242,6 +244,22 @@ fn read_prelude<R: Read + Seek>(
         analysis_range,
         layout: resolved_layout,
     })
+}
+
+/// Refuse a file whose `$NEXTDATA` names another data set: reading only the
+/// first would silently drop the events of the others, under an acquisition
+/// whose SHA-256 covers them.
+fn ensure_single_data_set(text: &FcsText) -> Result<(), FcsError> {
+    let Some(next_data) = text.get("$NEXTDATA") else {
+        return Ok(());
+    };
+    if parse_offset_value("$NEXTDATA", next_data)? == 0 {
+        Ok(())
+    } else {
+        Err(FcsError::UnsupportedLayout(
+            "the file holds more than one data set ($NEXTDATA is not 0); split it into one file per data set",
+        ))
+    }
 }
 
 fn file_length<R: Read + Seek>(reader: &mut R) -> Result<u64, FcsError> {
