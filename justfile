@@ -126,9 +126,11 @@ performance-labels *args: lakehouse-setup
     target/lakehouse/py/bin/python performance/labels.py {{ args }}
 
 # ---- Pinned DuckDB and PyArrow for the lakehouse checks, in target/lakehouse/py
+# Always a new environment: a CI cache of target/ restores it without some of
+# its files, and `uv pip sync` trusts the metadata that is left.
 [group('validation')]
 lakehouse-setup:
-    uv venv -q --allow-existing target/lakehouse/py --python "$(command -v python3)"
+    uv venv -q --clear target/lakehouse/py --python "$(command -v python3)"
     uv pip sync -q --python target/lakehouse/py/bin/python --require-hashes parity/lakehouse/requirements.lock
 
 # ---- Exported events read by DuckDB and PyArrow, bit for bit (`--events 10000000` weekly)
