@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use cytiq_provenance::{record_path_for_dir, record_path_for_file};
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_transform::{
     BiexponentialParameters, DEFAULT_BIEXPONENTIAL_LENGTH, DEFAULT_BIEXPONENTIAL_MAX_RANGE,
     DEFAULT_BIEXPONENTIAL_NEG, DEFAULT_BIEXPONENTIAL_POS, DEFAULT_BIEXPONENTIAL_WIDTH,
@@ -15,7 +15,7 @@ use crate::parsers::{
     parse_finite_f64, parse_non_negative_f64, parse_optional_transform_channels,
     parse_positive_f64, parse_threads,
 };
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 /// `FlowJo` `biex` parameters of `--method biexponential`.
 #[derive(Debug, Serialize, Args)]
@@ -202,30 +202,28 @@ pub(crate) fn run(
     } else {
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     };
+    let record_path = destination.record_path();
     let recorder = crate::provenance::begin!(recorder, destination);
-    let result = TransformRunner::run(&config)?;
-    if result.dry_run {
-        print_transform_dry_run(&result);
-    }
-    if let Some(debug_dir) = config.debug_dir.as_ref() {
-        info!("wrote transform debug artifacts to {}", debug_dir.display());
-    }
-    info!("transform completed for {} file(s)", result.files.len());
-    if result.dry_run {
-        return Ok(None);
-    }
+    let prepared = TransformRunner::prepare(&config)?;
+    let result = prepared.summary;
     let mut outputs = result
         .files
         .iter()
         .map(|file| file.output_path.clone())
         .collect::<Vec<_>>();
     outputs.extend(result.metadata_path.clone());
-    let record_path = if config.output.is_dir() {
-        record_path_for_dir(&config.output)
-    } else {
-        record_path_for_file(&config.output)
-    };
-    record_provenance(recorder, &outputs, &record_path)
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &outputs,
+        &record_path,
+        OutcomeReason::Success,
+    )?;
+    if let Some(debug_dir) = config.debug_dir.as_ref() {
+        info!("wrote transform debug artifacts to {}", debug_dir.display());
+    }
+    info!("transform completed for {} file(s)", result.files.len());
+    Ok(outcome)
 }
 
 fn print_transform_dry_run(result: &TransformRunResult) {

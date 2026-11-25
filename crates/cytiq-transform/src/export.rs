@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use cytiq_publish::{Existing, Publication};
 use plotly::common::Title;
 use plotly::{Bar, Layout, Plot};
 
@@ -9,17 +10,24 @@ use crate::{TransformChannelMetrics, TransformError, TransformRunResult};
 const REPORT_FILE_NAME: &str = "report.html";
 const PLOT_HEIGHT: usize = 520;
 
-pub(crate) fn write_debug_artifacts(
+/// Stage the debug artifacts with the outputs; every run replaces them.
+pub(crate) fn stage_debug_artifacts(
+    publication: &mut Publication,
     result: &TransformRunResult,
     debug_dir: &Path,
 ) -> Result<(), TransformError> {
-    fs::create_dir_all(debug_dir).map_err(|source| TransformError::DebugDirectoryCreate {
-        path: debug_dir.to_path_buf(),
-        source,
-    })?;
-    write_summary_json(&debug_dir.join("summary.json"), result)?;
-    write_metrics_csv(&debug_dir.join("metrics.csv"), result)?;
-    write_report_html(&debug_dir.join(REPORT_FILE_NAME), result)
+    type Write = fn(&Path, &TransformRunResult) -> Result<(), TransformError>;
+    let artifacts: [(&str, Write); 3] = [
+        ("summary.json", write_summary_json),
+        ("metrics.csv", write_metrics_csv),
+        (REPORT_FILE_NAME, write_report_html),
+    ];
+    for (name, write) in artifacts {
+        publication.stage_path_with(debug_dir.join(name), Existing::Replace, |path| {
+            write(path, result)
+        })?;
+    }
+    Ok(())
 }
 
 fn write_summary_json(path: &Path, result: &TransformRunResult) -> Result<(), TransformError> {

@@ -24,9 +24,9 @@ use cytiq_fcs::{
     ColumnData, FcsDataset, FcsReader, FcsWriteOptions, FcsWriteParameter, MARGINS_KEYWORD,
     ORIGINAL_ID_PARAMETER, Parameter, SOURCE_SPILLOVER_KEYWORD, TRANSFORM_KEYWORD,
 };
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 pub use error::TransformError;
-use export::write_debug_artifacts;
+use export::stage_debug_artifacts;
 use log::{debug, info};
 use rayon::prelude::*;
 use serde::Serialize;
@@ -262,8 +262,27 @@ struct TransformedData {
 pub struct TransformRunner;
 
 impl TransformRunner {
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
     pub fn run(config: &TransformConfig) -> Result<TransformRunResult, TransformError> {
-        Self::run_inner(config)
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Transform every input and stage the outputs, the metadata and the debug
+    /// artifacts together: one failing file stages none. A dry run stages
+    /// nothing. Nothing is published.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the configuration is invalid, an input cannot be
+    /// read or transformed, or an output cannot be staged.
+    pub fn prepare(
+        config: &TransformConfig,
+    ) -> Result<Prepared<TransformRunResult>, TransformError> {
+        Self::prepare_inner(config)
     }
 
     /// The FCS files a run with `config` reads, with directories and globs
@@ -278,7 +297,9 @@ impl TransformRunner {
         resolve_inputs(&config.inputs)
     }
 
-    fn run_inner(config: &TransformConfig) -> Result<TransformRunResult, TransformError> {
+    fn prepare_inner(
+        config: &TransformConfig,
+    ) -> Result<Prepared<TransformRunResult>, TransformError> {
         validate_config(config)?;
         let inputs = resolve_inputs(&config.inputs)?;
         let plans = plan_outputs(&inputs, config)?;
@@ -290,9 +311,12 @@ impl TransformRunner {
             .par_iter()
             .map(|plan| transform_one(plan, config))
             .collect::<Vec<_>>();
+        let mut publication = Publication::new(Existing::overwrite(config.overwrite));
         let mut files = Vec::with_capacity(file_results.len());
-        for result in file_results {
-            files.push(result?);
+        for prepared in file_results {
+            let prepared = prepared?;
+            files.push(prepared.summary);
+            publication.merge(prepared.publication)?;
         }
 
         let result = TransformRunResult {
@@ -301,13 +325,16 @@ impl TransformRunner {
             files,
         };
         if !config.dry_run {
-            write_metadata_json(config, &result)?;
+            stage_metadata_json(&mut publication, config, &result)?;
             if let Some(debug_dir) = config.debug_dir.as_deref() {
-                write_debug_artifacts(&result, debug_dir)?;
+                stage_debug_artifacts(&mut publication, &result, debug_dir)?;
             }
         }
 
-        Ok(result)
+        Ok(Prepared {
+            summary: result,
+            publication,
+        })
     }
 }
 
@@ -436,10 +463,12 @@ fn validate_output_path(
     Ok(())
 }
 
+/// Transform one input into a publication of its own, so that files are
+/// computed and staged in parallel.
 fn transform_one(
     plan: &OutputPlan,
     config: &TransformConfig,
-) -> Result<TransformFileResult, TransformError> {
+) -> Result<Prepared<TransformFileResult>, TransformError> {
     let dataset = load_dataset(&plan.input)?;
     ensure_not_transformed(&plan.input, &dataset, config)?;
     let events = dataset.event_count();
@@ -466,8 +495,12 @@ fn transform_one(
         plan.output.display(),
         result.channels.len()
     );
+    let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     if config.dry_run {
-        return Ok(result);
+        return Ok(Prepared {
+            summary: result,
+            publication,
+        });
     }
 
     let transformed = transformed_columns(&dataset, &selection.channels, config, &plan.input)?;
@@ -490,14 +523,22 @@ fn transform_one(
             transformed_margin_bounds(&plan.input, &dataset, &selection.channels, &operator)?,
         )
         .with_text_keyword(TRANSFORM_KEYWORD, metadata);
-    write_fcs_output(
-        plan,
-        &parameters,
-        &transformed.columns,
-        &options,
-        Existing::overwrite(config.overwrite),
-    )?;
-    Ok(result)
+    publication.stage_path(&plan.output, |path| {
+        cytiq_fcs::write_fcs3_1_exact_with_options(
+            path,
+            &parameters,
+            &transformed.columns,
+            &options,
+        )
+        .map_err(|source| TransformError::FcsWrite {
+            path: plan.output.clone(),
+            source,
+        })
+    })?;
+    Ok(Prepared {
+        summary: result,
+        publication,
+    })
 }
 
 fn ensure_not_transformed(
@@ -1103,27 +1144,6 @@ impl ValueTransform {
     }
 }
 
-/// Stage the output beside its target and rename it into place, so neither a
-/// failed write nor a same-file transform ever leaves a partial FCS behind.
-fn write_fcs_output(
-    plan: &OutputPlan,
-    parameters: &[FcsWriteParameter],
-    columns: &[Vec<f64>],
-    options: &FcsWriteOptions,
-    existing: Existing,
-) -> Result<(), TransformError> {
-    let mut publication = Publication::new(existing);
-    publication.stage_path(&plan.output, |path| {
-        cytiq_fcs::write_fcs3_1_exact_with_options(path, parameters, columns, options).map_err(
-            |source| TransformError::FcsWrite {
-                path: plan.output.clone(),
-                source,
-            },
-        )
-    })?;
-    Ok(publication.commit()?)
-}
-
 fn prepare_metadata_output(config: &TransformConfig) -> Result<(), TransformError> {
     let Some(path) = config.metadata_json.as_deref() else {
         return Ok(());
@@ -1143,7 +1163,8 @@ fn prepare_metadata_output(config: &TransformConfig) -> Result<(), TransformErro
     Ok(())
 }
 
-fn write_metadata_json(
+fn stage_metadata_json(
+    publication: &mut Publication,
     config: &TransformConfig,
     result: &TransformRunResult,
 ) -> Result<(), TransformError> {
@@ -1164,7 +1185,7 @@ fn write_metadata_json(
             source,
         }
     })?;
-    cytiq_publish::write_file(path, Existing::overwrite(config.overwrite), |writer| {
+    publication.stage_file(path, |writer| {
         writer
             .write_all(&bytes)
             .map_err(|source| TransformError::MetadataWrite {

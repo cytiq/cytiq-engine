@@ -1,6 +1,9 @@
 //! An output and its provenance record appear together or not at all: the
 //! record of every command is broken in turn, and the process is killed
 //! between two renames.
+//!
+//! Not covered: `meta` without `--output` and `transform --dry-run` write no
+//! file; `population` and `specimen` publish their package by one rename.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -11,6 +14,9 @@ use std::time::{Duration, Instant};
 use cytiq_provenance::RunRecord;
 use cytiq_provenance::reuse::verify_outputs;
 use cytiq_publish::OutputLock;
+
+#[path = "../../cytiq-cytonorm/tests/support/mod.rs"]
+mod cytonorm;
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -69,6 +75,8 @@ fn contents(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
 enum Record {
     /// Beside the output file.
     Beside,
+    /// In an output directory whose files are published one by one.
+    InDirectory,
     /// In an output directory published by one rename.
     WholeDirectory,
 }
@@ -81,6 +89,8 @@ struct Case {
     name: &'static str,
     /// File name of the output in its own empty directory.
     output: &'static str,
+    /// The first target published: the output, or a file below it.
+    first: &'static str,
     record: Record,
     args: Vec<String>,
 }
@@ -90,8 +100,22 @@ impl Case {
         Self {
             name,
             output,
+            first: output,
             record,
             args: strings(args),
+        }
+    }
+
+    /// A command that publishes `first` first, below its output directory.
+    fn in_directory(
+        name: &'static str,
+        output: &'static str,
+        first: &'static str,
+        args: &[&str],
+    ) -> Self {
+        Self {
+            first,
+            ..Self::new(name, output, Record::InDirectory, args)
         }
     }
 
@@ -123,6 +147,11 @@ fn prepare(args: &[&str]) {
 /// Inputs several commands read, made once in `work`.
 struct Inputs {
     raw: String,
+    compensated: String,
+    /// A stable acquisition `PeacoQC` keeps.
+    peacoqc: String,
+    /// `cytonorm` samples, their manifest and a trained model.
+    cytonorm: PathBuf,
     transformed: String,
     mask: String,
     compensate_record: String,
@@ -147,7 +176,35 @@ impl Inputs {
             "--output",
             &transformed,
         ]);
+        let cytonorm = work.join("cytonorm");
+        fs::create_dir(&cytonorm).unwrap();
+        cytonorm::design(&cytonorm, "controls");
+        prepare(&[
+            "cytonorm",
+            "train",
+            "--manifest",
+            &text(&cytonorm.join("batches.json")),
+            "--output",
+            &text(&cytonorm.join("model")),
+            "--threads",
+            "1",
+        ]);
+        let peacoqc = work.join("stable.fcs");
+        let events = 2_000_u16;
+        cytiq_fcs::write_fcs3_1_f32(
+            &peacoqc,
+            &["Time", "FL1-A", "FL2-A"].map(cytiq_fcs::FcsWriteParameter::new),
+            &[
+                (0..events).map(f32::from).collect(),
+                (0..events).map(|event| f32::from(event % 97)).collect(),
+                (0..events).map(|event| f32::from(event * 7 % 89)).collect(),
+            ],
+        )
+        .unwrap();
         Self {
+            compensated: text(&compensated),
+            peacoqc: text(&peacoqc),
+            cytonorm,
             mask: text(&compensated.with_extension("masks.parquet")),
             compensate_record: text(&cytiq_provenance::record_path_for_file(&compensated)),
             raw,
@@ -161,7 +218,89 @@ fn cases(work: &Path) -> Vec<Case> {
     let inputs = Inputs::new(work);
     let mut cases = exports(&inputs);
     cases.extend(reports(work, &inputs));
+    cases.extend(fcs_stages(&inputs));
     cases
+}
+
+fn fcs_stages(inputs: &Inputs) -> Vec<Case> {
+    let file = |name, output, args: &[&str]| Case::new(name, output, Record::Beside, args);
+    let spectral = fixture("autospectral");
+    let cytonorm = |name: &str| text(&inputs.cytonorm.join(name));
+    vec![
+        file(
+            "compensate",
+            "case12.comp.fcs",
+            &["compensate", "--input", &inputs.raw, "--output", OUT],
+        ),
+        file(
+            "transform",
+            "case12.trans.fcs",
+            &["transform", "--input", &inputs.compensated, "--output", OUT],
+        ),
+        file(
+            "peacoqc",
+            "case12.peacoqc.fcs",
+            &[
+                "peacoqc",
+                "--input",
+                &inputs.peacoqc,
+                "--output",
+                OUT,
+                "--channels",
+                "FL1-A,FL2-A",
+            ],
+        ),
+        Case::in_directory(
+            "autospectral",
+            "unmixed",
+            "fluorophore_spectra.csv",
+            &[
+                "autospectral",
+                "--controls",
+                &text(&spectral.join("controls.csv")),
+                "--samples",
+                &text(&spectral.join("samples.csv")),
+                "--input-dir",
+                &text(&spectral),
+                "--output",
+                OUT,
+                "--threads",
+                "1",
+                "--quantile-gate",
+            ],
+        ),
+        Case::new(
+            "cytonorm train",
+            "model",
+            Record::WholeDirectory,
+            &[
+                "cytonorm",
+                "train",
+                "--manifest",
+                &cytonorm("batches.json"),
+                "--output",
+                OUT,
+                "--threads",
+                "1",
+            ],
+        ),
+        file(
+            "cytonorm apply",
+            "vb.norm.fcs",
+            &[
+                "cytonorm",
+                "apply",
+                "--input",
+                &cytonorm("vb.fcs"),
+                "--model",
+                &cytonorm("model"),
+                "--batch",
+                "b",
+                "--output",
+                OUT,
+            ],
+        ),
+    ]
 }
 
 fn exports(inputs: &Inputs) -> Vec<Case> {
@@ -362,7 +501,7 @@ fn a_record_that_cannot_be_written_takes_the_output_with_it() {
 
         // A previous output and its record: both stay.
         expect_nothing(&case, directory.path(), &overwrite, Some(&full));
-        let published = format!("published|{}|full", case.output);
+        let published = format!("published|{}|full", case.first);
         expect_nothing(&case, directory.path(), &overwrite, Some(&published));
         if case.record != Record::WholeDirectory {
             // A directory where the record goes.
@@ -388,9 +527,13 @@ fn a_directory_that_cannot_be_written_keeps_what_it_holds() {
         let args = case.args(&output);
         succeed(&args);
         let overwrite = [args, strings(&["--overwrite"])].concat();
-        let mode = |mode| {
-            fs::set_permissions(directory.path(), fs::Permissions::from_mode(mode)).unwrap();
+        // Where the record is staged: the output directory, or its parent.
+        let locked = if case.record == Record::InDirectory {
+            output
+        } else {
+            directory.path().to_path_buf()
         };
+        let mode = |mode| fs::set_permissions(&locked, fs::Permissions::from_mode(mode)).unwrap();
         mode(0o555);
         expect_nothing(&case, directory.path(), &overwrite, None);
         mode(0o755);
@@ -458,7 +601,7 @@ fn a_kill_between_two_renames_is_completed_by_the_next_run() {
                 before = Some(fs::read(&record).unwrap());
                 args.push("--overwrite".into());
             }
-            let failpoint = format!("published|{}|pause:{}", case.output, text(&marker));
+            let failpoint = format!("published|{}|pause:{}", case.first, text(&marker));
             kill_at(&args, &failpoint, &marker);
             assert_eq!(
                 fs::read(&record).ok(),

@@ -5,7 +5,7 @@ use cytiq_fcs::{
     FcsWriteParameter, MARGINS_KEYWORD, SOURCE_SPILLOVER_KEYWORD, SignalState,
 };
 use cytiq_mask::EventMask;
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info};
 
 use crate::error::CompensateError;
@@ -46,15 +46,26 @@ pub fn margin_diagnostics_path(output: &Path) -> PathBuf {
 pub struct CompensateRunner;
 
 impl CompensateRunner {
-    /// Compensate one FCS file and write the compensated FCS plus a raw-margin
-    /// event mask next to it.
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &CompensateConfig) -> Result<CompensateResult, CompensateError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Compensate one FCS file and stage the compensated FCS plus a raw-margin
+    /// event mask next to it. Nothing is published.
     ///
     /// # Errors
     ///
     /// Returns an error when the input is missing, already compensated or
     /// transformed on a matrix channel, the matrix is invalid or does not
     /// match the input channels, or an output cannot be written.
-    pub fn run(config: &CompensateConfig) -> Result<CompensateResult, CompensateError> {
+    pub fn prepare(
+        config: &CompensateConfig,
+    ) -> Result<Prepared<CompensateResult>, CompensateError> {
         validate_paths(config)?;
         let input = &config.input;
         let dataset = load_dataset(input)?;
@@ -121,14 +132,15 @@ impl CompensateRunner {
                 ))
             })
         })?;
-        publication.commit()?;
-
-        Ok(CompensateResult {
-            output: config.output.clone(),
-            masks,
-            channels,
-            event_count: mask.len(),
-            margin_event_count: mask.len() - mask.kept(),
+        Ok(Prepared {
+            summary: CompensateResult {
+                output: config.output.clone(),
+                masks,
+                channels,
+                event_count: mask.len(),
+                margin_event_count: mask.len() - mask.kept(),
+            },
+            publication,
         })
     }
 }

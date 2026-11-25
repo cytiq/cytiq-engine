@@ -16,10 +16,7 @@ pub fn masks_path(output: &Path) -> std::path::PathBuf {
     output.with_extension("masks.parquet")
 }
 
-/// Write references, unmixed FCS files, diagnostics, and optional debug output.
-///
-/// The outputs are published together, `diagnostics/run.json` last: a run
-/// directory either has all of them or keeps its previous contents.
+/// [`stage_outputs`], then publish them.
 ///
 /// # Errors
 ///
@@ -30,6 +27,23 @@ pub fn write_outputs(
     existing: Existing,
     debug_dir: Option<&Path>,
 ) -> Result<(), AutoSpectralError> {
+    Ok(stage_outputs(result, output_dir, existing, debug_dir)?.commit()?)
+}
+
+/// Stage references, unmixed FCS files, diagnostics, and optional debug output.
+///
+/// The outputs are published together, `diagnostics/run.json` last: a run
+/// directory either has all of them or keeps its previous contents.
+///
+/// # Errors
+///
+/// Returns an error if any output directory or file cannot be staged.
+pub fn stage_outputs(
+    result: &AutoSpectralResult,
+    output_dir: &Path,
+    existing: Existing,
+    debug_dir: Option<&Path>,
+) -> Result<Publication, AutoSpectralError> {
     let references_dir = output_dir.join("references");
     let mut publication = Publication::new(existing);
     let spectra = references_dir.join("fluorophore_spectra.csv");
@@ -66,27 +80,30 @@ pub fn write_outputs(
         &output_dir.join("diagnostics").join("run.json"),
         &result.summary,
     )?;
-    publication.commit()?;
-
     if let Some(debug_dir) = debug_dir {
-        let mut publication = Publication::new(Existing::Replace);
-        stage_json(
-            &mut publication,
-            &debug_dir.join("summary.json"),
-            &result.summary,
-        )?;
+        // Every run replaces its debug output.
+        let path = debug_dir.join("summary.json");
+        publication.stage_file_with(&path, Existing::Replace, |writer| {
+            serde_json::to_writer_pretty(writer, &result.summary)
+                .map_err(|source| json_error(&path, source))
+        })?;
         // The runner keeps the events only when a debug directory is set.
+        // Compact JSON: pretty-printing would put one value per line.
         if let Some(events) = &result.reference_events {
-            stage_json_compact(
-                &mut publication,
-                &debug_dir.join(REFERENCE_EVENTS_FILE),
-                events,
-            )?;
+            let path = debug_dir.join(REFERENCE_EVENTS_FILE);
+            publication.stage_file_with(&path, Existing::Replace, |writer| {
+                serde_json::to_writer(writer, events).map_err(|source| json_error(&path, source))
+            })?;
         }
-        publication.commit()?;
     }
+    Ok(publication)
+}
 
-    Ok(())
+fn json_error(path: &Path, source: serde_json::Error) -> AutoSpectralError {
+    AutoSpectralError::JsonSerialize {
+        path: path.to_path_buf(),
+        source,
+    }
 }
 
 fn write_reference_csv(
@@ -140,26 +157,6 @@ fn stage_json<T: serde::Serialize>(
     value: &T,
 ) -> Result<(), AutoSpectralError> {
     publication.stage_file(path, |writer| {
-        serde_json::to_writer_pretty(writer, value).map_err(|source| {
-            AutoSpectralError::JsonSerialize {
-                path: path.to_path_buf(),
-                source,
-            }
-        })
-    })
-}
-
-/// Compact JSON for large row lists, which pretty-printing would put one
-/// value per line.
-fn stage_json_compact<T: serde::Serialize>(
-    publication: &mut Publication,
-    path: &Path,
-    value: &T,
-) -> Result<(), AutoSpectralError> {
-    publication.stage_file(path, |writer| {
-        serde_json::to_writer(writer, value).map_err(|source| AutoSpectralError::JsonSerialize {
-            path: path.to_path_buf(),
-            source,
-        })
+        serde_json::to_writer_pretty(writer, value).map_err(|source| json_error(path, source))
     })
 }

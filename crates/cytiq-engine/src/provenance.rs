@@ -158,6 +158,22 @@ pub(crate) fn publish(
     Ok(Some(completed(record, reason)))
 }
 
+/// What a publication will publish under `directory`, sorted: the files a
+/// record of that directory lists.
+pub(crate) fn staged_under(
+    publication: &Publication,
+    directory: &Path,
+) -> Result<Vec<PathBuf>, PublishError> {
+    let mut targets: Vec<PathBuf> = publication
+        .staged()?
+        .into_iter()
+        .map(|(target, _)| target)
+        .filter(|target| target.starts_with(directory))
+        .collect();
+    targets.sort();
+    Ok(targets)
+}
+
 /// The outcome of a run whose `record` is published.
 fn completed(record: RunRecord, reason: OutcomeReason) -> CommandOutcome {
     let mut outcome = CommandOutcome::new(&record.tool, true, reason, String::new());

@@ -20,7 +20,7 @@ use serde::Serialize;
 use crate::error::PeacoQcError;
 use crate::export::{stage_debug_artifacts, stage_masks_parquet};
 use cytiq_density::{density, smooth_spline_fitted};
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 
 pub const DEFAULT_MAD_THRESHOLD: f64 = 6.0;
 /// `PeacoQC::MADOutliers` smooths each peak series with `smooth.spline(spar = 0.5)`.
@@ -272,28 +272,40 @@ struct ItNode {
 pub struct PeacoQcRunner;
 
 impl PeacoQcRunner {
-    /// Run the PeacoQC-compatible pipeline and write the cleaned FCS output.
+    /// [`Self::prepare`], then publish, without a provenance record.
     ///
     /// # Errors
     ///
-    /// Returns an error if the input cannot be read, channels cannot be
-    /// resolved, the algorithm cannot produce peak features, or outputs cannot
-    /// be written.
+    /// As [`Self::prepare`], and what publishing returns.
     pub fn run(
         input: impl AsRef<Path>,
         output: impl AsRef<Path>,
         config: &PeacoQcConfig,
     ) -> Result<PeacoQcResult, PeacoQcError> {
-        let input = input.as_ref();
-        let output = output.as_ref();
-        Self::run_inner(input, output, config)
+        Ok(Self::prepare(input, output, config)?.commit()?)
     }
 
-    fn run_inner(
+    /// Run the PeacoQC-compatible pipeline and stage the cleaned FCS output.
+    /// Nothing is published.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input cannot be read, channels cannot be
+    /// resolved, the algorithm cannot produce peak features, or outputs cannot
+    /// be staged.
+    pub fn prepare(
+        input: impl AsRef<Path>,
+        output: impl AsRef<Path>,
+        config: &PeacoQcConfig,
+    ) -> Result<Prepared<PeacoQcResult>, PeacoQcError> {
+        Self::prepare_inner(input.as_ref(), output.as_ref(), config)
+    }
+
+    fn prepare_inner(
         input: &Path,
         output: &Path,
         config: &PeacoQcConfig,
-    ) -> Result<PeacoQcResult, PeacoQcError> {
+    ) -> Result<Prepared<PeacoQcResult>, PeacoQcError> {
         validate_output_path(output)?;
         // The cleaned FCS, its mask and summary appear together or not at all.
         let mut publication = Publication::new(Existing::overwrite(config.overwrite));
@@ -397,13 +409,15 @@ impl PeacoQcRunner {
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             stage_debug_artifacts(&mut publication, &summary, &mask, debug_dir)?;
         }
-        publication.commit()?;
         info!(
             "peacoqc pipeline: retained {} of {} events",
             summary.metrics.events_after, summary.metrics.events_before
         );
 
-        Ok(PeacoQcResult { summary, mask })
+        Ok(Prepared {
+            summary: PeacoQcResult { summary, mask },
+            publication,
+        })
     }
 }
 

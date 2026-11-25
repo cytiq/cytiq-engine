@@ -8,7 +8,7 @@ use cytiq_fcs::{
     TransformContract,
 };
 use cytiq_flowsom::{FlowSomConfig, FlowSomModel, Metaclustering};
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -72,6 +72,14 @@ impl CytoNormRunner {
     /// # Errors
     /// Rejects incompatible cohorts, sparse mappings and output collisions.
     pub fn train(config: &TrainConfig) -> Result<RunResult> {
+        Ok(Self::prepare_train(config)?.commit()?)
+    }
+
+    /// [`Self::train`] up to publication: the bundle is staged and loads.
+    ///
+    /// # Errors
+    /// As [`Self::train`], except what publishing returns.
+    pub fn prepare_train(config: &TrainConfig) -> Result<Prepared<RunResult>> {
         train_inner(config)
     }
 
@@ -80,6 +88,14 @@ impl CytoNormRunner {
     /// # Errors
     /// Rejects unknown batches, incompatible signal state and invalid bundles.
     pub fn apply(config: &ApplyConfig) -> Result<RunResult> {
+        Ok(Self::prepare_apply(config)?.commit()?)
+    }
+
+    /// [`Self::apply`] up to publication.
+    ///
+    /// # Errors
+    /// As [`Self::apply`], except what publishing returns.
+    pub fn prepare_apply(config: &ApplyConfig) -> Result<Prepared<RunResult>> {
         apply_inner(config)
     }
 }
@@ -308,7 +324,7 @@ fn fit_mappings(
     Ok((goals, mappings))
 }
 
-fn train_inner(config: &TrainConfig) -> Result<RunResult> {
+fn train_inner(config: &TrainConfig) -> Result<Prepared<RunResult>> {
     let manifest = Manifest::load(&config.manifest)?;
     let inputs = CytoNormRunner::input_files(&config.manifest)?;
     check_destination(&config.output, &inputs, config.overwrite)?;
@@ -383,7 +399,7 @@ fn train_inner(config: &TrainConfig) -> Result<RunResult> {
     model.validate()?;
     let mut qc = cohort_qc(&samples, &model)?;
     qc["sampling"] = json!(sampling);
-    publish_training_model(config, model, &qc, &samples)
+    stage_training_model(config, model, &qc, &samples)
 }
 
 fn balanced_training_values(
@@ -459,12 +475,12 @@ fn train_som(
     Ok(som)
 }
 
-fn publish_training_model(
+fn stage_training_model(
     config: &TrainConfig,
     mut model: CytoNormModel,
     qc: &Value,
     samples: &[LoadedSample],
-) -> Result<RunResult> {
+) -> Result<Prepared<RunResult>> {
     let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     let stage = publication.stage_dir(&config.output)?;
     write_json(&stage.join("som.json"), &model.som)?;
@@ -480,27 +496,29 @@ fn publish_training_model(
     write_json(&stage.join("model.json"), &model.document)?;
     let model = CytoNormModel::load(&stage)?;
     if let Some(debug) = &config.debug_dir {
-        write_diagnostics(debug, &model, qc, config.overwrite)?;
+        stage_diagnostics(&mut publication, debug, &model, qc)?;
     }
-    publication.commit()?;
     let mut outputs = CytoNormModel::input_files(&config.output);
     outputs.push(config.output.join("training-qc.json"));
     if let Some(debug) = &config.debug_dir {
         outputs.push(debug.join("report.html"));
     }
-    Ok(RunResult {
-        outputs,
-        provenance: cytiq_provenance::record_path_for_dir(&config.output),
-        model_sha256: model.model_sha256,
-        events: samples
-            .iter()
-            .filter(|s| s.role == Role::Train)
-            .map(|s| s.values.len())
-            .sum(),
+    Ok(Prepared {
+        summary: RunResult {
+            outputs,
+            provenance: cytiq_provenance::record_path_for_dir(&config.output),
+            model_sha256: model.model_sha256,
+            events: samples
+                .iter()
+                .filter(|s| s.role == Role::Train)
+                .map(|s| s.values.len())
+                .sum(),
+        },
+        publication,
     })
 }
 
-fn apply_inner(config: &ApplyConfig) -> Result<RunResult> {
+fn apply_inner(config: &ApplyConfig) -> Result<Prepared<RunResult>> {
     if !config
         .output
         .extension()
@@ -582,18 +600,20 @@ fn apply_inner(config: &ApplyConfig) -> Result<RunResult> {
     })?;
     publication.stage_path(&qc_path, |path| write_json(path, &qc))?;
     if let Some(debug) = &config.debug_dir {
-        write_diagnostics(debug, &model, &qc, config.overwrite)?;
+        stage_diagnostics(&mut publication, debug, &model, &qc)?;
     }
-    publication.commit()?;
     let mut outputs = vec![config.output.clone(), qc_path];
     if let Some(debug) = &config.debug_dir {
         outputs.push(debug.join("report.html"));
     }
-    Ok(RunResult {
-        outputs,
-        provenance,
-        model_sha256: model.model_sha256,
-        events: dataset.event_count(),
+    Ok(Prepared {
+        summary: RunResult {
+            outputs,
+            provenance,
+            model_sha256: model.model_sha256,
+            events: dataset.event_count(),
+        },
+        publication,
     })
 }
 
@@ -974,15 +994,14 @@ fn normalized_value(sample: &LoadedSample, row: usize, index: usize, mapping: &M
         })
 }
 
-fn write_diagnostics(
+fn stage_diagnostics(
+    publication: &mut Publication,
     directory: &Path,
     model: &CytoNormModel,
     qc: &Value,
-    overwrite: bool,
 ) -> Result<()> {
     use plotly::{Plot, Scatter, common::Mode as PlotMode};
     let path = directory.join("report.html");
-    cytiq_publish::Publication::new(cytiq_publish::Existing::overwrite(overwrite)).check(&path)?;
     let mut plot = Plot::new();
     for m in &model.mappings {
         if let Some(s) = &m.spline {
@@ -1014,7 +1033,6 @@ fn write_diagnostics(
             }
         }
     }
-    fs::create_dir_all(directory)?;
     let html = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>CytoNorm diagnostics</title></head><body><h1>CytoNorm splines</h1>{}<h2>Before/after quantile distributions</h2>{}<p>EMD values are quantile approximations. Inspect population occupancy and biological composition alongside these plots.</p></body></html>",
         plot.to_inline_html(Some("splines")),
@@ -1025,8 +1043,7 @@ fn write_diagnostics(
         "</head>",
         "<script src=\"https://cdn.plot.ly/plotly-3.0.1.min.js\"></script></head>",
     );
-    fs::write(path, html)?;
-    Ok(())
+    publication.stage_path(&path, |staged| Ok(fs::write(staged, &html)?))
 }
 
 fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {

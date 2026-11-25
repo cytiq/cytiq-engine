@@ -13,14 +13,14 @@ use cytiq_fcs::{
     UNMIXING_KEYWORD, UnmixingState,
 };
 use cytiq_mask::EventMask;
-use cytiq_publish::Existing;
+use cytiq_publish::{Existing, Prepared};
 use log::{debug, info, warn};
 use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::error::AutoSpectralError;
-use crate::export::write_outputs;
+use crate::export::stage_outputs;
 use crate::manifest::{
     ControlManifestRow, DetectorSpec, SampleManifestRow, is_autofluorescence_dye,
     normalize_identifier,
@@ -338,28 +338,42 @@ impl AutoSpectralRunner {
         )
     }
 
-    /// Run the `AutoSpectral` MVP pipeline and write all configured outputs.
+    /// [`Self::prepare`], then publish, without a provenance record.
     ///
     /// # Errors
     ///
-    /// Returns an error if FCS files cannot be loaded, references cannot be
-    /// built, samples cannot be unmixed, or outputs cannot be written.
+    /// As [`Self::prepare`], and what publishing returns.
     pub fn run(
         controls: &[ControlManifestRow],
         samples: &[SampleManifestRow],
         input_dir: impl AsRef<Path>,
         config: &AutoSpectralConfig,
     ) -> Result<AutoSpectralSummary, AutoSpectralError> {
-        let input_dir = input_dir.as_ref();
-        Self::run_inner(controls, samples, input_dir, config)
+        Ok(Self::prepare(controls, samples, input_dir, config)?.commit()?)
     }
 
-    fn run_inner(
+    /// Run the `AutoSpectral` MVP pipeline and stage all configured outputs.
+    /// Nothing is published.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if FCS files cannot be loaded, references cannot be
+    /// built, samples cannot be unmixed, or outputs cannot be staged.
+    pub fn prepare(
+        controls: &[ControlManifestRow],
+        samples: &[SampleManifestRow],
+        input_dir: impl AsRef<Path>,
+        config: &AutoSpectralConfig,
+    ) -> Result<Prepared<AutoSpectralSummary>, AutoSpectralError> {
+        Self::prepare_inner(controls, samples, input_dir.as_ref(), config)
+    }
+
+    fn prepare_inner(
         controls: &[ControlManifestRow],
         samples: &[SampleManifestRow],
         input_dir: &Path,
         config: &AutoSpectralConfig,
-    ) -> Result<AutoSpectralSummary, AutoSpectralError> {
+    ) -> Result<Prepared<AutoSpectralSummary>, AutoSpectralError> {
         let existing = Existing::overwrite(config.overwrite);
         cytiq_publish::check_output_dir(&config.output_dir, existing)?;
         info!(
@@ -426,14 +440,17 @@ impl AutoSpectralRunner {
             summary,
             reference_events: references.events,
         };
-        write_outputs(
+        let publication = stage_outputs(
             &result,
             &config.output_dir,
             existing,
             config.debug_dir.as_deref(),
         )?;
         info!("autospectral pipeline: completed successfully");
-        Ok(result.summary)
+        Ok(Prepared {
+            summary: result.summary,
+            publication,
+        })
     }
 }
 

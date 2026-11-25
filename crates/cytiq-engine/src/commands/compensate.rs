@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_compensate::{CompensateConfig, CompensateRunner, MatrixKind as CompensateMatrixKind};
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::info;
 use serde::Serialize;
 
 use crate::cli::CliMatrixKind;
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct CompensateArgs {
@@ -60,7 +61,19 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let result = CompensateRunner::run(&config)?;
+    let prepared = CompensateRunner::prepare(&config)?;
+    let result = prepared.summary;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &[
+            result.output.clone(),
+            result.masks.clone(),
+            cytiq_compensate::margin_diagnostics_path(&result.output),
+        ],
+        &record_path_for_file(&result.output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "compensated {} channel(s) over {} event(s); {} on a raw detector margin; wrote {} and {}",
         result.channels.len(),
@@ -69,13 +82,5 @@ pub(crate) fn run(
         result.output.display(),
         result.masks.display()
     );
-    record_provenance(
-        recorder,
-        &[
-            result.output.clone(),
-            result.masks.clone(),
-            cytiq_compensate::margin_diagnostics_path(&result.output),
-        ],
-        &record_path_for_file(&result.output),
-    )
+    Ok(outcome)
 }

@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use clap::Subcommand;
 use cytiq_flowsom::FlowSomConstants;
+use cytiq_provenance::outcome::OutcomeReason;
 
 use log::info;
 use serde::Serialize;
 
 use crate::parsers::parse_threads;
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Subcommand)]
 pub(crate) enum CytoNormCommand {
@@ -50,7 +51,7 @@ pub(crate) fn run(
     use cytiq_cytonorm::{ApplyConfig, CytoNormRunner, TrainConfig};
     recorder.set_algorithms(cytiq_cytonorm::UPSTREAM);
     recorder.set_constants(&FlowSomConstants::default());
-    let (result, recorder) = match command {
+    let (prepared, recorder) = match command {
         CytoNormCommand::Train {
             manifest,
             output,
@@ -65,13 +66,13 @@ pub(crate) fn run(
                 recorder,
                 cytiq_provenance::reuse::Destination::Dir(output.clone())
             );
-            let result = CytoNormRunner::train(&TrainConfig {
+            let prepared = CytoNormRunner::prepare_train(&TrainConfig {
                 manifest,
                 output,
                 debug_dir,
                 overwrite,
             })?;
-            (result, run)
+            (prepared, run)
         }
         CytoNormCommand::Apply {
             input,
@@ -91,7 +92,7 @@ pub(crate) fn run(
                 recorder,
                 cytiq_provenance::reuse::Destination::File(output.clone())
             );
-            let result = CytoNormRunner::apply(&ApplyConfig {
+            let prepared = CytoNormRunner::prepare_apply(&ApplyConfig {
                 input,
                 model,
                 batch,
@@ -99,12 +100,20 @@ pub(crate) fn run(
                 debug_dir,
                 overwrite,
             })?;
-            (result, run)
+            (prepared, run)
         }
     };
+    let result = prepared.summary;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &result.outputs,
+        &result.provenance,
+        OutcomeReason::Success,
+    )?;
     info!(
         "cytonorm processed {} events; normalization model {}",
         result.events, result.model_sha256
     );
-    record_provenance(recorder, &result.outputs, &result.provenance)
+    Ok(outcome)
 }
