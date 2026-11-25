@@ -27,7 +27,7 @@ mod views;
 use std::path::{Path, PathBuf};
 
 use cytiq_provenance::record_path_for_dir;
-use cytiq_publish::{Existing, Publication, PublishError};
+use cytiq_publish::{Existing, Prepared, Publication, PublishError};
 use serde::{Deserialize, Serialize};
 
 pub use observations::MAX_ROWS as MAX_OBSERVATIONS;
@@ -127,14 +127,23 @@ impl AnalyticsRunner {
             .collect()
     }
 
-    /// Build the product and publish it atomically.
+    /// [`Self::prepare`], then publish the product atomically, without a
+    /// provenance record.
+    ///
+    /// # Errors
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &ExportDatasetConfig) -> Result<Product> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Build the product in a staged directory. Nothing is published.
     ///
     /// # Errors
     /// Returns [`PublishError::Exists`] for an existing output without
     /// `overwrite`, a dataset that does not validate, objects that do not
     /// verify, observations outside the dataset or disagreeing with their
     /// label tables, and I/O errors.
-    pub fn run(config: &ExportDatasetConfig) -> Result<Product> {
+    pub fn prepare(config: &ExportDatasetConfig) -> Result<Prepared<Product>> {
         if config.output.exists() && !config.overwrite {
             return Err(PublishError::Exists {
                 path: config.output.clone(),
@@ -145,9 +154,11 @@ impl AnalyticsRunner {
         let parity = parity::check(&inputs)?;
         let mut publication = Publication::new(Existing::overwrite(config.overwrite));
         let staged = publication.stage_dir(&config.output)?;
-        let product = write(&staged, &inputs, parity)?;
-        publication.commit()?;
-        Ok(product)
+        let summary = write(&staged, &inputs, parity)?;
+        Ok(Prepared {
+            summary,
+            publication,
+        })
     }
 }
 

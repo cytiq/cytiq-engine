@@ -287,3 +287,25 @@ fn recovery_writes_nothing_where_nothing_was_interrupted() {
     recovery::recover(&lock, &Destination::Dir(absent.clone())).unwrap();
     assert!(!absent.exists(), "an absent output stays absent");
 }
+
+#[test]
+fn staging_of_further_outputs_is_discarded_unless_another_process_owns_them() {
+    let run = Run::new();
+    crash(&run, "new", 0);
+    let abandoned = |prefix: &str| {
+        listing(run.root.path())
+            .iter()
+            .any(|name| name.starts_with(prefix) && temporary(name))
+    };
+    run.recover();
+    assert!(abandoned(".out.masks."), "only the first output is locked");
+    let owner = OutputLock::acquire(&run.mask).unwrap();
+    recovery::discard_abandoned(&run.outputs()).unwrap();
+    assert!(
+        abandoned(".out.masks."),
+        "another process may be staging it"
+    );
+    drop(owner);
+    recovery::discard_abandoned(&run.outputs()).unwrap();
+    assert_eq!(listing(run.root.path()), ["input"]);
+}

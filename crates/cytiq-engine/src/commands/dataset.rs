@@ -71,7 +71,15 @@ fn export(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(config.output.clone())
     );
-    let product = AnalyticsRunner::run(&config)?;
+    let prepared = AnalyticsRunner::prepare(&config)?;
+    let product = prepared.summary;
+    let outcome = crate::provenance::publish(
+        recorder,
+        prepared.publication,
+        &AnalyticsRunner::outputs(&config, &product),
+        &config.record_path(),
+        OutcomeReason::Success,
+    )?;
     info!(
         "dataset export: {} table(s), {} view(s), {} label table(s) checked against \
          observations, cohort views {}; wrote {}",
@@ -85,11 +93,7 @@ fn export(
         },
         config.output.display()
     );
-    crate::provenance::record_provenance(
-        recorder,
-        &AnalyticsRunner::outputs(&config, &product),
-        &config.record_path(),
-    )
+    Ok(outcome)
 }
 
 #[derive(Debug, Serialize, Args)]

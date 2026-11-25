@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use cytiq_mask::parquet::ParquetReadLimits;
 use cytiq_provenance::{RunRecord, hash_file, record_path_for_file};
-use cytiq_publish::{Existing, Publication, PublishError};
+use cytiq_publish::{Existing, Prepared, Publication, PublishError};
 
 use super::sources::{Rows, classify, flowsom, mask};
 use super::{
@@ -110,9 +110,18 @@ impl LabelsRunner {
         files
     }
 
-    /// Convert the native file, refusing an existing output without
-    /// `overwrite` before any work, and publish the label table atomically
-    /// once it verifies.
+    /// [`Self::prepare`], then publish the label table, without a provenance
+    /// record.
+    ///
+    /// # Errors
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &ExportLabelsConfig) -> Result<WrittenLabels> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Convert the native file to a staged label table that verifies, refusing
+    /// an existing output without `overwrite` before any work. Nothing is
+    /// published.
     ///
     /// # Errors
     /// Returns [`PublishError::Exists`] for an existing output,
@@ -120,7 +129,7 @@ impl LabelsRunner {
     /// file its producer record does not list, of another acquisition, out
     /// of raw order or contradicting the QC masks, definitions other than
     /// the producer's, and a native file that changed during the export.
-    pub fn run(config: &ExportLabelsConfig) -> Result<WrittenLabels> {
+    pub fn prepare(config: &ExportLabelsConfig) -> Result<Prepared<WrittenLabels>> {
         if config.output.exists() && !config.overwrite {
             return Err(PublishError::Exists {
                 path: config.output.clone(),
@@ -217,8 +226,12 @@ impl LabelsRunner {
             hash_file(&config.input)?.1 == native_sha256,
             "the native file changed while it was exported",
         )?;
-        publication.commit()?;
-        written.ok_or_else(|| PopulationError::Invalid("the export wrote nothing".into()))
+        let summary =
+            written.ok_or_else(|| PopulationError::Invalid("the export wrote nothing".into()))?;
+        Ok(Prepared {
+            summary,
+            publication,
+        })
     }
 }
 
