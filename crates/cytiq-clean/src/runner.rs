@@ -7,7 +7,7 @@ use cytiq_gating::{
     BooleanOp, Gate, GateKind, GateRef, GatingResults, GatingStrategy, Transform, parse_gatingml,
     read_gatingml, to_gatingml,
 };
-use cytiq_publish::Existing;
+use cytiq_publish::{Existing, Prepared};
 use log::info;
 use serde::Serialize;
 use serde_json::json;
@@ -15,7 +15,7 @@ use serde_json::json;
 use crate::channels::{ChannelOverrides, ChannelRoles};
 use crate::debris::{self, DebrisConfig, DebrisMode};
 use crate::error::CleanError;
-use crate::export::write_outputs;
+use crate::export::stage_outputs;
 use crate::filter::{
     CLEAN_GATE, FilterFit, FilterReport, FilterStatus, LIVE_GATE, NON_DEBRIS_GATE, SINGLETS_GATE,
 };
@@ -178,20 +178,49 @@ pub struct CleanResult {
     pub output: PathBuf,
 }
 
+impl CleanResult {
+    /// `--require`: whether every filter of `required` was applied. An unmet
+    /// requirement is a completed diagnostic run, whose evidence is published,
+    /// not an I/O or computation failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CleanError::RequiredFilterNotApplied`] for the first filter
+    /// that was not.
+    pub fn ensure_required(&self, required: &[FilterKind]) -> Result<(), CleanError> {
+        ensure_required(required, &self.metrics.filters)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct CleanRunner;
 
 impl CleanRunner {
+    /// [`Self::prepare`], then publish, without a provenance record, then
+    /// [`CleanResult::ensure_required`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`] and [`CleanResult::ensure_required`], and what
+    /// publishing returns.
+    pub fn run(config: &CleanConfig) -> Result<CleanResult, CleanError> {
+        let result = Self::prepare(config)?.commit()?;
+        result.ensure_required(&config.required)?;
+        Ok(result)
+    }
+
     /// Fit (or re-apply) debris, singlet and viability gates on one FCS file
-    /// and write masks, metrics, `GatingML` and an HTML report.
+    /// and stage masks, metrics, `GatingML` and an HTML report. Nothing is
+    /// published, and unmet requirements are the caller's to report
+    /// ([`CleanResult::ensure_required`]).
     ///
     /// # Errors
     ///
     /// Returns an error when the configuration is invalid, inputs cannot be
-    /// read, required channels are missing, or outputs cannot be written.
-    pub fn run(config: &CleanConfig) -> Result<CleanResult, CleanError> {
+    /// read, required channels are missing, or outputs cannot be staged.
+    pub fn prepare(config: &CleanConfig) -> Result<Prepared<CleanResult>, CleanError> {
         validate(config)?;
-        run_inner(config)
+        prepare_inner(config)
     }
 }
 
@@ -266,7 +295,7 @@ struct Plan {
     source: String,
 }
 
-fn run_inner(config: &CleanConfig) -> Result<CleanResult, CleanError> {
+fn prepare_inner(config: &CleanConfig) -> Result<Prepared<CleanResult>, CleanError> {
     cytiq_publish::check_output_dir(&config.output, Existing::overwrite(config.overwrite))?;
     let dataset = read_fcs(&config.input)?;
     let roles = ChannelRoles::resolve(&dataset, &config.channels, &config.input)?;
@@ -351,19 +380,16 @@ fn run_inner(config: &CleanConfig) -> Result<CleanResult, CleanError> {
             kept: mask.iter().filter(|kept| **kept).count(),
         }),
     };
-    write_outputs(
+    let publication = stage_outputs(
         config, &metrics, &masks, &gatingml, &strategy, &dataset, &results,
     )?;
-    info!(
-        "clean kept {kept} of {event_count} event(s); wrote {}",
-        config.output.display()
-    );
-    // An unmet assessment is a completed diagnostic run, not an I/O or
-    // computation failure. Preserve the evidence before returning the error.
-    ensure_required(&config.required, &metrics.filters)?;
-    Ok(CleanResult {
-        metrics,
-        output: config.output.clone(),
+    info!("clean keeps {kept} of {event_count} event(s)");
+    Ok(Prepared {
+        summary: CleanResult {
+            metrics,
+            output: config.output.clone(),
+        },
+        publication,
     })
 }
 

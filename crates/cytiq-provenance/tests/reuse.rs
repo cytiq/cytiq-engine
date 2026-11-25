@@ -94,11 +94,7 @@ fn recorder_and_written_record_share_the_same_fingerprint() {
     let recorder = recorder();
     let expected = recorder.execution_fingerprint();
     let record = recorder
-        .finish(
-            std::slice::from_ref(&output),
-            &cytiq_provenance::record_path_for_file(&output),
-            OutcomeReason::ChecksFailed,
-        )
+        .prepare_staged(&[(output.clone(), output)], OutcomeReason::ChecksFailed)
         .unwrap();
     assert_eq!(
         record.execution_fingerprint.as_deref(),
@@ -125,8 +121,9 @@ fn assessment_rejects_stale_unrecorded_and_tampered_outputs() {
     ));
     let path = destination.record_path();
     let record = recorder()
-        .finish(std::slice::from_ref(&output), &path, OutcomeReason::Success)
+        .prepare_staged(&[(output.clone(), output.clone())], OutcomeReason::Success)
         .unwrap();
+    std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
     assert!(matches!(
         reuse::assess(&destination, &expected),
         Prior::Match(_)
@@ -254,11 +251,7 @@ fn changed_input_bytes_are_rejected_even_when_size_and_mtime_are_preserved() {
     assert!(recorder.verify_inputs().is_err());
     assert!(
         recorder
-            .finish(
-                &[output],
-                &temp.path().join("provenance.json"),
-                OutcomeReason::Success
-            )
+            .prepare_staged(&[(output.clone(), output)], OutcomeReason::Success)
             .is_err()
     );
 }

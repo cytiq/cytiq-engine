@@ -78,8 +78,9 @@ The package is `cytiq-engine`; the binary is `cytiq` (`[[bin]]` in `Cargo.toml`)
 - `--overwrite` is passed through to the library, which refuses existing
   outputs before any work (`PublishError::Exists`, exit 4). Directory outputs
   use `cytiq_publish::check_output_dir`; their records list
-  `DirSnapshot::published`, never `files_under`. `autospill`/`autospread`
-  export in the command arm, so the arm checks the output before computing.
+  what the run staged (`staged_under`), never `files_under`.
+  `autospill`/`autospread` export in the command arm, so the arm checks the
+  output before computing.
   `meta` maps `--output -` to stdout before building `MetaConfig`.
 
 ## Adding a subcommand
@@ -98,8 +99,10 @@ The package is `cytiq-engine`; the binary is `cytiq` (`[[bin]]` in `Cargo.toml`)
    `recorder.snapshot_inputs(role, files)` for each kind of input **before**
    the runner (so inputs are hashed before anything can change them), set
    `set_algorithms(<crate>::UPSTREAM)` and `set_constants` when the crate has
-   them, run, log a one-line result summary, and end with `record_provenance`
-   listing the output files. When the library resolves inputs itself (globs,
+   them, call the runner's `prepare` (which stages and publishes nothing), log
+   a one-line result summary, and end with `publish`, which stages the record
+   in the runner's publication and commits both, listing the output files.
+   For a directory output, `staged_under` lists them. When the library resolves inputs itself (globs,
    directories, manifests), expose a `<Name>Runner::input_files`. Add the
    command to `command_name`. The `<Name>Args` fields become the record's
    `config` (`Commands` derives `Serialize`), so new `Cli*` value enums
@@ -182,8 +185,9 @@ a library crate. `autospill_cli.rs` and
 Command arms accept `Invocation`, snapshot inputs and set algorithm/constants before
 `provenance::begin!`. Choose a File or Dir destination matching the library layout.
 The macro returns a verified reused outcome or a Run that owns the destination lock;
-pass that Run to `record_provenance` (or `record_with_reason` for completed QC).
-Never publish before begin or release the lock before the record is durable.
+pass that Run to `publish` with the runner's staged publication and the reason
+(`ChecksFailed` for completed QC). Never publish before begin, publish an output
+outside that publication, or release the lock before the record is durable.
 Population/specimen workflows use `artifact::begin_package` and PackageRun::write.
 Their callers must snapshot every source before beginning the package.
 

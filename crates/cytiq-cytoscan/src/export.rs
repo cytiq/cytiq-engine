@@ -121,12 +121,12 @@ struct WardCluster {
     centroid: Vec<f64>,
 }
 
-pub(crate) fn write_outputs(
+pub(crate) fn stage_outputs(
     config: &crate::runner::CytoScanConfig,
     result: &CytoScanResult,
     test_files: &[LoadedFile],
     reference_files: &[LoadedFile],
-) -> Result<(), CytoScanError> {
+) -> Result<Publication, CytoScanError> {
     // The outputs describe one run: publish them together.
     let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     publication.stage_path(config.output_dir.join(SUMMARY_FILE_NAME), |path| {
@@ -146,11 +146,11 @@ pub(crate) fn write_outputs(
             write_stability_seeds_csv(path, stability, !config.novelty_mode.is_upstream())
         })?;
     }
-    publication.commit()?;
     if let Some(debug_dir) = config.debug_dir.as_deref() {
-        write_debug_artifacts(debug_dir, result, test_files, reference_files)?;
+        let debug = stage_debug_artifacts(debug_dir, result, test_files, reference_files)?;
+        publication.merge(debug)?;
     }
-    Ok(())
+    Ok(publication)
 }
 
 /// The upstream columns; the conformal mode appends `novelty_p_value` and
@@ -381,12 +381,13 @@ fn write_config_json(path: &Path, result: &CytoScanResult) -> Result<(), CytoSca
     })
 }
 
-fn write_debug_artifacts(
+/// The debug artifacts, which every run replaces.
+fn stage_debug_artifacts(
     debug_dir: &Path,
     result: &CytoScanResult,
     test_files: &[LoadedFile],
     reference_files: &[LoadedFile],
-) -> Result<(), CytoScanError> {
+) -> Result<Publication, CytoScanError> {
     let mut publication = Publication::new(Existing::Replace);
     if let Some(reference_features) = result.reference_features.as_ref() {
         publication.stage_path(debug_dir.join(REFERENCE_FEATURES_FILE_NAME), |path| {
@@ -417,7 +418,7 @@ fn write_debug_artifacts(
     publication.stage_path(debug_dir.join(REPORT_FILE_NAME), |path| {
         write_report_html(path, result, &pca, &heatmap, &boxplot_samples)
     })?;
-    Ok(publication.commit()?)
+    Ok(publication)
 }
 
 fn write_aggregate_sampling_csv(path: &Path, result: &CytoScanResult) -> Result<(), CytoScanError> {
