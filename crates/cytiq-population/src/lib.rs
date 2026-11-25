@@ -12,6 +12,7 @@ pub mod issue;
 pub mod knowledge;
 pub mod labels;
 mod native;
+mod object;
 pub mod observation;
 pub mod privacy;
 pub mod serialization;

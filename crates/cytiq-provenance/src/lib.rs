@@ -561,13 +561,22 @@ fn is_temporary(path: &Path) -> bool {
 ///
 /// Returns an error when the file cannot be read.
 pub fn hash_file(path: &Path) -> io::Result<(u64, String)> {
-    let mut file = File::open(path)?;
+    hash_reader(&mut File::open(path)?)
+}
+
+/// [`hash_file`] of what `reader` still holds, for a file that is already
+/// open.
+///
+/// # Errors
+///
+/// Returns an error when the reader fails.
+pub fn hash_reader(reader: &mut impl Read) -> io::Result<(u64, String)> {
     let mut hasher = Sha256::new();
     // Large reads halve the time of hashing a gigabyte file against 8 KiB.
     let mut buffer = vec![0_u8; 1 << 20];
     let mut bytes = 0;
     loop {
-        let read = match file.read(&mut buffer) {
+        let read = match reader.read(&mut buffer) {
             Ok(0) => break,
             Ok(read) => read,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
