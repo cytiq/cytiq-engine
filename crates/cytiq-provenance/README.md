@@ -36,7 +36,9 @@ Every command that writes files writes a `provenance.json` next to its output.
 record; `config` is every option with its default applied, so the record
 stays meaningful when defaults change. `constants` and `algorithms` capture
 what is fixed in the code: algorithm constants and the upstream versions the
-port is validated against. Inputs are hashed before the command runs, so a
+port is validated against. `constants.input_facts` holds what the command
+established about its inputs before it ran, such as `quarantined_keywords`: the
+keywords an FCS input repeats, by its SHA-256, whose values nothing reads. Inputs are hashed before the command runs, so a
 command that replaces its own input still records what it read; each input
 carries its `role`. Debug directories are not listed.
 
