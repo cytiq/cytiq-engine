@@ -340,13 +340,16 @@ fn parse_parameter_count(text: &FcsText) -> Result<usize, FcsError> {
 }
 
 /// Each parameter's `$Pn*` keywords in TEXT order, in one pass over TEXT.
+/// Keywords are case-insensitive: their names are stored in upper case, the
+/// form every lookup uses, and their values as written.
 fn group_parameter_keywords(text: &FcsText, parameter_count: usize) -> Vec<Vec<(String, String)>> {
     let mut groups = vec![Vec::new(); parameter_count];
     for (key, value) in text.iter() {
-        if let Some(index) = parameter_keyword_index(key)
+        let key = key.to_ascii_uppercase();
+        if let Some(index) = parameter_keyword_index(&key)
             && (1..=parameter_count).contains(&index)
         {
-            groups[index - 1].push((key.to_owned(), value.to_owned()));
+            groups[index - 1].push((key, value.to_owned()));
         }
     }
     groups
@@ -447,15 +450,11 @@ mod tests {
                 pairs.push(((*key).into(), (*value).into()));
             }
         }
-        let lookup = pairs.iter().cloned().collect();
-        FcsText::new(
-            TextSegment {
-                delimiter: b'|',
-                pairs,
-            },
-            None,
-            lookup,
-        )
+        let segment = TextSegment {
+            delimiter: b'|',
+            pairs,
+        };
+        crate::text::build_text(segment, None).unwrap()
     }
 
     #[test]

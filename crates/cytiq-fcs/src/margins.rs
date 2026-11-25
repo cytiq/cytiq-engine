@@ -406,15 +406,11 @@ mod tests {
             .iter()
             .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
             .collect::<Vec<_>>();
-        let lookup = pairs.iter().cloned().collect();
-        FcsText::new(
-            crate::types::TextSegment {
-                delimiter: b'/',
-                pairs,
-            },
-            None,
-            lookup,
-        )
+        let segment = crate::types::TextSegment {
+            delimiter: b'/',
+            pairs,
+        };
+        crate::text::build_text(segment, None).unwrap()
     }
 
     // Reference: the flowCore/PeacoQC expression the bounds replace.
