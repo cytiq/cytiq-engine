@@ -3,11 +3,11 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 
 use cytiq_provenance::{
-    BuildInfo, RunRecorder,
+    BuildInfo, RunRecord, RunRecorder,
     outcome::{CommandOutcome, Execution, OutcomeReason},
     reuse::{self, Decision, Destination, Prior, ReusePolicy},
 };
-use cytiq_publish::{OutputLock, PublishError};
+use cytiq_publish::{OutputLock, Publication, PublishError};
 
 pub(crate) type CommandResult = Result<Option<CommandOutcome>, Box<dyn std::error::Error>>;
 
@@ -69,7 +69,7 @@ impl Invocation {
             Err(error) => return Err(error.into()),
         };
         if let Some(lock) = &lock {
-            cytiq_publish::recovery::recover(lock)?;
+            cytiq_provenance::recovery::recover(lock, destination)?;
         }
         if self.policy != ReusePolicy::Recompute {
             let mut prior = reuse::assess(destination, &expected);
@@ -139,6 +139,36 @@ macro_rules! begin {
 }
 pub(crate) use begin;
 
+/// Publish a run's staged outputs together with its record, or neither.
+pub(crate) fn publish(
+    run: Run,
+    mut publication: Publication,
+    outputs: &[PathBuf],
+    record_path: &Path,
+    reason: OutcomeReason,
+) -> CommandResult {
+    // The output stays locked until its record is published.
+    let Run { recorder, _lock } = run;
+    let record = recorder.stage(&mut publication, outputs, record_path, reason)?;
+    publication.commit()?;
+    // The run succeeded: what an earlier one left behind cannot undo that.
+    if let Err(error) = cytiq_provenance::recovery::discard_abandoned(outputs) {
+        log::warn!("abandoned temporary files remain: {error}");
+    }
+    Ok(Some(completed(record, reason)))
+}
+
+/// The outcome of a run whose `record` is published.
+fn completed(record: RunRecord, reason: OutcomeReason) -> CommandOutcome {
+    let mut outcome = CommandOutcome::new(&record.tool, true, reason, String::new());
+    outcome.artifacts = record.outputs;
+    outcome.execution = Some(Execution {
+        fingerprint: record.execution_fingerprint.expect("v3 fingerprint"),
+        reused: false,
+    });
+    outcome
+}
+
 pub(crate) fn record_provenance(
     run: Run,
     outputs: &[PathBuf],
@@ -154,11 +184,5 @@ pub(crate) fn record_with_reason(
     reason: OutcomeReason,
 ) -> CommandResult {
     let record = run.recorder.finish(outputs, record_path, reason)?;
-    let mut outcome = CommandOutcome::new(&record.tool, true, reason, String::new());
-    outcome.artifacts = record.outputs;
-    outcome.execution = Some(Execution {
-        fingerprint: record.execution_fingerprint.expect("v3 fingerprint"),
-        reused: false,
-    });
-    Ok(Some(outcome))
+    Ok(Some(completed(record, reason)))
 }

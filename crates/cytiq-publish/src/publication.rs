@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use tempfile::{Builder, NamedTempFile, TempDir, TempPath};
 
-use crate::{PublishError, RollbackFailure};
+use crate::{PublishError, RollbackFailure, failpoint};
 
 /// Suffix of a staged output, and of a published directory being discarded.
 const STAGED: &str = ".tmp";
@@ -49,6 +49,28 @@ enum Staged {
 struct Entry {
     target: PathBuf,
     staged: Staged,
+    /// What this entry does with a target that exists.
+    existing: Existing,
+}
+
+/// A command's result, computed and staged but not published.
+///
+/// The caller stages what must appear together with the outputs, such as the
+/// provenance record, and commits.
+pub struct Prepared<T> {
+    pub summary: T,
+    pub publication: Publication,
+}
+
+impl<T> Prepared<T> {
+    /// Publish the outputs and return the summary.
+    ///
+    /// # Errors
+    /// As [`Publication::commit`].
+    pub fn commit(self) -> Result<T, PublishError> {
+        self.publication.commit()?;
+        Ok(self.summary)
+    }
 }
 
 /// An output published by a commit that has not finished, with what it
@@ -104,13 +126,43 @@ impl Publication {
     /// # Errors
     /// [`PublishError::Exists`] as described.
     pub fn check(&self, target: impl AsRef<Path>) -> Result<(), PublishError> {
-        let target = target.as_ref();
-        if self.existing == Existing::Refuse && exists(target) {
-            return Err(PublishError::Exists {
-                path: target.to_path_buf(),
-            });
+        refuse_existing(target.as_ref(), self.existing)
+    }
+
+    /// What will be published, as `(target, staged file)` pairs in staging
+    /// order: the staged files, and every file under a staged directory,
+    /// sorted.
+    ///
+    /// # Errors
+    /// [`PublishError::Io`] when a staged directory cannot be listed.
+    pub fn staged(&self) -> Result<Vec<(PathBuf, PathBuf)>, PublishError> {
+        let mut files = Vec::new();
+        for entry in &self.entries {
+            match &entry.staged {
+                Staged::File(file) => {
+                    files.push((entry.target.clone(), file.path().to_path_buf()));
+                }
+                Staged::Directory(directory) => {
+                    let staged = files_below(directory.path())
+                        .map_err(|source| PublishError::io(&entry.target, source))?;
+                    files.extend(staged.into_iter().filter_map(|file| {
+                        let relative = file.strip_prefix(directory.path()).ok()?;
+                        Some((entry.target.join(relative), file))
+                    }));
+                }
+            }
         }
-        Ok(())
+        Ok(files)
+    }
+
+    /// The directory staged for `target`, when one is.
+    #[must_use]
+    pub fn staged_dir(&self, target: impl AsRef<Path>) -> Option<&Path> {
+        let target = target.as_ref();
+        self.entries.iter().find_map(|entry| match &entry.staged {
+            Staged::Directory(directory) if entry.target == target => Some(directory.path()),
+            _ => None,
+        })
     }
 
     /// Stage the file `target`: `write` fills a temporary file next to it.
@@ -125,7 +177,27 @@ impl Publication {
         E: From<PublishError>,
         F: FnOnce(&mut Staging<'_>) -> Result<(), E>,
     {
-        let target = self.prepare(target.as_ref())?;
+        self.stage_file_with(target, self.existing, write)
+    }
+
+    /// [`stage_file`](Self::stage_file) with its own policy for an existing
+    /// target, such as a provenance record, which describes the outputs it is
+    /// published with whatever was there before.
+    ///
+    /// # Errors
+    /// As [`stage_file`](Self::stage_file).
+    pub fn stage_file_with<E, F>(
+        &mut self,
+        target: impl AsRef<Path>,
+        existing: Existing,
+        write: F,
+    ) -> Result<(), E>
+    where
+        E: From<PublishError>,
+        F: FnOnce(&mut Staging<'_>) -> Result<(), E>,
+    {
+        let target = self.prepare(target.as_ref(), existing)?;
+        failpoint::hit("stage", &target).map_err(|source| PublishError::io(&target, source))?;
         let mut file = temporary_file(&target)?;
         let mut writer = BufWriter::new(file.as_file_mut());
         write(&mut writer)?;
@@ -139,6 +211,7 @@ impl Publication {
         self.entries.push(Entry {
             target,
             staged: Staged::File(file),
+            existing,
         });
         Ok(())
     }
@@ -154,13 +227,14 @@ impl Publication {
         E: From<PublishError>,
         F: FnOnce(&Path) -> Result<(), E>,
     {
-        let target = self.prepare(target.as_ref())?;
+        let target = self.prepare(target.as_ref(), self.existing)?;
         let file = temporary_file(&target)?;
         write(file.path())?;
         sync_file(file.path()).map_err(|source| PublishError::io(&target, source))?;
         self.entries.push(Entry {
             target,
             staged: Staged::File(file),
+            existing: self.existing,
         });
         Ok(())
     }
@@ -172,7 +246,7 @@ impl Publication {
     /// [`PublishError`] when the target is refused, staged twice or the
     /// directory cannot be created.
     pub fn stage_dir(&mut self, target: impl AsRef<Path>) -> Result<PathBuf, PublishError> {
-        let target = self.prepare(target.as_ref())?;
+        let target = self.prepare(target.as_ref(), self.existing)?;
         let prefix = hidden_prefix(&target);
         let mut builder = Builder::new();
         builder.prefix(&prefix).rand_bytes(6).suffix(STAGED);
@@ -184,6 +258,7 @@ impl Publication {
         self.entries.push(Entry {
             target,
             staged: Staged::Directory(directory),
+            existing: self.existing,
         });
         Ok(path)
     }
@@ -206,7 +281,7 @@ impl Publication {
     /// undone; [`PublishError::RollbackFailed`] when it could not be.
     pub fn commit(mut self) -> Result<(), PublishError> {
         for entry in &self.entries {
-            self.check(&entry.target)?;
+            refuse_existing(&entry.target, entry.existing)?;
             match &entry.staged {
                 Staged::Directory(directory) => sync_tree(directory.path())
                     .map_err(|source| PublishError::io(&entry.target, source))?,
@@ -225,7 +300,7 @@ impl Publication {
         let directories = self.directories();
         let mut backups = Vec::with_capacity(self.entries.len());
         for entry in &self.entries {
-            let replaced = self.existing == Existing::Replace
+            let replaced = entry.existing == Existing::Replace
                 && matches!(entry.staged, Staged::File(_))
                 && exists(&entry.target);
             backups.push(if replaced {
@@ -235,9 +310,15 @@ impl Publication {
             });
         }
         for (entry, backup) in std::mem::take(&mut self.entries).into_iter().zip(backups) {
-            match publish(entry, backup, self.existing) {
+            match publish(entry, backup) {
                 Ok(published) => self.journal.push(published),
                 Err(error) => return Err(self.roll_back(error)),
+            }
+            if let Some(published) = self.journal.last() {
+                let target = published.target().to_path_buf();
+                if let Err(source) = failpoint::hit("published", &target) {
+                    return Err(self.roll_back(PublishError::io(&target, source)));
+                }
             }
         }
         for directory in &directories {
@@ -251,7 +332,7 @@ impl Publication {
         Ok(())
     }
 
-    fn prepare(&mut self, target: &Path) -> Result<PathBuf, PublishError> {
+    fn prepare(&mut self, target: &Path, existing: Existing) -> Result<PathBuf, PublishError> {
         if target.file_name().is_none() {
             return Err(PublishError::io(
                 target,
@@ -263,7 +344,7 @@ impl Publication {
                 path: target.to_path_buf(),
             });
         }
-        self.check(target)?;
+        refuse_existing(target, existing)?;
         let directory = parent(target);
         let missing = directory
             .ancestors()
@@ -408,14 +489,41 @@ where
     publication.commit().map_err(E::from)
 }
 
+fn refuse_existing(target: &Path, existing: Existing) -> Result<(), PublishError> {
+    if existing == Existing::Refuse && exists(target) {
+        return Err(PublishError::Exists {
+            path: target.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+/// Every file under `root`, sorted.
+fn files_below(root: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                pending.push(entry.path());
+            } else {
+                files.push(entry.path());
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
 /// Rename a staged output onto its target. `backup` holds the file it
 /// replaces, if any.
-fn publish(
-    entry: Entry,
-    backup: Option<TempPath>,
-    existing: Existing,
-) -> Result<Published, PublishError> {
-    let Entry { target, staged } = entry;
+fn publish(entry: Entry, backup: Option<TempPath>) -> Result<Published, PublishError> {
+    let Entry {
+        target,
+        staged,
+        existing,
+    } = entry;
     match staged {
         Staged::File(file) => {
             let persisted = match existing {
