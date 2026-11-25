@@ -53,7 +53,7 @@ impl Default for Spec {
     }
 }
 
-pub const EVENTS: [[f32; 2]; 3] = [[1.0, -2.5], [3.0, 4.5], [-0.0, f32::MAX]];
+pub const EVENTS: [[f32; 2]; 3] = [[1.0, -2.5], [3.0, 4.5], [-0.0, 1.5e30]];
 
 /// The bytes of DATA.
 pub fn data() -> Vec<u8> {

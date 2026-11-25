@@ -552,6 +552,24 @@ fn drop_range<R: Read + Seek>(
     if range.is_empty() {
         return Ok(());
     }
+    let (sha256, blank) = range_digest(reader, range.clone())?;
+    dropped.push(Dropped {
+        what,
+        keywords: Vec::new(),
+        code: (!blank).then_some(RepairCode::UndeclaredBytes),
+        blank,
+        offset: range.start,
+        bytes: range.end - range.start,
+        sha256,
+    });
+    Ok(())
+}
+
+/// SHA-256 of a range, and whether it is blank; an error when it is cut off.
+pub(crate) fn range_digest<R: Read + Seek>(
+    reader: &mut R,
+    range: Range<u64>,
+) -> io::Result<(String, bool)> {
     reader.seek(SeekFrom::Start(range.start))?;
     let mut left = range.end - range.start;
     let mut buffer = vec![0_u8; 1 << 16];
@@ -564,16 +582,7 @@ fn drop_range<R: Read + Seek>(
         blank &= is_blank(&buffer[..count]);
         left -= count as u64;
     }
-    dropped.push(Dropped {
-        what,
-        keywords: Vec::new(),
-        code: (!blank).then_some(RepairCode::UndeclaredBytes),
-        blank,
-        offset: range.start,
-        bytes: range.end - range.start,
-        sha256: hex(hasher),
-    });
-    Ok(())
+    Ok((hex(hasher), blank))
 }
 
 fn kept(scan: &Scan) -> Vec<Kept> {

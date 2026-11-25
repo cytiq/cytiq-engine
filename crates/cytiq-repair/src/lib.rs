@@ -11,6 +11,7 @@ mod diagnosis;
 mod error;
 mod plan;
 mod repaired;
+mod runner;
 mod scan;
 mod text;
 
@@ -19,8 +20,10 @@ pub use crate::diagnosis::{Diagnosis, PLAN_CONTRACT, PlanDocument, PlanStatus, d
 pub use crate::error::RepairError;
 pub use crate::plan::{Change, DataWindow, Dropped, Finding, Plan};
 pub use crate::repaired::Repaired;
+pub use crate::runner::{
+    REPORT_CONTRACT, RepairConfig, RepairReport, RepairRunner, RepairedData, report_path,
+};
+pub use cytiq_fcs::REPAIR_KEYWORD;
 
-/// Keyword a repaired file records its repairs in.
-pub const REPAIR_KEYWORD: &str = "CYTIQ_REPAIR";
 /// Version of the repairs and of [`REPAIR_KEYWORD`].
 pub const REPAIR_VERSION: u32 = 1;

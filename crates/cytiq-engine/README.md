@@ -38,7 +38,7 @@ chain and signal-state checks.
 | `cytiq dataset validate` | [`cytiq-population::dataset`](../cytiq-population/README.md#dataset-manifest-v1) | Validate a dataset manifest (identities, panels, signal states, metadata, privacy, object digests); exits 3 after writing the report when it has errors |
 | `cytiq dataset export` | [`cytiq-population::analytics`](../cytiq-population/README.md#analytics-product) | A dataset's analytics product: path-free Parquet tables of subjects, samples, design factors, panels, label tables with exact counts and flattened observations, `views.sql` with per-subject cohort statistics and diffcyt inputs, and `product.json`; observations must match the label tables of the same native output, or nothing is published |
 | `cytiq meta` | [`cytiq-inspect::meta`](../cytiq-inspect/docs/meta.md) | FCS metadata export as JSON |
-| `cytiq repair` | [`cytiq-repair`](../cytiq-repair/README.md) | Diagnose an FCS file that deviates from the standard, and whether its DATA can still be read in exactly one way |
+| `cytiq repair` | [`cytiq-repair`](../cytiq-repair/README.md) | Rewrite HEADER and TEXT, never DATA, of an FCS file that deviates from the standard: only repairs allowed by name, only when DATA can be read in exactly one way, with a report of everything dropped; `--plan` diagnoses and writes nothing |
 | `cytiq stats` | [`cytiq-inspect::stats`](../cytiq-inspect/docs/stats.md) | Per-channel statistics for technical QC: distribution, detector-limit and zero counts, histograms, Time channel |
 
 `cytiq <command> --help` lists every flag with its default.

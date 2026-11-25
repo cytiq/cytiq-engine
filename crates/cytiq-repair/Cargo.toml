@@ -11,6 +11,8 @@ description = "Explicit, evidenced repair of FCS files that instruments wrote ag
 [dependencies]
 cytiq-fcs.workspace = true
 cytiq-provenance.workspace = true
+cytiq-publish.workspace = true
+log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

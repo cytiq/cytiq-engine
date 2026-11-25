@@ -136,8 +136,8 @@ pub fn panel_from_run(
 /// dataset-level keywords `policy` allows.
 ///
 /// # Errors
-/// Refuses a file a cytiq stage derived (describe the raw acquisition) and
-/// returns read errors.
+/// Refuses a file a cytiq stage derived (describe the raw acquisition, or the
+/// file `cytiq repair` made of it) and returns read errors.
 pub fn acquisition_entry(
     path: &Path,
     metadata: &FcsMetadata,
@@ -146,7 +146,8 @@ pub fn acquisition_entry(
     policy: &PrivacyPolicy,
 ) -> Result<AcquisitionEntry> {
     require(
-        metadata.text.get(cytiq_fcs::ACQUISITION_KEYWORD).is_none(),
+        metadata.text.get(cytiq_fcs::ACQUISITION_KEYWORD).is_none()
+            || cytiq_fcs::is_repaired_acquisition(&metadata.text, &metadata.parameters)?,
         "describe an acquisition from its raw FCS file, not a derived one",
     )?;
     let id = cytiq_fcs::acquisition_id(path, &metadata.text)?;

@@ -254,7 +254,13 @@ fn repair(error: &cytiq_repair::RepairError) -> OutcomeReason {
     match error {
         E::MissingInput { .. } => MISSING,
         E::Read { source, .. } | E::Write(source) => io(source),
-        E::Refused { .. } => INVALID,
+        E::Publish(source) => OutcomeReason::of_publish(source),
+        E::OutputExists { .. } => CONFLICT,
+        E::Refused { .. }
+        | E::NothingToRepair { .. }
+        | E::NotAllowed { .. }
+        | E::InvalidOutput { .. } => INVALID,
+        E::InputChanged { .. } | E::NotVerified { .. } => RUNTIME,
         E::Serialize(source) => json(source, RUNTIME),
     }
 }
