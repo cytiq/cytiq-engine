@@ -67,8 +67,8 @@ Footer key-value metadata:
 | `cytiq.events.schema_version` | `1` |
 | `cytiq.acquisition_sha256` | The acquisition |
 | `cytiq.event_id_base` | `0` |
-| `cytiq.events.layer` | Canonical JSON of the layer descriptor (authoritative) |
-| `cytiq.events.layer_id` | Its digest |
+| `cytiq.events.layer` | JSON of the layer descriptor (authoritative), in compact form: no spaces or newlines |
+| `cytiq.events.layer_id` | Digest of the descriptor's canonical form ([below](#three-identities)), not of the stored text |
 | `cytiq.events.channels` | JSON channel dictionary of the stored channels (`events-channels.schema.json`) |
 | `cytiq.events.column_set` | `all` (every channel of the layer) or `subset` (a projection) |
 | `cytiq.events.source_sha256` | SHA-256 of the FCS file the table was exported from |
@@ -106,6 +106,11 @@ FCS keywords:
 | `range` | `$PnR` |
 | `amplification` | `$PnE` |
 | `bits` | `$PnB` |
+
+A keyword whose value is blank (white space only) is left out, as if the file
+did not have it. FlowSOM's example file 68983 writes a single space for 16 of its
+`$PnS`; those channels have no `label`. TEXT itself, as `cytiq meta` shows it,
+keeps the value.
 
 It also records the channel's `value_type` and the `steps` applied to it.
 Detector, marker and reporter stay separate fields.
@@ -178,6 +183,29 @@ Export refuses:
 compensation or unmixing definitions and normalization batch. Layers that
 may be stacked in one lakehouse table share it. Store one table per
 panel × layer state × `recipe_id`, and union files by column name.
+
+It is the canonical digest ([below](#three-identities)) of this object:
+
+```json
+{
+  "contract": "cytiq.events.recipe.v1",
+  "state": "compensated",
+  "steps": [{"kind": "compensation", "method": "spillover", "external": false,
+             "parameters": null, "channels": ["FL1-A", "FL2-A"]}],
+  "channels": [{"index": 1, "name": "FSC-A", "value_type": "float32"}]
+}
+```
+
+- `state` and `channels` are the descriptor's.
+- `steps` follows the descriptor's order, with each step's `kind`, `method` and
+  `channels`. `external` is true when its `origin` is `external`.
+- `parameters` is `null` for `compensation` and `unmixing`, the descriptor's own
+  parameters for `transform`, and for `normalization` an object of `model_sha256`
+  (the step's definition digest) and `panel_sha256` (from its parameters).
+- `acquisition_id`, `origin`, `definition_sha256` and the normalization batch do
+  not enter it.
+
+`contracts/dataset/v1/identity-vectors.json` holds a vector.
 
 Technical masks (`cytiq.mask.v2`) and biological annotations (gate
 membership, classifier predictions) keep their own formats. They join an
@@ -405,7 +433,10 @@ Supported contracts:
 
 `dataset_id` is the canonical digest of the manifest without `dataset_id`
 and without every `content`, `location`, `execution` and acquisition
-`source`. It covers the design. The canonical form is sorted keys, two-space indent, ASCII,
+`source`. It covers the design. Optional sections and fields that are absent or
+empty are left out before the digest, so a manifest that writes `"controls": []`
+has the id of one that does not mention `controls`; an implementation that
+digests the document as written gets another id. The canonical form is sorted keys, two-space indent, ASCII,
 Python float repr and a trailing newline (`serialization::canonical`).
 `contracts/dataset/v1/identity-vectors.json` lets other implementations
 check their digests.
