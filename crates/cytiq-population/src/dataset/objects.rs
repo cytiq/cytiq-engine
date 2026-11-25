@@ -11,7 +11,7 @@ use super::{
     AcquisitionEntry, ArtifactEntry, ArtifactRole, DatasetManifest, LayerSummary, contracts,
 };
 use crate::bitmap::Bitmap;
-use crate::events::{self, EventsSummary, LayerDescriptor, StepKind};
+use crate::events::{self, EventsSummary, LayerDescriptor, LayerState, StepKind};
 use crate::identity::ObjectKey;
 use crate::issue::{IssueCode, Issues, pointer};
 use crate::object::{ObjectRoot, OpenError};
@@ -146,6 +146,7 @@ fn check_layer(
             "the layer summary differs from the table's descriptor",
         );
     }
+    check_source(summary, at, issues);
     if !summary.all_columns {
         issues.error(
             IssueCode::PanelMismatch,
@@ -187,6 +188,21 @@ fn check_layer(
         && !unmixed
     {
         check_channels(panel, &summary.descriptor, at, issues);
+    }
+}
+
+/// A raw layer of every event holds the acquisition's own rows, so the file it
+/// was exported from is the acquisition. A derived layer, and a subset, come
+/// from a file a stage wrote.
+fn check_source(summary: &EventsSummary, at: &str, issues: &mut Issues) {
+    let descriptor = &summary.descriptor;
+    let raw = descriptor.state == LayerState::Raw && descriptor.steps.is_empty();
+    if raw && summary.raw_events.is_some() && summary.source_sha256 != descriptor.acquisition_id {
+        issues.error(
+            IssueCode::InvalidReference,
+            at,
+            "a raw layer of every event was exported from a file that is not its acquisition",
+        );
     }
 }
 
