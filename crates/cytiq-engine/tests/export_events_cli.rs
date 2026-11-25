@@ -415,7 +415,20 @@ fn malformed_and_truncated_files_publish_nothing() {
         .unwrap();
     let truncated = directory.join("truncated.fcs");
     fs::write(&truncated, &source[..data_end - 10]).unwrap();
-    for input in [&garbage, &truncated] {
+    // A second data set: the first must not be published as the whole file.
+    let mut several = source.clone();
+    let key = b"$NEXTDATA";
+    let value = several
+        .windows(key.len())
+        .position(|window| window == key)
+        .unwrap()
+        + key.len()
+        + 1;
+    assert_eq!(several[value], b'0');
+    several[value] = b'1';
+    let several_sets = directory.join("two-data-sets.fcs");
+    fs::write(&several_sets, &several).unwrap();
+    for input in [&garbage, &truncated, &several_sets] {
         let output = directory.join("events.parquet");
         let result = export(input, &output, "raw", &[]);
         assert_eq!(
@@ -430,7 +443,7 @@ fn malformed_and_truncated_files_publish_nothing() {
     }
     assert_eq!(
         entries(&directory),
-        ["garbage.fcs", "truncated.fcs"],
+        ["garbage.fcs", "truncated.fcs", "two-data-sets.fcs"],
         "no table, part, record or staged file is left behind"
     );
 }

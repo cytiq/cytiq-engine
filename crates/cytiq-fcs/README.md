@@ -33,7 +33,8 @@ non-finite detector values and invalid channel indices return errors.
 The reader is strict by design: anything that does not match the spec is an
 error rather than a best-effort guess (duplicate keywords, HEADER/TEXT offset
 mismatch, non-UTF-8 TEXT, unsupported `$MODE`/`$BYTEORD`/widths, DATA length
-mismatch).
+mismatch). A file with more than one data set (`$NEXTDATA` other than 0) is
+refused too: reading only the first would silently drop the others' events.
 
 It also never lets a size declared in the file drive an allocation or a loop
 before that size is checked. Every segment is checked against the file length
