@@ -66,6 +66,38 @@ mod tests {
     }
 
     #[test]
+    fn io_errors_inside_parquet_and_arrow_keep_their_classification() {
+        use arrow_schema::ArrowError;
+        use cytiq_population::PopulationError as Population;
+        use parquet::errors::ParquetError;
+        let nested = |kind| ParquetError::External(Box::new(io_error(kind)));
+        // A full disk is retryable, not invalid data.
+        assert_eq!(
+            code(&Population::Parquet(nested(io::ErrorKind::StorageFull))),
+            1
+        );
+        assert_eq!(
+            code(&Population::Parquet(nested(
+                io::ErrorKind::PermissionDenied
+            ))),
+            1
+        );
+        let arrow = ArrowError::IoError("write".into(), io_error(io::ErrorKind::StorageFull));
+        assert_eq!(code(&Population::Arrow(arrow)), 1);
+        // Corrupt or truncated content stays invalid.
+        assert_eq!(
+            code(&Population::Parquet(nested(io::ErrorKind::UnexpectedEof))),
+            2
+        );
+        assert_eq!(
+            code(&Population::Parquet(ParquetError::General(
+                "corrupt".into()
+            ))),
+            2
+        );
+    }
+
+    #[test]
     fn failed_checks_are_completed_with_code_three() {
         let error = cytiq_qc::QcError::Failed {
             failed: 2,

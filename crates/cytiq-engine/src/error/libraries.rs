@@ -105,6 +105,19 @@ fn csv(error: &csv::Error, decode: OutcomeReason) -> OutcomeReason {
     }
 }
 
+/// Parquet and Arrow wrap the I/O errors of the file they read or write: a full
+/// disk stays a runtime error, not invalid data. `decode` applies otherwise.
+fn nested_io(error: &(dyn std::error::Error + 'static), decode: OutcomeReason) -> OutcomeReason {
+    let mut cause = Some(error);
+    while let Some(current) = cause {
+        if let Some(source) = current.downcast_ref::<std::io::Error>() {
+            return io(source);
+        }
+        cause = current.source();
+    }
+    decode
+}
+
 fn json(error: &serde_json::Error, decode: OutcomeReason) -> OutcomeReason {
     error
         .io_error_kind()
@@ -123,7 +136,9 @@ fn population(error: &cytiq_population::PopulationError) -> OutcomeReason {
     use cytiq_population::PopulationError as E;
     match error {
         E::Missing(_) => MISSING,
-        E::Invalid(_) | E::Arrow(_) | E::Parquet(_) => INVALID,
+        E::Invalid(_) => INVALID,
+        E::Arrow(source) => nested_io(source, INVALID),
+        E::Parquet(source) => nested_io(source, INVALID),
         E::Json(source) => json(source, INVALID),
         E::Io(source) => io(source),
         E::Fcs(source) => fcs(source),
