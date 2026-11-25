@@ -130,7 +130,7 @@ performance-labels *args: lakehouse-setup
 # its files, and `uv pip sync` trusts the metadata that is left.
 [group('validation')]
 lakehouse-setup:
-    uv venv -q --clear target/lakehouse/py --python "$(command -v python3)"
+    uv venv -q --clear --force target/lakehouse/py --python "$(command -v python3)"
     uv pip sync -q --python target/lakehouse/py/bin/python --require-hashes parity/lakehouse/requirements.lock
 
 # ---- Exported events read by DuckDB and PyArrow, bit for bit (`--events 10000000` weekly)
