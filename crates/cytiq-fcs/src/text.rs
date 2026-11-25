@@ -65,14 +65,14 @@ pub(crate) fn parse_segment_range(
     name: &'static str,
     required: bool,
 ) -> Result<Option<ByteRange>, FcsError> {
-    let begin_value = segment
-        .pairs
-        .iter()
-        .find_map(|(key, value)| (key == begin_key).then_some(value.as_str()));
+    let begin_value = segment.pairs.iter().find_map(|(key, value)| {
+        key.eq_ignore_ascii_case(begin_key)
+            .then_some(value.as_str())
+    });
     let end_value = segment
         .pairs
         .iter()
-        .find_map(|(key, value)| (key == end_key).then_some(value.as_str()));
+        .find_map(|(key, value)| key.eq_ignore_ascii_case(end_key).then_some(value.as_str()));
 
     match (begin_value, end_value) {
         (Some(begin), Some(end)) => {

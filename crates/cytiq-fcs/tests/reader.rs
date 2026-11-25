@@ -87,6 +87,80 @@ fn merges_supplemental_text_keywords() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn keyword_names_are_case_insensitive() -> Result<(), Box<dyn Error>> {
+    // FCS 3.1, 3.2.10: a reader must ignore keyword case. Optional keywords
+    // in another case were dropped without a word.
+    let bytes = build_fcs(
+        "FCS3.1",
+        vec![
+            ("$byteord", "1,2,3,4"),
+            ("$DataType", "I"),
+            ("$mode", "L"),
+            ("$NextData", "00000000"),
+            ("$par", "1"),
+            ("$tot", "1"),
+            ("$p1b", "16"),
+            ("$p1e", "0,0"),
+            ("$p1n", "FL1-A"),
+            ("$p1r", "1024"),
+            ("$p1s", "CD3"),
+            ("$P1g", "2.0"),
+            ("$timestep", "0.01"),
+            ("Vendor", "Kept As Written"),
+        ],
+        None,
+        encode_u16_rows(&[[42]], true),
+        None,
+    );
+
+    let dataset = FcsReader::new(std::io::Cursor::new(bytes)).read()?;
+    assert_uint_column(dataset.data.column(0), &[42]);
+    let parameter = &dataset.parameters[0];
+    assert_eq!(parameter.name, "FL1-A");
+    assert_eq!(parameter.label.as_deref(), Some("CD3"));
+    for pair in [("$P1G", "2.0"), ("$P1S", "CD3")] {
+        let pair = (pair.0.to_owned(), pair.1.to_owned());
+        assert!(parameter.keywords.contains(&pair), "{pair:?}");
+    }
+    assert_eq!(dataset.text.get("$TIMESTEP"), Some("0.01"));
+    assert_eq!(dataset.text.get("VENDOR"), Some("Kept As Written"));
+    // TEXT itself is kept as written.
+    assert!(dataset.text.iter().any(|(key, _)| key == "$p1s"));
+    Ok(())
+}
+
+#[test]
+fn keywords_that_differ_only_by_case_are_duplicates() {
+    let bytes = build_fcs(
+        "FCS3.1",
+        vec![
+            ("$BYTEORD", "1,2,3,4"),
+            ("$DATATYPE", "I"),
+            ("$MODE", "L"),
+            ("$NEXTDATA", "00000000"),
+            ("$PAR", "1"),
+            ("$TOT", "1"),
+            ("$P1B", "16"),
+            ("$P1E", "0,0"),
+            ("$P1N", "FL1-A"),
+            ("$P1R", "1024"),
+            ("$SPILLOVER", "1,FL1-A,1"),
+            ("$spillover", "1,FL1-A,2"),
+        ],
+        None,
+        encode_u16_rows(&[[42]], true),
+        None,
+    );
+    let error = FcsReader::new(std::io::Cursor::new(bytes))
+        .read()
+        .unwrap_err();
+    assert!(
+        matches!(&error, cytiq_fcs::Error::DuplicateKeyword(key) if key == "$spillover"),
+        "{error}"
+    );
+}
+
+#[test]
 fn reads_analysis_segment_bytes() -> Result<(), Box<dyn Error>> {
     let bytes = build_fcs(
         "FCS3.0",

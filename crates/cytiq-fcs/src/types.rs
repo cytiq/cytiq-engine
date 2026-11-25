@@ -100,9 +100,12 @@ impl FcsText {
         &self.primary
     }
 
+    /// The value of `key`. Keywords are case-insensitive in every FCS version.
     #[must_use]
     pub fn get(&self, key: &str) -> Option<&str> {
-        self.lookup.get(key).map(String::as_str)
+        self.lookup
+            .get(&key.to_ascii_uppercase())
+            .map(String::as_str)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
@@ -125,7 +128,12 @@ impl FcsText {
         key: &str,
         value: &str,
     ) -> Result<(), FcsError> {
-        if lookup.insert(key.to_owned(), value.to_owned()).is_some() {
+        // Keywords that differ only by case are the same keyword, so a second
+        // one would leave the value ambiguous.
+        if lookup
+            .insert(key.to_ascii_uppercase(), value.to_owned())
+            .is_some()
+        {
             Err(FcsError::DuplicateKeyword(key.to_owned()))
         } else {
             Ok(())

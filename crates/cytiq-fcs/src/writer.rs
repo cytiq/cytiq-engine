@@ -543,9 +543,11 @@ fn validate_options(options: &FcsWriteOptions) -> Result<(), FcsError> {
     Ok(())
 }
 
+/// Keywords are case-insensitive, so `$tot` would repeat the generated `$TOT`.
 fn is_generated_keyword(key: &str) -> bool {
+    let key = key.to_ascii_uppercase();
     matches!(
-        key,
+        key.as_str(),
         "$BEGINSTEXT"
             | "$ENDSTEXT"
             | "$BEGINDATA"
@@ -558,7 +560,7 @@ fn is_generated_keyword(key: &str) -> bool {
             | "$NEXTDATA"
             | "$PAR"
             | "$TOT"
-    ) || is_parameter_keyword(key)
+    ) || is_parameter_keyword(&key)
 }
 
 /// `$Pn*` keywords; dataset keywords such as `$PROJ` or `$PLATEID` are not.
