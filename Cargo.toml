@@ -22,6 +22,7 @@ members = [
     "crates/cytiq-specimen",
     "crates/cytiq-publish",
     "crates/cytiq-qc",
+    "crates/cytiq-repair",
     "crates/cytiq-spillqc",
     "crates/cytiq-transform",
 ]
@@ -60,6 +61,7 @@ cytiq-population = { path = "crates/cytiq-population", version = "0.5.0" }
 cytiq-specimen = { path = "crates/cytiq-specimen", version = "0.5.0" }
 cytiq-publish = { path = "crates/cytiq-publish", version = "0.5.0" }
 cytiq-qc = { path = "crates/cytiq-qc", version = "0.5.0" }
+cytiq-repair = { path = "crates/cytiq-repair", version = "0.5.0" }
 cytiq-spillqc = { path = "crates/cytiq-spillqc", version = "0.5.0" }
 cytiq-transform = { path = "crates/cytiq-transform", version = "0.5.0" }
 
