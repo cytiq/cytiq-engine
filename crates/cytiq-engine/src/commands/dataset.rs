@@ -170,7 +170,8 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let report = ValidateRunner::run(&config)?;
+    let prepared = ValidateRunner::prepare(&config)?;
+    let report = prepared.summary;
     for issue in &report.issues {
         let line = format!("{:?} at `{}`: {}", issue.code, issue.pointer, issue.message);
         match issue.severity {
@@ -188,8 +189,9 @@ pub(crate) fn run(
         ReportStatus::Valid => OutcomeReason::Success,
         ReportStatus::Invalid => OutcomeReason::ChecksFailed,
     };
-    let mut outcome = crate::provenance::record_with_reason(
+    let mut outcome = crate::provenance::publish(
         recorder,
+        prepared.publication,
         std::slice::from_ref(&config.output),
         &record_path_for_file(&config.output),
         reason,

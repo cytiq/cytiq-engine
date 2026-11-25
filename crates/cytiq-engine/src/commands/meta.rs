@@ -2,11 +2,12 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_inspect::meta::{MetaConfig, MetaRunner};
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
-use log::debug;
+use log::{debug, info};
 use serde::Serialize;
 
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct MetaArgs {
@@ -47,12 +48,16 @@ pub(crate) fn run(
             recorder,
             cytiq_provenance::reuse::Destination::File(output.clone())
         );
-        MetaRunner::run(&config)?;
-        return record_provenance(
+        let prepared = MetaRunner::prepare(&config, output)?;
+        let outcome = publish(
             recorder,
+            prepared.publication,
             std::slice::from_ref(output),
             &record_path_for_file(output),
-        );
+            OutcomeReason::Success,
+        )?;
+        info!("wrote FCS metadata to {}", output.display());
+        return Ok(outcome);
     }
     MetaRunner::run(&config)?;
     Ok(None)

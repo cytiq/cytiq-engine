@@ -2,11 +2,12 @@ use std::path::PathBuf;
 
 use clap::Subcommand;
 use cytiq_mask::{MaskCombineConfig, MaskCombineRunner};
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::info;
 use serde::Serialize;
 
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Subcommand)]
 #[serde(untagged)]
@@ -47,18 +48,22 @@ pub(crate) fn run(
                 recorder,
                 cytiq_provenance::reuse::Destination::File(config.output.clone())
             );
-            let combined = MaskCombineRunner::run(&config)?;
+            let prepared = MaskCombineRunner::prepare(&config)?;
+            let combined = prepared.summary;
+            let outcome = publish(
+                recorder,
+                prepared.publication,
+                std::slice::from_ref(&config.output),
+                &record_path_for_file(&config.output),
+                OutcomeReason::Success,
+            )?;
             info!(
                 "mask combine kept {} of {} event(s); wrote {}",
                 combined.kept(),
                 combined.len(),
                 config.output.display()
             );
-            record_provenance(
-                recorder,
-                std::slice::from_ref(&config.output),
-                &record_path_for_file(&config.output),
-            )
+            Ok(outcome)
         }
     }
 }

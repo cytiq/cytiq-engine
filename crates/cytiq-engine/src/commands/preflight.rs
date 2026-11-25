@@ -46,7 +46,8 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let report = PreflightRunner::run(&config)?;
+    let prepared = PreflightRunner::prepare(&config)?;
+    let report = prepared.summary;
     for check in &report.checks {
         match check.status {
             CheckStatus::Fail => {
@@ -73,8 +74,9 @@ pub(crate) fn run(
     } else {
         cytiq_provenance::outcome::OutcomeReason::Success
     };
-    let mut outcome = crate::provenance::record_with_reason(
+    let mut outcome = crate::provenance::publish(
         recorder,
+        prepared.publication,
         std::slice::from_ref(&config.output),
         &record_path_for_file(&config.output),
         reason,

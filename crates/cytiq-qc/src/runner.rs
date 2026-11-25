@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use cytiq_fcs::FcsReader;
 use cytiq_manifest::RunManifest;
 use cytiq_mask::{EventMask, MaskError};
-use cytiq_publish::Existing;
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info};
 use serde::Serialize;
 
@@ -100,9 +100,20 @@ impl QcRunner {
         Ok(files)
     }
 
-    /// Check the mask against the sample's panel policy and write the report,
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &QcConfig) -> Result<QcReport, QcError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Check the mask against the sample's panel policy and stage the report,
     /// whatever the checks found; [`QcReport::ensure_passed`] turns failed
     /// checks into an error.
+    ///
+    /// Nothing is published.
     ///
     /// # Errors
     ///
@@ -114,7 +125,7 @@ impl QcRunner {
     /// # Panics
     ///
     /// Never: [`RunManifest::load`] validates that every sample has a panel.
-    pub fn run(config: &QcConfig) -> Result<QcReport, QcError> {
+    pub fn prepare(config: &QcConfig) -> Result<Prepared<QcReport>, QcError> {
         if config.output.exists() && !config.overwrite {
             return Err(QcError::OutputExists {
                 path: config.output.clone(),
@@ -189,12 +200,15 @@ impl QcRunner {
             population_retention,
             artifact_removal,
         };
-        write_report(
+        let publication = stage_report(
             &config.output,
             &report,
             Existing::overwrite(config.overwrite),
         )?;
-        Ok(report)
+        Ok(Prepared {
+            summary: report,
+            publication,
+        })
     }
 }
 
@@ -381,8 +395,12 @@ fn mask_checks(
     Ok(Some(QcMetrics::of(mask, keep.len(), kept)))
 }
 
-fn write_report(path: &Path, report: &QcReport, existing: Existing) -> Result<(), QcError> {
-    debug!("writing QC report to {}", path.display());
+fn stage_report(
+    path: &Path,
+    report: &QcReport,
+    existing: Existing,
+) -> Result<Publication, QcError> {
+    debug!("staging QC report to {}", path.display());
     let write_error = |source| QcError::Write {
         path: path.to_path_buf(),
         source,
@@ -390,7 +408,7 @@ fn write_report(path: &Path, report: &QcReport, existing: Existing) -> Result<()
     let mut bytes = serde_json::to_vec_pretty(report)
         .map_err(|error| write_error(std::io::Error::other(error)))?;
     bytes.push(b'\n');
-    cytiq_publish::write_file(path, existing, |writer| {
-        writer.write_all(&bytes).map_err(write_error)
-    })
+    let mut publication = Publication::new(existing);
+    publication.stage_file(path, |writer| writer.write_all(&bytes).map_err(write_error))?;
+    Ok(publication)
 }

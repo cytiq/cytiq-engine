@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter, ParameterDataType, ParameterWidth};
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info};
 use serde::Serialize;
 
@@ -87,41 +87,64 @@ impl MetaRunner {
     /// Returns an error when the input cannot be read or parsed, the output
     /// exists without `overwrite`, or the document cannot be written.
     pub fn run(config: &MetaConfig) -> Result<MetaRunResult, MetaError> {
-        let existing = Existing::overwrite(config.overwrite);
         if let Some(output) = config.output.as_deref() {
-            Publication::new(existing).check(output)?;
-        }
-
-        let metadata = read_metadata(&config.input)?;
-        let mut document = serde_json::to_vec_pretty(&metadata)?;
-        document.push(b'\n');
-
-        if let Some(output) = config.output.as_deref() {
-            cytiq_publish::write_file(output, existing, |writer| {
-                writer
-                    .write_all(&document)
-                    .map_err(|source| MetaError::OutputWrite {
-                        path: output.to_path_buf(),
-                        source,
-                    })
-            })?;
+            let result = Self::prepare(config, output)?.commit()?;
             info!("wrote FCS metadata to {}", output.display());
-        } else {
-            let mut stdout = io::stdout().lock();
-            stdout
-                .write_all(&document)
-                .and_then(|()| stdout.flush())
-                .map_err(|source| MetaError::OutputWrite {
-                    path: PathBuf::from("<stdout>"),
-                    source,
-                })?;
+            return Ok(result);
         }
-
+        let metadata = read_metadata(&config.input)?;
+        let document = document(&metadata)?;
+        let mut stdout = io::stdout().lock();
+        stdout
+            .write_all(&document)
+            .and_then(|()| stdout.flush())
+            .map_err(|source| MetaError::OutputWrite {
+                path: PathBuf::from("<stdout>"),
+                source,
+            })?;
         Ok(MetaRunResult {
             metadata,
-            output: config.output.clone(),
+            output: None,
         })
     }
+
+    /// Read one FCS file and stage its metadata at `output`. Nothing is
+    /// published.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the input cannot be read or parsed, the output
+    /// exists without `overwrite`, or the document cannot be staged.
+    pub fn prepare(
+        config: &MetaConfig,
+        output: &Path,
+    ) -> Result<Prepared<MetaRunResult>, MetaError> {
+        let mut publication = Publication::new(Existing::overwrite(config.overwrite));
+        publication.check(output)?;
+        let metadata = read_metadata(&config.input)?;
+        let document = document(&metadata)?;
+        publication.stage_file(output, |writer| {
+            writer
+                .write_all(&document)
+                .map_err(|source| MetaError::OutputWrite {
+                    path: output.to_path_buf(),
+                    source,
+                })
+        })?;
+        Ok(Prepared {
+            summary: MetaRunResult {
+                metadata,
+                output: Some(output.to_path_buf()),
+            },
+            publication,
+        })
+    }
+}
+
+fn document(metadata: &FcsMetadata) -> Result<Vec<u8>, MetaError> {
+    let mut document = serde_json::to_vec_pretty(metadata)?;
+    document.push(b'\n');
+    Ok(document)
 }
 
 /// Read the metadata of one FCS file.
