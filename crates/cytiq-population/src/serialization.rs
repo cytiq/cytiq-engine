@@ -88,11 +88,20 @@ impl DocumentFormat {
 /// # Errors
 /// Rejects unsupported types, duplicate keys and excessive input.
 pub fn read(path: &Path) -> Result<Value, PopulationError> {
+    read_from(std::fs::File::open(path)?, path)
+}
+
+/// [`read`] from an open document; `name` selects its format and names it in
+/// errors.
+/// # Errors
+/// As [`read`].
+pub(crate) fn read_from(reader: impl std::io::Read, name: &Path) -> Result<Value, PopulationError> {
     use std::io::Read as _;
-    let file = std::fs::File::open(path)?;
     let mut bytes = Vec::new();
-    file.take(MAX_DOCUMENT_BYTES + 1).read_to_end(&mut bytes)?;
-    parse_document(&bytes, DocumentFormat::of(path), &path.display())
+    reader
+        .take(MAX_DOCUMENT_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    parse_document(&bytes, DocumentFormat::of(name), &name.display())
 }
 
 /// [`read`] for bytes already in memory, with the same limits and checks.
