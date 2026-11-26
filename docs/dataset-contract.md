@@ -469,6 +469,15 @@ writes a report (`validation-report.schema.json`):
 - **Exit 4:** the manifest is missing, or the report exists without
   `--overwrite`.
 
+With `--verify-objects`, objects are read only from inside the root:
+- The root is resolved once, so it may itself be a symbolic link. No component
+  of an object key below it may be one, even a link that stays inside the root.
+- Each object is opened once. Its size and digest are taken from the handle its
+  content is then read through, so a file exchanged after it was hashed is not
+  read. This covers tables, parts, sources and provenance records.
+
+`cytiq dataset export` reads its objects by the same rules.
+
 Every issue has a code, a severity and a JSON pointer.
 
 | Code | Tier | Examples |
@@ -481,7 +490,7 @@ Every issue has a code, a severity and a JSON pointer.
 | `duplicate_event_identity` | document, objects | A layer listed twice; non-increasing or out-of-range `source_event_id`; parts out of order, overlapping or with a gap; an event twice in a mask |
 | `duplicate_acquisition` | document | An acquisition listed twice or bound to two samples |
 | `duplicate_identifier` | document | Repeated sample, panel, specimen, instrument, detector, location, subject or factor; a SHA-256-shaped sample or subject id (warning) |
-| `invalid_reference` | document, objects | Unknown panel, specimen, acquisition, parent or subject; a parent or table of another acquisition; a mask not covering every raw event; a label table of another acquisition or event count; a factor given at another level; a provenance record not listing the object |
+| `invalid_reference` | document, objects | Unknown panel, specimen, acquisition, parent or subject; a parent or table of another acquisition; a mask not covering every raw event; a label table of another acquisition or event count; a factor given at another level; a provenance record not listing the object; an object, part, source or provenance record that is or is reached through a symbolic link |
 | `inconsistent_channel_order` | document, objects | Indices out of `$Pn` order; repeated or reserved names; table columns in another order |
 | `missing_object` | objects | Absent object or part |
 | `corrupt_artifact_hash` | objects | Size, digest, values digest, layer id or annotation id mismatch; unreadable table or parts manifest; a part of another layer; channel dictionary or column set inconsistent with the table; a label table breaking its kind's rules |

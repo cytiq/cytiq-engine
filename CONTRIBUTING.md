@@ -96,7 +96,7 @@ more than 10%. It never controls Docker or Rust runners.
 requests that change the events export, the FCS reader or the bounded Parquet reader, and ten
 million weekly and on demand. It is not a required check.
 
-`.github/workflows/fuzz.yml` fuzzes the FCS reader and the spillover parser (`cytiq-fcs`), the population JSON/YAML document, observation-table, annotation-table, events-table and dataset-manifest readers (`cytiq-population`), specimen result comparison (`cytiq-specimen`), the Gating-ML parser and writer (`cytiq-gating`) and the artifact-truth reader (`cytiq-qc`): one minute a target on pull requests that change one of those crates, ten minutes weekly, and on demand. Run a target locally with `just fuzz <crate> <target> [seconds]` (`just fuzz-fcs` remains for `cytiq-fcs`). It is not a required check. A crash uploads its input as an artifact; turn it into a regression test as `crates/cytiq-fcs/CONTRIBUTING.md` describes. `cargo test` replays the saved regressions on every run.
+`.github/workflows/fuzz.yml` fuzzes the FCS reader and the spillover parser (`cytiq-fcs`), the repair plan (`cytiq-repair`), the population JSON/YAML document, observation-table, annotation-table, events-table and dataset-manifest readers (`cytiq-population`), specimen result comparison (`cytiq-specimen`), the Gating-ML parser and writer (`cytiq-gating`) and the artifact-truth reader (`cytiq-qc`): one minute a target on pull requests that change one of those crates, ten minutes weekly, and on demand. Run a target locally with `just fuzz <crate> <target> [seconds]` (`just fuzz-fcs` remains for `cytiq-fcs`). It is not a required check. A crash uploads its input as an artifact; turn it into a regression test as `crates/cytiq-fcs/CONTRIBUTING.md` describes. `cargo test` replays the saved regressions on every run.
 
 The dataset contract (`docs/dataset-contract.md`) is this repository's own:
 `crates/cytiq-population/contracts/dataset/v1.lock.json` pins its published
@@ -142,7 +142,7 @@ workflow refuses a release with such a crate before uploading anything:
 2. From a clean checkout of the release tag, `cargo login`, then
    `just publish-crates-first`. It verifies every new crate, then publishes
    them. crates.io creates at most five new crates at once and then about one
-   every ten minutes, so the first publication of all 24 takes over three
+   every ten minutes, so the first publication of all 25 takes over three
    hours; the script waits out each refusal and resumes. Ask help@crates.io to
    raise the limit beforehand to shorten it. Revoke the token afterwards.
 3. For each crate, add a trusted publisher in **Settings → Trusted Publishing**:
