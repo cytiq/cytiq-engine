@@ -55,7 +55,7 @@ workflow refuses a release with such a crate before uploading anything:
 2. From a clean checkout of the release tag, `cargo login`, then
    `just publish-crates-first`. It verifies every new crate, then publishes
    them. crates.io creates at most five new crates at once and then about one
-   every ten minutes, so the first publication of all 24 takes over three
+   every ten minutes, so the first publication of all 25 takes over three
    hours; the script waits out each refusal and resumes. Ask help@crates.io to
    raise the limit beforehand to shorten it. Revoke the token afterwards.
 3. For each crate, add a trusted publisher in **Settings → Trusted Publishing**:

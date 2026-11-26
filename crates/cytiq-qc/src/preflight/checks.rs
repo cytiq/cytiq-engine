@@ -38,6 +38,27 @@ pub(crate) struct LoadedFile {
     pub dataset: Option<FcsDataset>,
 }
 
+/// A warning for keywords the file repeats, which FCS does not allow: cytiq
+/// reads none of their values, and no file it writes keeps them.
+fn check_repeated_keywords(scope: &str, dataset: &FcsDataset) -> Option<Check> {
+    let repeated: Vec<&str> = dataset.text.quarantined().collect();
+    (!repeated.is_empty()).then(|| {
+        Check::new(
+            scope,
+            "repeated_keywords",
+            CheckStatus::Warn,
+            format!(
+                "repeated in TEXT and ignored: {}",
+                repeated
+                    .iter()
+                    .map(|key| format!("`{key}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        )
+    })
+}
+
 /// Readability, event count, signal state and acquisition metadata of one
 /// file. `declared` is the signal state its panel declares: always `raw` for
 /// controls.
@@ -109,6 +130,7 @@ pub(crate) fn check_file(
             format!("missing {}", missing.join(", ")),
         )
     });
+    checks.extend(check_repeated_keywords(scope, &dataset));
     (
         checks,
         LoadedFile {

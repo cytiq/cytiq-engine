@@ -31,10 +31,18 @@ Legacy flowCore/PeacoQC thresholds remain explicitly separate. Invalid bounds,
 non-finite detector values and invalid channel indices return errors.
 
 The reader is strict by design: anything that does not match the spec is an
-error rather than a best-effort guess (duplicate keywords, HEADER/TEXT offset
+error rather than a best-effort guess (repeated keywords, HEADER/TEXT offset
 mismatch, non-UTF-8 TEXT, unsupported `$MODE`/`$BYTEORD`/widths, DATA length
 mismatch). A file with more than one data set (`$NEXTDATA` other than 0) is
 refused too: reading only the first would silently drop the others' events.
+
+Keywords are unique in a data set (FCS 3.1, 2.2.5), so a repeated keyword has no
+value, whatever its values are. A file that repeats one the standard or cytiq
+reads (`is_engine_keyword`: every `$` keyword, `SPILL`, `CYTIQ_*`, `flowCore_*`
+and a few more) is refused. Any other is quarantined: `Text::get` and
+`Text::iter` do not return it, so neither its first nor its last value is ever
+used, and no file cytiq writes keeps it. `Text::pairs` still shows every pair as
+written, and `Text::quarantined` names the keywords.
 
 It also never lets a size declared in the file drive an allocation or a loop
 before that size is checked. Every segment is checked against the file length
@@ -118,7 +126,7 @@ write_fcs3_1_f32_with_options(
 | `write_fcs3_1_f32`, `..._with_options`, `..._to_writer`, `..._to_writer_with_options` | FCS 3.1 float32 writer |
 | `write_fcs3_1_f64_with_options`, `write_fcs3_1_f64_to_writer_with_options` | FCS 3.1 float64 writer, for values f32 cannot hold exactly |
 | `write_fcs3_1_exact_with_options`, `needs_f64` | Writer that picks f32 or f64 so every value is stored exactly |
-| `acquisition_id`, `set_acquisition`, `is_sha256`, `ACQUISITION_KEYWORD` | Raw acquisition a file belongs to (`CYTIQ_ACQUISITION`) |
+| `acquisition_id`, `recorded_acquisition`, `set_acquisition`, `is_sha256`, `ACQUISITION_KEYWORD` | Raw acquisition a file belongs to (`CYTIQ_ACQUISITION`) |
 | `FcsWriteParameter` (`from_source`, `with_range`, `with_keyword`), `FcsWriteOptions`, `carried_keywords` | Writer parameters, extra TEXT keywords, and source keywords a derived file can keep |
 | `Spillover`, `invert_matrix`, `compensate`, `is_spillover_keyword` | Spillover parsing and compensation |
 | `condition_number_1` | 1-norm condition number of a spillover matrix |

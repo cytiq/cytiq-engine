@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::error::FcsError;
+use crate::keywords::is_engine_keyword;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FcsVersion {
@@ -75,23 +77,55 @@ impl TextSegment {
     }
 }
 
+/// Keyword values by upper-case name, and the names that have none because the
+/// file repeats them.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Keywords {
+    values: HashMap<String, String>,
+    quarantined: BTreeSet<String>,
+}
+
+impl Keywords {
+    /// Add a pair. Keywords that differ only by case are the same keyword, so
+    /// a second one leaves the value ambiguous: the file is refused when
+    /// anything reads the keyword, which otherwise loses its value.
+    pub(crate) fn insert(&mut self, key: &str, value: &str) -> Result<(), FcsError> {
+        let name = key.to_ascii_uppercase();
+        if self.quarantined.contains(&name) {
+            return Ok(());
+        }
+        match self.values.entry(name) {
+            Entry::Vacant(entry) => {
+                entry.insert(value.to_owned());
+            }
+            Entry::Occupied(_) if is_engine_keyword(key) => {
+                return Err(FcsError::DuplicateKeyword(key.to_owned()));
+            }
+            Entry::Occupied(entry) => {
+                self.quarantined.insert(entry.remove_entry().0);
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FcsText {
     pub primary: TextSegment,
     pub supplemental: Option<TextSegment>,
-    lookup: HashMap<String, String>,
+    keywords: Keywords,
 }
 
 impl FcsText {
     pub(crate) fn new(
         primary: TextSegment,
         supplemental: Option<TextSegment>,
-        lookup: HashMap<String, String>,
+        keywords: Keywords,
     ) -> Self {
         Self {
             primary,
             supplemental,
-            lookup,
+            keywords,
         }
     }
 
@@ -101,43 +135,45 @@ impl FcsText {
     }
 
     /// The value of `key`. Keywords are case-insensitive in every FCS version.
+    /// A [quarantined](Self::quarantined) keyword has none.
     #[must_use]
     pub fn get(&self, key: &str) -> Option<&str> {
-        self.lookup
+        self.keywords
+            .values
             .get(&key.to_ascii_uppercase())
             .map(String::as_str)
     }
 
+    /// Every keyword that has a value, in file order.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        let quarantined = &self.keywords.quarantined;
+        self.pairs().filter(move |(key, _)| {
+            quarantined.is_empty() || !quarantined.contains(&key.to_ascii_uppercase())
+        })
+    }
+
+    /// Every pair as the file holds it, quarantined ones included. To show a
+    /// file, never to look a keyword up.
+    pub fn pairs(&self) -> impl Iterator<Item = (&str, &str)> {
         self.primary
             .iter()
             .chain(self.supplemental.iter().flat_map(TextSegment::iter))
     }
 
-    /// Merge a supplemental TEXT segment, rejecting keywords already present.
+    /// Upper-case names, sorted, of the keywords the file repeats and nothing
+    /// reads. They have no value.
+    pub fn quarantined(&self) -> impl Iterator<Item = &str> {
+        self.keywords.quarantined.iter().map(String::as_str)
+    }
+
+    /// Merge a supplemental TEXT segment; a keyword already present is a
+    /// repeated one.
     pub(crate) fn add_supplemental(&mut self, segment: TextSegment) -> Result<(), FcsError> {
         for (key, value) in &segment.pairs {
-            Self::insert_lookup(&mut self.lookup, key, value)?;
+            self.keywords.insert(key, value)?;
         }
         self.supplemental = Some(segment);
         Ok(())
-    }
-
-    pub(crate) fn insert_lookup(
-        lookup: &mut HashMap<String, String>,
-        key: &str,
-        value: &str,
-    ) -> Result<(), FcsError> {
-        // Keywords that differ only by case are the same keyword, so a second
-        // one would leave the value ambiguous.
-        if lookup
-            .insert(key.to_ascii_uppercase(), value.to_owned())
-            .is_some()
-        {
-            Err(FcsError::DuplicateKeyword(key.to_owned()))
-        } else {
-            Ok(())
-        }
     }
 }
 

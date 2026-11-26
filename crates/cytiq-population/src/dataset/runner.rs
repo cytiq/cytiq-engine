@@ -8,6 +8,7 @@ use cytiq_publish::{Existing, PublishError};
 use super::{ValidateOptions, ValidationReport, parse, validate};
 use crate::identity::ObjectKey;
 use crate::issue::Issues;
+use crate::object::ObjectRoot;
 use crate::{PopulationError, Result, serialization};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,12 +55,14 @@ impl ValidateRunner {
                     .iter()
                     .filter_map(|a| a.source.as_ref().map(|s| s.location.as_str())),
             );
+        let Ok(objects) = ObjectRoot::open(&root) else {
+            return files;
+        };
         for location in locations {
-            if let Ok(key) = ObjectKey::parse(location) {
-                let path = key.resolve(&root);
-                if path.is_file() {
-                    files.push(("object", path));
-                }
+            if let Ok(key) = ObjectKey::parse(location)
+                && objects.object(&key).is_ok()
+            {
+                files.push(("object", key.resolve(&root)));
             }
         }
         files
