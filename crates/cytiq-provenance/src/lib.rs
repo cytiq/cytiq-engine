@@ -376,6 +376,27 @@ impl RunRecorder {
         self.constants = to_value(constants);
     }
 
+    /// The snapshotted inputs: where each is, and what it was.
+    pub fn inputs(&self) -> impl Iterator<Item = (&Path, &FileRecord)> {
+        self.inputs
+            .iter()
+            .map(|input| (input.path.as_path(), &input.record))
+    }
+
+    /// Record what the command established about its inputs before it ran, as
+    /// `constants.input_facts.<name>`. The v3 record has no other free field,
+    /// and its readers refuse unknown ones.
+    pub fn set_input_facts(&mut self, name: &str, facts: serde_json::Value) {
+        if self.constants.is_null() {
+            self.constants = serde_json::json!({});
+        }
+        if let Some(constants) = self.constants.as_object_mut() {
+            constants
+                .entry("input_facts")
+                .or_insert_with(|| serde_json::json!({}))[name] = facts;
+        }
+    }
+
     /// Record the upstream implementations the algorithms port.
     pub fn set_algorithms(&mut self, algorithms: &[(&str, &str)]) {
         self.algorithms = algorithms
@@ -508,13 +529,22 @@ fn is_temporary(path: &Path) -> bool {
 ///
 /// Returns an error when the file cannot be read.
 pub fn hash_file(path: &Path) -> io::Result<(u64, String)> {
-    let mut file = File::open(path)?;
+    hash_reader(&mut File::open(path)?)
+}
+
+/// [`hash_file`] of what `reader` still holds, for a file that is already
+/// open.
+///
+/// # Errors
+///
+/// Returns an error when the reader fails.
+pub fn hash_reader(reader: &mut impl Read) -> io::Result<(u64, String)> {
     let mut hasher = Sha256::new();
     // Large reads halve the time of hashing a gigabyte file against 8 KiB.
     let mut buffer = vec![0_u8; 1 << 20];
     let mut bytes = 0;
     loop {
-        let read = match file.read(&mut buffer) {
+        let read = match reader.read(&mut buffer) {
             Ok(0) => break,
             Ok(read) => read,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,

@@ -10,6 +10,7 @@ use cytiq_population::dataset::{
     self, ArtifactEntry, ArtifactRole, DatasetManifest, Profile, ReportStatus, ValidateOptions,
     contracts,
 };
+use cytiq_population::events;
 use cytiq_population::issue::{IssueCode, Issues, Severity};
 use cytiq_population::privacy::{Disclosure, PrivacyPolicy, PrivacyProfile};
 use cytiq_population::serialization::DocumentFormat;
@@ -489,6 +490,26 @@ fn dataset_ids_are_reproducible_from_canonical_json() {
     let _: PathBuf = built.root.path().to_path_buf();
 }
 
+/// An empty optional section is an absent one, for the dataset id too.
+#[test]
+fn explicit_empty_sections_do_not_change_the_dataset_id() {
+    let built = build();
+    let mut document = serde_json::to_value(&built.manifest).unwrap();
+    let sections = document.as_object_mut().unwrap();
+    for section in ["controls", "knowledge"] {
+        assert!(!sections.contains_key(section), "{section}");
+        sections.insert(section.into(), serde_json::json!([]));
+    }
+    let mut issues = Issues::new();
+    let parsed = dataset::parse(
+        document.to_string().as_bytes(),
+        DocumentFormat::Json,
+        &mut issues,
+    )
+    .unwrap();
+    assert_eq!(parsed.dataset_id(), built.manifest.dataset_id());
+}
+
 #[test]
 fn layers_split_into_parts_validate_like_one_table() {
     let whole = build();
@@ -512,6 +533,59 @@ fn layers_split_into_parts_validate_like_one_table() {
     let directory = manifest.parent().unwrap();
     std::fs::remove_file(directory.join(cytiq_population::events::part_name(2))).unwrap();
     expect(&built, true, IssueCode::MissingObject);
+}
+
+/// Rewrite an events table with another source digest in its footer, as a third
+/// party could: values and identities stay.
+fn with_source(built: &mut Built, artifact: usize, source: &str) {
+    use parquet::arrow::ArrowWriter;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    let entry = &mut built.manifest.artifacts[artifact];
+    let path = built.root.path().join(&entry.location);
+    let builder =
+        ParquetRecordBatchReaderBuilder::try_new(std::fs::File::open(&path).unwrap()).unwrap();
+    let schema = builder.schema().clone();
+    let batches: Vec<_> = builder.build().unwrap().map(Result::unwrap).collect();
+    let mut metadata = schema.metadata().clone();
+    metadata.insert(events::SOURCE_SHA256_KEY, source);
+    let schema = std::sync::Arc::new(schema.as_ref().clone().with_metadata(metadata));
+    let mut writer =
+        ArrowWriter::try_new(std::fs::File::create(&path).unwrap(), schema.clone(), None).unwrap();
+    for batch in batches {
+        writer
+            .write(&batch.with_schema(schema.clone()).unwrap())
+            .unwrap();
+    }
+    writer.close().unwrap();
+    entry.content = cytiq_population::identity::ContentRef {
+        values_sha256: entry.content.values_sha256.clone(),
+        ..dataset::content_of(&path).unwrap()
+    };
+}
+
+#[test]
+fn a_raw_layer_of_every_event_comes_from_its_acquisition() {
+    // The same table with its own source stays valid: only the source counts.
+    let mut built = build();
+    let acquisition = built.manifest.artifacts[0].acquisition.clone().unwrap();
+    with_source(&mut built, 0, &acquisition);
+    let issues = check(&built, Profile::Structural, true);
+    assert!(!issues.has_errors(), "{:?}", issues.items());
+
+    let mut built = build();
+    with_source(&mut built, 0, &"d".repeat(64));
+    expect(&built, true, IssueCode::InvalidReference);
+    let issues = check(&built, Profile::Structural, true);
+    assert_eq!(issues.errors(), 1, "{:?}", issues.items());
+    assert_eq!(issues.items()[0].pointer, "/artifacts/0");
+
+    // A derived layer comes from the file its last stage wrote.
+    for derived in [1, 2] {
+        let mut built = build();
+        with_source(&mut built, derived, &"d".repeat(64));
+        let issues = check(&built, Profile::Structural, true);
+        assert!(!issues.has_errors(), "{:?}", issues.items());
+    }
 }
 
 #[test]

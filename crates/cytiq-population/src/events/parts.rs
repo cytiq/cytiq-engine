@@ -15,7 +15,9 @@ use cytiq_mask::parquet::ParquetReadLimits;
 
 use super::ValuesHasher;
 use super::read::{EventsSummary, verify_with_limits_into};
+use crate::identity::ObjectKey;
 use crate::issue::{IssueCode, Issues};
+use crate::object::{self, ObjectRoot, OpenError};
 use crate::serialization;
 use crate::{PopulationError, Result};
 
@@ -91,7 +93,12 @@ impl PartsManifest {
     /// # Errors
     /// Returns read, parse and shape errors.
     pub fn read(path: &Path) -> Result<Self> {
-        let value = serialization::read(path)?;
+        Self::read_from(File::open(path)?, path)
+    }
+
+    /// [`Self::read`] from an open manifest; `name` is its location.
+    fn read_from(file: File, name: &Path) -> Result<Self> {
+        let value = serialization::read_from(file, name)?;
         let manifest: Self = serde_json::from_value(value)?;
         if manifest.parts.len() as u64 > PARTS_MAX {
             return Err(PopulationError::Invalid(format!(
@@ -116,8 +123,51 @@ pub fn verify_parts_with_limits(
     at: &str,
     issues: &mut Issues,
 ) -> Option<EventsSummary> {
+    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    let open = |part: &str| File::open(directory.join(part)).map_err(OpenError::from);
+    verify_layer(PartsManifest::read(path), &open, limits, at, issues)
+}
+
+/// [`verify_parts`] for the open manifest at `key` of a dataset: its parts
+/// are opened from the same root.
+pub(crate) fn verify_parts_in(
+    root: &ObjectRoot,
+    key: &str,
+    file: File,
+    at: &str,
+    issues: &mut Issues,
+) -> Option<EventsSummary> {
+    let directory = key.rsplit_once('/').map_or("", |(directory, _)| directory);
+    let open = |part: &str| {
+        let key = if directory.is_empty() {
+            part.to_owned()
+        } else {
+            format!("{directory}/{part}")
+        };
+        // Part names come from `part_name`, so their keys are valid.
+        root.object(&ObjectKey::parse(&key).map_err(|_| OpenError::Missing)?)
+    };
+    verify_layer(
+        PartsManifest::read_from(file, Path::new(key)),
+        &open,
+        ParquetReadLimits::default(),
+        at,
+        issues,
+    )
+}
+
+/// Opens a part by its name in the parts directory.
+type OpenPart<'a> = dyn Fn(&str) -> std::result::Result<File, OpenError> + 'a;
+
+fn verify_layer(
+    manifest: Result<PartsManifest>,
+    open: &OpenPart<'_>,
+    limits: ParquetReadLimits,
+    at: &str,
+    issues: &mut Issues,
+) -> Option<EventsSummary> {
     let errors = issues.errors();
-    let manifest = match PartsManifest::read(path) {
+    let manifest = match manifest {
         Ok(manifest) => manifest,
         Err(PopulationError::Io(error)) => {
             issues.error(
@@ -152,19 +202,10 @@ pub fn verify_parts_with_limits(
         );
         return None;
     }
-    let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let mut state = Layer::new(&manifest);
     for (index, part) in manifest.parts.iter().enumerate() {
         let at = format!("{at}/parts/{index}");
-        let summary = verify_part(
-            directory,
-            part,
-            index,
-            limits,
-            &at,
-            issues,
-            &mut state.hasher,
-        )?;
+        let summary = verify_part(open, part, index, limits, &at, issues, &mut state.hasher)?;
         state.check(&manifest, part, summary, &at, issues);
     }
     let summary = state.finish(&manifest, at, issues);
@@ -174,7 +215,7 @@ pub fn verify_parts_with_limits(
 /// Check one part's location, bytes and table, feeding its rows to the
 /// layer digest.
 fn verify_part(
-    directory: &Path,
+    open: &OpenPart<'_>,
     part: &PartEntry,
     index: usize,
     limits: ParquetReadLimits,
@@ -194,40 +235,15 @@ fn verify_part(
         );
         return None;
     }
-    let path = directory.join(&part.location);
-    match cytiq_provenance::hash_file(&path) {
-        Err(error) => {
-            issues.error(
-                IssueCode::MissingObject,
-                format!("{at}/location"),
-                format!("`{}` cannot be read: {error}", part.location),
-            );
-            return None;
-        }
-        Ok((bytes, sha256)) if bytes != part.bytes || sha256 != part.sha256 => {
-            issues.error(
-                IssueCode::CorruptArtifactHash,
-                at,
-                format!(
-                    "`{}` has {bytes} bytes and a different digest than recorded ({} bytes)",
-                    part.location, part.bytes
-                ),
-            );
-            return None;
-        }
-        Ok(_) => {}
-    }
-    let file = match File::open(&path) {
+    let file = match open(&part.location) {
         Ok(file) => file,
         Err(error) => {
-            issues.error(
-                IssueCode::MissingObject,
-                format!("{at}/location"),
-                format!("`{}` cannot be read: {error}", part.location),
-            );
+            error.report(&part.location, format!("{at}/location"), issues);
             return None;
         }
     };
+    let expected = (part.bytes, part.sha256.as_str());
+    let file = object::verified(file, &part.location, expected, at, at, issues)?;
     verify_with_limits_into(file, limits, at, issues, Some(hasher))
 }
 

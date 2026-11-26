@@ -35,7 +35,8 @@ use sha2::{Digest, Sha256};
 use crate::serialization;
 
 pub use channels::ChannelEntry;
-pub use descriptor::{BaseState, Definition, ExportOptions};
+pub use descriptor::{BaseState, Definition, ExportOptions, LayerBasis};
+pub(crate) use parts::verify_parts_in;
 pub use parts::{
     PARTS_CONTRACT, PARTS_FILE, PARTS_MAX, PartEntry, PartsManifest, RowSet, part_name,
     verify_parts, verify_parts_with_limits,

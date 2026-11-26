@@ -39,6 +39,10 @@ pub struct FcsMetadata {
     /// Primary TEXT keywords as `[key, value]` pairs in file order.
     pub text: Vec<(String, String)>,
     pub supplemental_text: Option<Vec<(String, String)>>,
+    /// Keywords the file repeats, in upper case. They are listed in the pairs
+    /// as written and have no value: nothing in cytiq reads them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub quarantined_keywords: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -186,6 +190,7 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<FcsMetadata, MetaError> {
             .supplemental
             .as_ref()
             .map(|segment| segment.pairs.clone()),
+        quarantined_keywords: dataset.text.quarantined().map(str::to_owned).collect(),
     })
 }
 

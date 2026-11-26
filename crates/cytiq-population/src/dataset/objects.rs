@@ -2,7 +2,8 @@
 //! then what each contract allows to be checked inside.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::fs::File;
+use std::path::Path;
 
 use arrow_array::{Array, UInt64Array};
 
@@ -10,15 +11,28 @@ use super::{
     AcquisitionEntry, ArtifactEntry, ArtifactRole, DatasetManifest, LayerSummary, contracts,
 };
 use crate::bitmap::Bitmap;
-use crate::events::{self, EventsSummary, LayerDescriptor, StepKind};
+use crate::events::{self, EventsSummary, LayerDescriptor, LayerState, StepKind};
 use crate::identity::ObjectKey;
 use crate::issue::{IssueCode, Issues, pointer};
+use crate::object::{ObjectRoot, OpenError};
 
 /// Report every listed object that is missing, differs from its recorded
 /// size or digest, or whose content contradicts the manifest. Objects
-/// resolve against `root`; keys that are not relative were reported by the
-/// document rules and are skipped.
+/// resolve against `root` and are never read through a symbolic link below
+/// it; each is opened once, and what is hashed is what is checked. Keys that
+/// are not relative were reported by the document rules and are skipped.
 pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issues) {
+    let root = match ObjectRoot::open(root) {
+        Ok(root) => root,
+        Err(error) => {
+            issues.error(
+                IssueCode::MissingObject,
+                "",
+                format!("the dataset root cannot be opened: {error}"),
+            );
+            return;
+        }
+    };
     let acquisitions: HashMap<&str, &AcquisitionEntry> = manifest
         .acquisitions
         .iter()
@@ -27,7 +41,7 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
     let mut layers: HashMap<&str, LayerDescriptor> = HashMap::new();
     for (index, artifact) in manifest.artifacts.iter().enumerate() {
         let at = pointer(["artifacts", &index.to_string()]);
-        let Some(path) = present(root, &artifact.location, &artifact.content, &at, issues) else {
+        let Some(file) = root.verified(&artifact.location, &artifact.content, &at, issues) else {
             continue;
         };
         let acquisition = artifact
@@ -37,9 +51,9 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
         match artifact.role {
             ArtifactRole::SignalLayer => {
                 let summary = if artifact.contract == contracts::EVENTS_PARTS {
-                    events::verify_parts(&path, &at, issues)
+                    events::verify_parts_in(&root, &artifact.location, file, &at, issues)
                 } else {
-                    events::verify_file(&path, &at, issues)
+                    events::verify(file, &at, issues)
                 };
                 if let Some(summary) = summary {
                     check_layer(manifest, artifact, acquisition, &summary, &at, issues);
@@ -51,30 +65,34 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
                     || contracts::CLASSIFY_PREDICTIONS.contains(&artifact.contract.as_str()) =>
             {
                 if let Some(acquisition) = acquisition {
-                    check_event_table(artifact, acquisition, &path, &at, issues);
+                    check_event_table(artifact, acquisition, file, &at, issues);
                 }
             }
             ArtifactRole::Annotation if artifact.contract == contracts::LABELS => {
                 if let Some(acquisition) = acquisition {
-                    check_labels(artifact, acquisition, &path, &at, issues);
+                    check_labels(artifact, acquisition, file, &at, issues);
                 }
             }
             ArtifactRole::Observations => {
-                check_observations(&acquisitions, artifact, &path, &at, issues);
+                check_observations(&acquisitions, artifact, file, &at, issues);
             }
             _ => {}
         }
-        check_provenance(root, artifact, &at, issues);
+        check_provenance(&root, artifact, &at, issues);
     }
     check_layer_parents(manifest, &layers, issues);
     for (index, acquisition) in manifest.acquisitions.iter().enumerate() {
         if let Some(source) = &acquisition.source {
             let at = pointer(["acquisitions", &index.to_string(), "source"]);
-            if let Some(path) = present(root, &source.location, &source.content, &at, issues) {
-                let raw = cytiq_fcs::FcsReader::open(&path)
-                    .and_then(cytiq_fcs::FcsReader::read)
-                    .and_then(|dataset| cytiq_fcs::acquisition_id(&path, &dataset.text));
-                if raw.as_deref().ok() != Some(acquisition.id.as_str()) {
+            if let Some(file) = root.verified(&source.location, &source.content, &at, issues) {
+                // A file that records no acquisition is one: the digest just
+                // verified is its identity.
+                let same = cytiq_fcs::FcsReader::new(file).read().is_ok_and(|dataset| {
+                    cytiq_fcs::recorded_acquisition(&dataset.text).is_ok_and(|recorded| {
+                        recorded.unwrap_or(&source.content.sha256) == acquisition.id
+                    })
+                });
+                if !same {
                     issues.error(
                         IssueCode::InvalidReference,
                         at,
@@ -82,47 +100,6 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
                     );
                 }
             }
-        }
-    }
-}
-
-/// The object's path when it exists with the recorded size and digest.
-pub(crate) fn present(
-    root: &Path,
-    location: &str,
-    content: &crate::identity::ContentRef,
-    at: &str,
-    issues: &mut Issues,
-) -> Option<PathBuf> {
-    let path = ObjectKey::parse(location).ok()?.resolve(root);
-    if !path.is_file() {
-        issues.error(
-            IssueCode::MissingObject,
-            format!("{at}/location"),
-            format!("`{location}` is missing"),
-        );
-        return None;
-    }
-    match cytiq_provenance::hash_file(&path) {
-        Ok((bytes, sha256)) if bytes == content.bytes && sha256 == content.sha256 => Some(path),
-        Ok((bytes, _)) => {
-            issues.error(
-                IssueCode::CorruptArtifactHash,
-                format!("{at}/content"),
-                format!(
-                    "`{location}` has {bytes} bytes and a different digest than recorded ({} bytes)",
-                    content.bytes
-                ),
-            );
-            None
-        }
-        Err(error) => {
-            issues.error(
-                IssueCode::MissingObject,
-                format!("{at}/location"),
-                format!("`{location}` cannot be read: {error}"),
-            );
-            None
         }
     }
 }
@@ -169,6 +146,7 @@ fn check_layer(
             "the layer summary differs from the table's descriptor",
         );
     }
+    check_source(summary, at, issues);
     if !summary.all_columns {
         issues.error(
             IssueCode::PanelMismatch,
@@ -210,6 +188,21 @@ fn check_layer(
         && !unmixed
     {
         check_channels(panel, &summary.descriptor, at, issues);
+    }
+}
+
+/// A raw layer of every event holds the acquisition's own rows, so the file it
+/// was exported from is the acquisition. A derived layer, and a subset, come
+/// from a file a stage wrote.
+fn check_source(summary: &EventsSummary, at: &str, issues: &mut Issues) {
+    let descriptor = &summary.descriptor;
+    let raw = descriptor.state == LayerState::Raw && descriptor.steps.is_empty();
+    if raw && summary.raw_events.is_some() && summary.source_sha256 != descriptor.acquisition_id {
+        issues.error(
+            IssueCode::InvalidReference,
+            at,
+            "a raw layer of every event was exported from a file that is not its acquisition",
+        );
     }
 }
 
@@ -260,11 +253,11 @@ fn check_channels(
 fn check_event_table(
     artifact: &ArtifactEntry,
     acquisition: &AcquisitionEntry,
-    path: &Path,
+    file: File,
     at: &str,
     issues: &mut Issues,
 ) {
-    let reader = match crate::native::open_table(path) {
+    let reader = match crate::native::table(file) {
         Ok(reader) => reader,
         Err(error) => {
             issues.error(
@@ -306,23 +299,23 @@ fn check_event_table(
 fn check_labels(
     artifact: &ArtifactEntry,
     acquisition: &AcquisitionEntry,
-    path: &Path,
+    file: File,
     at: &str,
     issues: &mut Issues,
 ) {
-    verified_labels(artifact, acquisition, path, at, issues);
+    verified_labels(artifact, acquisition, file, at, issues);
 }
 
 /// [`check_labels`], returning the table's summary when it has no error.
 pub(crate) fn verified_labels(
     artifact: &ArtifactEntry,
     acquisition: &AcquisitionEntry,
-    path: &Path,
+    file: File,
     at: &str,
     issues: &mut Issues,
 ) -> Option<crate::labels::LabelsSummary> {
     let errors = issues.errors();
-    let summary = crate::labels::verify_file(path, at, issues)?;
+    let summary = crate::labels::verify(file, at, issues)?;
     let descriptor = &summary.descriptor;
     if descriptor.acquisition_id != acquisition.id
         || descriptor.raw_events != acquisition.raw_events
@@ -435,11 +428,11 @@ fn scan_event_ids(
 fn check_observations(
     acquisitions: &HashMap<&str, &AcquisitionEntry>,
     artifact: &ArtifactEntry,
-    path: &Path,
+    file: File,
     at: &str,
     issues: &mut Issues,
 ) {
-    let rows = match crate::table::read(path) {
+    let rows = match crate::table::read_from(file) {
         Ok(rows) => rows,
         Err(error) => {
             issues.error(
@@ -472,7 +465,7 @@ fn check_observations(
 
 /// The provenance record an artifact names lists it as an output and holds
 /// the recorded fingerprint.
-fn check_provenance(root: &Path, artifact: &ArtifactEntry, at: &str, issues: &mut Issues) {
+fn check_provenance(root: &ObjectRoot, artifact: &ArtifactEntry, at: &str, issues: &mut Issues) {
     let Some(execution) = &artifact.execution else {
         return;
     };
@@ -482,12 +475,17 @@ fn check_provenance(root: &Path, artifact: &ArtifactEntry, at: &str, issues: &mu
     let Ok(key) = ObjectKey::parse(location) else {
         return;
     };
-    let path = key.resolve(root);
-    if !path.is_file() {
-        return;
-    }
     let at = format!("{at}/execution");
-    let record = match crate::native::producer_record(&path) {
+    let file = match root.object(&key) {
+        Ok(file) => file,
+        // A dataset may reference a record it does not carry.
+        Err(OpenError::Missing) => return,
+        Err(error) => {
+            error.report(location, at, issues);
+            return;
+        }
+    };
+    let record = match crate::native::producer_record_from(file, Path::new(location)) {
         Ok(record) => record,
         Err(error) => {
             issues.error(
