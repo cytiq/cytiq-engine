@@ -12,6 +12,7 @@ mod limits;
 mod lineage;
 mod linear;
 mod margins;
+mod measurement;
 mod signal;
 mod stream;
 mod text;
@@ -51,6 +52,7 @@ pub use crate::margins::{
     SaturationDiagnostics, assess_detector_saturation, dataset_margin_bounds, encode_margin_bounds,
     margin_channels, raw_margin_pass, recorded_margin_bounds,
 };
+pub use crate::measurement::{DeclaredTypes, MeasurementType, quoted_names};
 pub use crate::signal::{
     COMPENSATION_KEYWORD, CompensationState, NORMALIZATION_KEYWORD, NormalizationState,
     SOURCE_SPILLOVER_KEYWORD, SignalState, TRANSFORM_KEYWORD, TransformContract, TransformState,

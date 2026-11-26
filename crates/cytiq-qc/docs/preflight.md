@@ -21,6 +21,7 @@ metadata without assigning fluorescence spillover or spectral control coverage.
 | `fcs_readable` | every file | the FCS cannot be parsed | |
 | `events` | every file | the file has no events | |
 | `raw_signal` | every file, by its panel's `signal_state`; controls, always as `raw` | the processing cytiq recorded (`CYTIQ_*` keywords) does not fit the declared state: any for `raw`; anything but `cytiq compensate` for `compensated`, anything but `cytiq autospectral` for `unmixed`; `cytiq transform` always; or a `CYTIQ_*` keyword cannot be read | |
+| `measurement_types` | every file, by its panel's `signal_state`; controls, always as `raw` | the file's `$PnTYPE` (FCS 3.2) declares both `Raw Fluorescence` and `Unmixed Fluorescence` channels, or `Unmixed Fluorescence` channels in a `raw` panel that `cytiq autospectral` did not unmix: `cytiq export events` refuses them as a raw layer | a `$PnTYPE` value FCS 3.2 does not define, which declares nothing |
 | `acquisition_metadata` | every file | | `$CYT` or `$DATE` is missing |
 | `repeated_keywords` | every file | | TEXT repeats a keyword without `$` that cytiq does not read (case ignored): cytiq reads none of its values, and no file it writes keeps it |
 | `signal_state` | samples, by their panel's `signal_state`; controls, always as `raw` | `raw`: `Comp-<detector>` channels without the detector; `compensated`: the file carries `$SPILLOVER`/`$SPILL`, which stages would apply again | `raw`: `Comp-<detector>` channels next to their detectors; `unmixed`: the file carries a spillover keyword |
