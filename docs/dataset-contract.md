@@ -80,7 +80,18 @@ For a raw input, `source_sha256` equals the acquisition, and `dataset validate`
 requires it of every raw layer without steps whose `row_set` is `all`. For a
 derived file it is the digest of that file, so the table names both its raw
 acquisition and the exact file it came from. A subset of raw rows (PeacoQC writes
-one, with `Original_ID`, even when it removes nothing) comes from a derived file. The scientific provenance of the values is the layer
+one, with `Original_ID`, even when it removes nothing) comes from a derived file.
+
+The one raw input that is not the acquisition is a file `cytiq repair` made
+readable: same DATA, rewritten HEADER and TEXT, `CYTIQ_ACQUISITION` naming the
+instrument's file. Its raw layer is valid only when the dataset lists, with role
+`provenance`, the record of a successful `cytiq repair` run whose `input` is the
+acquisition and whose output is `source_sha256`. That record is also what lets an
+acquisition's `source` be the instrument's file, which the strict reader refuses.
+Records need a disclosure with `provenance_records`, so a deidentified v1
+dataset cannot hold a repaired acquisition.
+
+The scientific provenance of the values is the layer
 descriptor: steps, methods, parameters, definition digests and origins. The
 execution provenance (tool version, inputs, settings) is the v3 record written
 beside the table. The table does not record the cytiq version, so the same
@@ -470,7 +481,7 @@ Every issue has a code, a severity and a JSON pointer.
 | `duplicate_event_identity` | document, objects | A layer listed twice; non-increasing or out-of-range `source_event_id`; parts out of order, overlapping or with a gap; an event twice in a mask |
 | `duplicate_acquisition` | document | An acquisition listed twice or bound to two samples |
 | `duplicate_identifier` | document | Repeated sample, panel, specimen, instrument, detector, location, subject or factor; a SHA-256-shaped sample or subject id (warning) |
-| `invalid_reference` | document, objects | Unknown panel, specimen, acquisition, parent or subject; a parent or table of another acquisition; a mask not covering every raw event; a label table of another acquisition or event count; a factor given at another level; a provenance record not listing the object; a raw layer of every event whose `source_sha256` is not its acquisition; an object, part, source or provenance record that is or is reached through a symbolic link |
+| `invalid_reference` | document, objects | Unknown panel, specimen, acquisition, parent or subject; a parent or table of another acquisition; a mask not covering every raw event; a label table of another acquisition or event count; a factor given at another level; a provenance record not listing the object; a raw layer of every event whose `source_sha256` is not its acquisition and that no listed `cytiq repair` record made from it; an object, part, source or provenance record that is or is reached through a symbolic link |
 | `inconsistent_channel_order` | document, objects | Indices out of `$Pn` order; repeated or reserved names; table columns in another order |
 | `missing_object` | objects | Absent object or part |
 | `corrupt_artifact_hash` | objects | Size, digest, values digest, layer id or annotation id mismatch; unreadable table or parts manifest; a part of another layer; channel dictionary or column set inconsistent with the table; a label table breaking its kind's rules |

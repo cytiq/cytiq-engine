@@ -1,7 +1,7 @@
 //! Rules that read the objects a manifest lists: presence, size and digest,
 //! then what each contract allows to be checked inside.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::Path;
 
@@ -39,6 +39,7 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
         .map(|a| (a.id.as_str(), a))
         .collect();
     let mut layers: HashMap<&str, LayerDescriptor> = HashMap::new();
+    let mut sources = Sources::default();
     for (index, artifact) in manifest.artifacts.iter().enumerate() {
         let at = pointer(["artifacts", &index.to_string()]);
         let Some(file) = root.verified(&artifact.location, &artifact.content, &at, issues) else {
@@ -56,6 +57,7 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
                     events::verify(file, &at, issues)
                 };
                 if let Some(summary) = summary {
+                    sources.of_layer(&summary, &at);
                     check_layer(manifest, artifact, acquisition, &summary, &at, issues);
                     layers.insert(artifact.semantic_id.as_str(), summary.descriptor);
                 }
@@ -76,22 +78,30 @@ pub fn verify_objects(manifest: &DatasetManifest, root: &Path, issues: &mut Issu
             ArtifactRole::Observations => {
                 check_observations(&acquisitions, artifact, file, &at, issues);
             }
+            ArtifactRole::Provenance if artifact.contract == contracts::PROVENANCE => {
+                sources.of_record(file, &artifact.location);
+            }
             _ => {}
         }
         check_provenance(&root, artifact, &at, issues);
     }
+    sources.check(issues);
     check_layer_parents(manifest, &layers, issues);
     for (index, acquisition) in manifest.acquisitions.iter().enumerate() {
         if let Some(source) = &acquisition.source {
             let at = pointer(["acquisitions", &index.to_string(), "source"]);
             if let Some(file) = root.verified(&source.location, &source.content, &at, issues) {
                 // A file that records no acquisition is one: the digest just
-                // verified is its identity.
-                let same = cytiq_fcs::FcsReader::new(file).read().is_ok_and(|dataset| {
-                    cytiq_fcs::recorded_acquisition(&dataset.text).is_ok_and(|recorded| {
-                        recorded.unwrap_or(&source.content.sha256) == acquisition.id
-                    })
-                });
+                // verified is its identity. The instrument's file of a
+                // repaired acquisition is that too, though only the repaired
+                // file reads.
+                let same = (source.content.sha256 == acquisition.id
+                    && sources.repaired(&acquisition.id))
+                    || cytiq_fcs::FcsReader::new(file).read().is_ok_and(|dataset| {
+                        cytiq_fcs::recorded_acquisition(&dataset.text).is_ok_and(|recorded| {
+                            recorded.unwrap_or(&source.content.sha256) == acquisition.id
+                        })
+                    });
                 if !same {
                     issues.error(
                         IssueCode::InvalidReference,
@@ -146,7 +156,6 @@ fn check_layer(
             "the layer summary differs from the table's descriptor",
         );
     }
-    check_source(summary, at, issues);
     if !summary.all_columns {
         issues.error(
             IssueCode::PanelMismatch,
@@ -191,18 +200,73 @@ fn check_layer(
     }
 }
 
+/// The tool a repair record names.
+const REPAIR_TOOL: &str = "cytiq repair";
+
 /// A raw layer of every event holds the acquisition's own rows, so the file it
-/// was exported from is the acquisition. A derived layer, and a subset, come
-/// from a file a stage wrote.
-fn check_source(summary: &EventsSummary, at: &str, issues: &mut Issues) {
-    let descriptor = &summary.descriptor;
-    let raw = descriptor.state == LayerState::Raw && descriptor.steps.is_empty();
-    if raw && summary.raw_events.is_some() && summary.source_sha256 != descriptor.acquisition_id {
-        issues.error(
-            IssueCode::InvalidReference,
-            at,
-            "a raw layer of every event was exported from a file that is not its acquisition",
-        );
+/// was exported from is the acquisition, or a file `cytiq repair` made from it
+/// as a listed record says. A derived layer, and a subset, come from a file a
+/// stage wrote.
+#[derive(Default)]
+struct Sources {
+    /// Raw layers of every event from another file: where, acquisition, source.
+    foreign: Vec<(String, String, String)>,
+    /// `(acquisition, file)` pairs a listed repair record made.
+    repairs: HashSet<(String, String)>,
+}
+
+impl Sources {
+    fn of_layer(&mut self, summary: &EventsSummary, at: &str) {
+        let descriptor = &summary.descriptor;
+        let raw = descriptor.state == LayerState::Raw && descriptor.steps.is_empty();
+        if raw && summary.raw_events.is_some() && summary.source_sha256 != descriptor.acquisition_id
+        {
+            self.foreign.push((
+                at.to_owned(),
+                descriptor.acquisition_id.clone(),
+                summary.source_sha256.clone(),
+            ));
+        }
+    }
+
+    /// A record of a successful `cytiq repair`: each output was made from its
+    /// input. A record that cannot be read vouches for nothing.
+    fn of_record(&mut self, file: File, location: &str) {
+        let Ok(record) = crate::native::producer_record_from(file, Path::new(location)) else {
+            return;
+        };
+        if record.tool != REPAIR_TOOL
+            || record.reason != Some(cytiq_provenance::outcome::OutcomeReason::Success)
+        {
+            return;
+        }
+        let inputs = record
+            .inputs
+            .iter()
+            .filter(|input| input.role.as_deref() == Some("input"));
+        for input in inputs {
+            for output in &record.outputs {
+                self.repairs
+                    .insert((input.sha256.clone(), output.sha256.clone()));
+            }
+        }
+    }
+
+    fn repaired(&self, acquisition: &str) -> bool {
+        self.repairs.iter().any(|(input, _)| input == acquisition)
+    }
+
+    fn check(&self, issues: &mut Issues) {
+        for (at, acquisition, source) in &self.foreign {
+            if !self.repairs.contains(&(acquisition.clone(), source.clone())) {
+                issues.error(
+                    IssueCode::InvalidReference,
+                    at.as_str(),
+                    "a raw layer of every event was exported from a file that is not its \
+                     acquisition, and no listed `cytiq repair` record made that file from it",
+                );
+            }
+        }
     }
 }
 
