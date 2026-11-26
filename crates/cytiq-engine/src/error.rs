@@ -84,6 +84,12 @@ mod tests {
         );
         let arrow = ArrowError::IoError("write".into(), io_error(io::ErrorKind::StorageFull));
         assert_eq!(code(&Population::Arrow(arrow)), 1);
+        let mask = |kind| cytiq_mask::MaskError::Parquet {
+            path: "run.masks.parquet".into(),
+            source: nested(kind),
+        };
+        assert_eq!(code(&mask(io::ErrorKind::StorageFull)), 1);
+        assert_eq!(code(&mask(io::ErrorKind::UnexpectedEof)), 2);
         // Corrupt or truncated content stays invalid.
         assert_eq!(
             code(&Population::Parquet(nested(io::ErrorKind::UnexpectedEof))),

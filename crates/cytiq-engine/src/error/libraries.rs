@@ -155,8 +155,8 @@ fn mask(error: &cytiq_mask::MaskError) -> OutcomeReason {
         E::Lineage(source) => fcs(source),
         E::Publish(source) => OutcomeReason::of_publish(source),
         E::OutputExists { .. } => CONFLICT,
-        E::Parquet { .. }
-        | E::Invalid { .. }
+        E::Parquet { source, .. } => nested_io(source, INVALID),
+        E::Invalid { .. }
         | E::LengthMismatch { .. }
         | E::Empty
         | E::MissingEvent { .. }

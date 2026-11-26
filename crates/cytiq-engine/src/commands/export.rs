@@ -362,6 +362,9 @@ pub(crate) fn run(
         config.layer.as_str()
     );
     recorder.snapshot_roles(&ExportRunner::input_files(&config))?;
+    if let Some(basis) = ExportRunner::layer_basis(&config) {
+        recorder.set_constants(&serde_json::json!({ "layer_basis": basis }));
+    }
     let destination = if config.splits() {
         cytiq_provenance::reuse::Destination::Dir(config.output.clone())
     } else {

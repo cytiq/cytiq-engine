@@ -1,15 +1,18 @@
 //! `cytiq export events`: one FCS file to one events table, or to a
 //! directory of part tables, published atomically.
 
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+
+use cytiq_fcs::{DeclaredTypes, FcsReadLimits, FcsReader};
 
 use cytiq_mask::parquet::ParquetReadLimits;
 use cytiq_provenance::{RunRecord, hash_file, record_path_for_dir, record_path_for_file};
 use cytiq_publish::{Existing, Prepared, Publication, PublishError};
 
 use super::{
-    BaseState, Definition, ExportOptions, ExportSummary, LayerState, PARTS_FILE, WriteSettings,
-    export_with,
+    BaseState, Definition, ExportOptions, ExportSummary, LayerBasis, LayerState, PARTS_FILE,
+    WriteSettings, export_with,
 };
 use crate::{PopulationError, Result};
 
@@ -68,6 +71,18 @@ impl ExportRunner {
             files.push(("producer_provenance", record));
         }
         files
+    }
+
+    /// Who stated the input's base state: the file through `$PnTYPE`, or
+    /// the caller. `None` when the input cannot be read; the export itself
+    /// then reports why.
+    #[must_use]
+    pub fn layer_basis(config: &ExportConfig) -> Option<LayerBasis> {
+        let stream = FcsReader::open(&config.input)
+            .and_then(|reader| reader.stream(NonZeroUsize::MIN, FcsReadLimits::default()))
+            .ok()?;
+        let declared = DeclaredTypes::of(&stream.metadata.parameters);
+        Some(LayerBasis::of(&declared, config.base_state))
     }
 
     /// The files an export published: the table, or the parts manifest and

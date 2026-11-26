@@ -4,8 +4,8 @@
 use std::collections::HashSet;
 
 use cytiq_fcs::{
-    ColumnData, FcsMetadata, ORIGINAL_ID_PARAMETER, SOURCE_SPILLOVER_KEYWORD, SignalState,
-    Spillover, TransformContract,
+    ColumnData, DeclaredTypes, FcsMetadata, ORIGINAL_ID_PARAMETER, SOURCE_SPILLOVER_KEYWORD,
+    SignalState, Spillover, TransformContract, quoted_names,
 };
 use serde_json::json;
 
@@ -33,6 +33,37 @@ pub struct Definition {
     pub sha256: String,
     /// Matched against the provenance record of the run that applied it.
     pub verified: bool,
+}
+
+/// Who stated what the stored values were before any cytiq stage: the
+/// file, through `$PnTYPE` (FCS 3.2), or the caller, through
+/// [`ExportOptions::base_state`]. Recorded in the export's provenance as
+/// `constants.layer_basis`; the layer descriptor does not carry it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LayerBasis {
+    DeclaredByFile,
+    AssertedByCaller,
+}
+
+impl LayerBasis {
+    /// The file states the base when it declares `Raw Fluorescence` for a
+    /// raw base, or `Unmixed Fluorescence` for an unmixed one, and nothing
+    /// else for its fluorescence channels. Every other case is the caller's
+    /// statement.
+    #[must_use]
+    pub fn of(declared: &DeclaredTypes, base_state: BaseState) -> Self {
+        let stated = match base_state {
+            BaseState::Raw => !declared.raw.is_empty() && declared.unmixed.is_empty(),
+            BaseState::Unmixed => !declared.unmixed.is_empty() && declared.raw.is_empty(),
+            BaseState::Compensated => false,
+        };
+        if stated {
+            Self::DeclaredByFile
+        } else {
+            Self::AssertedByCaller
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -159,6 +190,7 @@ impl LayerDescriptor {
         let names: Vec<String> = channels.iter().map(|c| c.name.clone()).collect();
         let state = SignalState::of(&metadata.text)?;
         check_options(&state, options)?;
+        check_declared(&DeclaredTypes::of(&metadata.parameters), &state, options)?;
         let mut steps = Vec::new();
         match options.base_state {
             BaseState::Raw => {}
@@ -202,6 +234,36 @@ fn check_options(state: &SignalState, options: &ExportOptions) -> Result<()> {
     require(
         options.unmixing_reference.is_none() || state.unmixing.is_some(),
         "an unmixing reference was supplied, but the file is not unmixed by cytiq",
+    )
+}
+
+/// Refuse what the file's own `$PnTYPE` contradicts: raw and unmixed
+/// channels together, under any base; unmixed channels on a raw base, unless
+/// `cytiq autospectral` unmixed them. The rule is on the base state, so a
+/// file transformed from unmixed values is no raw base either.
+fn check_declared(
+    declared: &DeclaredTypes,
+    state: &SignalState,
+    options: &ExportOptions,
+) -> Result<()> {
+    require(
+        !declared.is_mixed(),
+        format!(
+            "the file declares both raw ({}) and unmixed ({}) channels in `$PnTYPE`: no single \
+             layer holds them",
+            quoted_names(&declared.raw),
+            quoted_names(&declared.unmixed)
+        ),
+    )?;
+    require(
+        declared.unmixed.is_empty()
+            || options.base_state != BaseState::Raw
+            || state.unmixing.is_some(),
+        format!(
+            "the file declares unmixed channels in `$PnTYPE` ({}), so its values are not raw: \
+             export it with `--layer unmixed --base-state unmixed`",
+            quoted_names(&declared.unmixed)
+        ),
     )
 }
 

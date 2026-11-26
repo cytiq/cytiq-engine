@@ -180,7 +180,7 @@ cargo install --git https://github.com/cytiq/cytiq-engine --tag 0.5.0 --locked c
 ```
 
 For an existing `cargo install cytiq-cli` installation, add `--force` to replace
-the executable. See [crates.io publication](CONTRIBUTING.md#cratesio-publication)
+the executable. See [crates.io publication](docs/releasing.md#cratesio-publication)
 for registry setup.
 
 ## Docker

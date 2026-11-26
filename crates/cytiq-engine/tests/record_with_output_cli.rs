@@ -123,6 +123,7 @@ fn prepare(args: &[&str]) {
 /// Inputs several commands read, made once in `work`.
 struct Inputs {
     raw: String,
+    transformed: String,
     mask: String,
     compensate_record: String,
 }
@@ -131,6 +132,7 @@ impl Inputs {
     fn new(work: &Path) -> Self {
         let raw = text(&fixture("flowcyt/Case12_P.fcs"));
         let compensated = work.join("case12.comp.fcs");
+        let transformed = text(&work.join("case12.trans.fcs"));
         prepare(&[
             "compensate",
             "--input",
@@ -138,10 +140,18 @@ impl Inputs {
             "--output",
             &text(&compensated),
         ]);
+        prepare(&[
+            "transform",
+            "--input",
+            &text(&compensated),
+            "--output",
+            &transformed,
+        ]);
         Self {
             mask: text(&compensated.with_extension("masks.parquet")),
             compensate_record: text(&cytiq_provenance::record_path_for_file(&compensated)),
             raw,
+            transformed,
         }
     }
 }
@@ -151,29 +161,8 @@ fn cases(work: &Path) -> Vec<Case> {
     let inputs = Inputs::new(work);
     let mut cases = exports(&inputs);
     cases.push(repair(work, &inputs));
+    cases.extend(reports(work, &inputs));
     cases
-}
-
-/// `cytiq repair` of Case12 with an ANALYSIS that ends at -1 in HEADER.
-fn repair(work: &Path, inputs: &Inputs) -> Case {
-    let mut bytes = fs::read(&inputs.raw).unwrap();
-    bytes[42..58].copy_from_slice(b"       0      -1");
-    let deviating = work.join("deviating.fcs");
-    fs::write(&deviating, bytes).unwrap();
-    Case::new(
-        "repair",
-        "repaired.fcs",
-        Record::Beside,
-        &[
-            "repair",
-            "--input",
-            &text(&deviating),
-            "--output",
-            OUT,
-            "--allow",
-            "analysis_offsets_negative",
-        ],
-    )
 }
 
 fn exports(inputs: &Inputs) -> Vec<Case> {
@@ -225,6 +214,129 @@ fn exports(inputs: &Inputs) -> Vec<Case> {
                 "export",
                 "--manifest",
                 &manifest,
+                "--output",
+                OUT,
+            ],
+        ),
+    ]
+}
+
+const RUN: &str = "\
+schema_version: 3
+cytometry: conventional
+panels:
+  - name: M
+    signal_state: raw
+    markers:
+      - { marker: CD14, channel: FL1 INT }
+samples:
+  - { id: S12, file: case12.fcs, panel: M }
+";
+
+/// `cytiq repair` of Case12 with an ANALYSIS that ends at -1 in HEADER.
+fn repair(work: &Path, inputs: &Inputs) -> Case {
+    let mut bytes = fs::read(&inputs.raw).unwrap();
+    bytes[42..58].copy_from_slice(b"       0      -1");
+    let deviating = work.join("deviating.fcs");
+    fs::write(&deviating, bytes).unwrap();
+    Case::new(
+        "repair",
+        "repaired.fcs",
+        Record::Beside,
+        &[
+            "repair",
+            "--input",
+            &text(&deviating),
+            "--output",
+            OUT,
+            "--allow",
+            "analysis_offsets_negative",
+        ],
+    )
+}
+
+fn reports(work: &Path, inputs: &Inputs) -> Vec<Case> {
+    fs::copy(&inputs.raw, work.join("case12.fcs")).unwrap();
+    let run = work.join("run.yaml");
+    fs::write(&run, RUN).unwrap();
+    let run = text(&run);
+    let manifest = text(&fixture("dataset/reference/manifest.json"));
+    let gates = text(&fixture("dataset/case12-gates.xml"));
+    let file = |name, output, args: &[&str]| Case::new(name, output, Record::Beside, args);
+    vec![
+        file(
+            "stats",
+            "stats.json",
+            &["stats", "--input", &inputs.raw, "--output", OUT],
+        ),
+        file(
+            "meta",
+            "meta.json",
+            &["meta", "--input", &inputs.raw, "--output", OUT],
+        ),
+        file(
+            "preflight",
+            "preflight.json",
+            &["preflight", "--manifest", &run, "--output", OUT],
+        ),
+        file(
+            "qc",
+            "qc.json",
+            &[
+                "qc",
+                "--manifest",
+                &run,
+                "--sample",
+                "S12",
+                "--mask",
+                &inputs.mask,
+                "--output",
+                OUT,
+            ],
+        ),
+        file(
+            "dataset validate",
+            "report.json",
+            &[
+                "dataset",
+                "validate",
+                "--manifest",
+                &manifest,
+                "--output",
+                OUT,
+            ],
+        ),
+        file(
+            "mask combine",
+            "combined.parquet",
+            &["mask", "combine", "--mask", &inputs.mask, "--output", OUT],
+        ),
+        file(
+            "gate",
+            "gates.csv",
+            &[
+                "gate",
+                "--input",
+                &inputs.transformed,
+                "--gating-ml",
+                &gates,
+                "--output",
+                OUT,
+                "--membership",
+                "{out}.membership.parquet",
+            ],
+        ),
+        file(
+            "plot",
+            "plot.svg",
+            &[
+                "plot",
+                "--input",
+                &inputs.raw,
+                "--x",
+                "FS INT",
+                "--y",
+                "SS INT",
                 "--output",
                 OUT,
             ],

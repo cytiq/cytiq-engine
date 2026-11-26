@@ -78,7 +78,8 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let report = QcRunner::run(&config)?;
+    let prepared = QcRunner::prepare(&config)?;
+    let report = prepared.summary;
     for check in &report.checks {
         match check.status {
             QcStatus::Fail => {
@@ -120,8 +121,9 @@ pub(crate) fn run(
     } else {
         cytiq_provenance::outcome::OutcomeReason::Success
     };
-    let mut outcome = crate::provenance::record_with_reason(
+    let mut outcome = crate::provenance::publish(
         recorder,
+        prepared.publication,
         std::slice::from_ref(&config.output),
         &record_path_for_file(&config.output),
         reason,

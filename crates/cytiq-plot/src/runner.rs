@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::io::Write as _;
 use std::path::PathBuf;
 
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::debug;
 
 use crate::compose::{PlotStats, compose};
@@ -41,15 +41,25 @@ impl PlotRunSummary {
 pub struct PlotRunner;
 
 impl PlotRunner {
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &PlotConfig) -> Result<PlotRunSummary, PlotError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
     /// Read the sample once, compose every plot, render each requested
-    /// format and publish all files together: a failing plot publishes none.
+    /// format and stage all files together: a failing plot stages none.
+    /// Nothing is published.
     ///
     /// # Errors
     ///
     /// Returns an error when an input cannot be read or does not match the
     /// FCS file, a plot request is invalid, or an output exists without
     /// `overwrite`.
-    pub fn run(config: &PlotConfig) -> Result<PlotRunSummary, PlotError> {
+    pub fn prepare(config: &PlotConfig) -> Result<Prepared<PlotRunSummary>, PlotError> {
         if config.jobs.is_empty() {
             return Err(PlotError::InvalidOption {
                 plot: String::new(),
@@ -106,7 +116,9 @@ impl PlotRunner {
                 stats,
             });
         }
-        publication.commit()?;
-        Ok(PlotRunSummary { plots })
+        Ok(Prepared {
+            summary: PlotRunSummary { plots },
+            publication,
+        })
     }
 }

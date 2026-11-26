@@ -3,7 +3,7 @@
 use std::io::Write as _;
 use std::path::PathBuf;
 
-use cytiq_publish::{Existing, PublishError};
+use cytiq_publish::{Existing, Prepared, Publication, PublishError};
 
 use super::{ValidateOptions, ValidationReport, parse, validate};
 use crate::identity::ObjectKey;
@@ -68,14 +68,22 @@ impl ValidateRunner {
         files
     }
 
-    /// Validate the manifest and publish the report, refusing an existing
-    /// report without `overwrite` before any work. An invalid dataset is a
-    /// report with errors, not an error.
+    /// [`Self::prepare`], then publish the report, without a provenance record.
+    ///
+    /// # Errors
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &ValidateConfig) -> Result<ValidationReport> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Validate the manifest and stage the report, refusing an existing report
+    /// without `overwrite` before any work. An invalid dataset is a report with
+    /// errors, not an error. Nothing is published.
     ///
     /// # Errors
     /// Returns [`PublishError::Exists`], a missing or unreadable manifest and
     /// write errors.
-    pub fn run(config: &ValidateConfig) -> Result<ValidationReport> {
+    pub fn prepare(config: &ValidateConfig) -> Result<Prepared<ValidationReport>> {
         if config.output.exists() && !config.overwrite {
             return Err(PublishError::Exists {
                 path: config.output.clone(),
@@ -85,11 +93,13 @@ impl ValidateRunner {
         let report = validate(&config.manifest, &config.options)?;
         let mut bytes = serde_json::to_vec_pretty(&report)?;
         bytes.push(b'\n');
-        cytiq_publish::write_file(
-            &config.output,
-            Existing::overwrite(config.overwrite),
-            |writer| writer.write_all(&bytes).map_err(PopulationError::Io),
-        )?;
-        Ok(report)
+        let mut publication = Publication::new(Existing::overwrite(config.overwrite));
+        publication.stage_file(&config.output, |writer| {
+            writer.write_all(&bytes).map_err(PopulationError::Io)
+        })?;
+        Ok(Prepared {
+            summary: report,
+            publication,
+        })
     }
 }

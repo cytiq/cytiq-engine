@@ -377,7 +377,7 @@ fn check_fields(schema: &Schema, header: &Header, at: &str, issues: &mut Issues)
         // Engines that rewrite files without Arrow drop field metadata.
         if !field.metadata().is_empty() && *field.metadata() != channel.field_metadata() {
             issues.error(
-                IssueCode::InconsistentChannelOrder,
+                IssueCode::CorruptArtifactHash,
                 at,
                 format!(
                     "field metadata of `{}` disagrees with the channel dictionary",
@@ -394,7 +394,7 @@ fn check_dictionary(header: &Header, at: &str, issues: &mut Issues) {
     let layer = &header.descriptor.channels;
     if header.channels.is_empty() {
         issues.error(
-            IssueCode::InconsistentChannelOrder,
+            IssueCode::CorruptArtifactHash,
             at,
             "the channel dictionary is empty",
         );
@@ -419,7 +419,7 @@ fn check_dictionary(header: &Header, at: &str, issues: &mut Issues) {
         let channel = &layer[next + offset];
         if channel.name != entry.name || channel.value_type != entry.value_type {
             issues.error(
-                IssueCode::InconsistentChannelOrder,
+                IssueCode::CorruptArtifactHash,
                 at,
                 format!(
                     "stored channel `{}` disagrees with the layer descriptor",

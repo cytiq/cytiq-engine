@@ -31,10 +31,26 @@ Legacy flowCore/PeacoQC thresholds remain explicitly separate. Invalid bounds,
 non-finite detector values and invalid channel indices return errors.
 
 The reader is strict by design: anything that does not match the spec is an
-error rather than a best-effort guess (duplicate keywords, HEADER/TEXT offset
+error rather than a best-effort guess (repeated keywords, HEADER/TEXT offset
 mismatch, non-UTF-8 TEXT, unsupported `$MODE`/`$BYTEORD`/widths, DATA length
 mismatch). A file with more than one data set (`$NEXTDATA` other than 0) is
 refused too: reading only the first would silently drop the others' events.
+
+Keywords are unique in a data set (FCS 3.1, 2.2.5), so a repeated keyword has no
+value, whatever its values are. A file that repeats one the standard or cytiq
+reads (`is_engine_keyword`: every `$` keyword, `SPILL`, `CYTIQ_*`, `flowCore_*`
+and a few more) is refused. Any other is quarantined: `Text::get` and
+`Text::iter` do not return it, so neither its first nor its last value is ever
+used, and no file cytiq writes keeps it. `Text::pairs` still shows every pair as
+written, and `Text::quarantined` names the keywords.
+
+`$PnTYPE` declares what a measurement is. `MeasurementType::parse` knows the
+nine values FCS 3.2 defines (3.3.55) and nothing else. Values are case
+sensitive (3.2.14) and never trimmed; `_` reads as a space, as SpectroFlo's FCS
+3.0 and 3.1 files write `Unmixed_Fluorescence`. `DeclaredTypes::of` names the
+raw and unmixed fluorescence channels of a data set and the values FCS 3.2 does
+not define, so that `cytiq export events` and `cytiq preflight` judge a file the
+same way.
 
 It also never lets a size declared in the file drive an allocation or a loop
 before that size is checked. Every segment is checked against the file length
@@ -133,6 +149,7 @@ write_fcs3_1_f32_with_options(
 | `SignalState` (`of`, `is_raw`, `transformed`, `compensated`, `unmixed`, `Display`) | Every recorded step at once, so stages check their input the same way |
 | `NormalizationState`, `normalization_state`, `NORMALIZATION_KEYWORD` | Validated `CYTIQ_NORMALIZATION` v1: model/panel SHA-256, batch and normalized channels |
 | `TransformContract::of` | Complete comparable transform method and parameters, requiring explicit selected-channel coverage |
+| `MeasurementType` (`parse`, `as_str`), `DeclaredTypes` (`of`, `is_mixed`), `quoted_names` | FCS 3.2 `$PnTYPE` measurement types and the raw and unmixed channels a data set declares |
 | `source_event_ids`, `ORIGINAL_ID_PARAMETER` | Raw-file rows of a derived file's events, from `Original_ID` |
 | `Error` (`FcsError`) | Error type for every failure mode |
 
