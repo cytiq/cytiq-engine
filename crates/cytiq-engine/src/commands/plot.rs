@@ -7,6 +7,7 @@ use cytiq_plot::{
     DEFAULT_MAX_POINTS, DEFAULT_WIDTH, OutputFormat, PlotConfig, PlotJob, PlotRequest, PlotRunner,
     load_batch, plot_name_for,
 };
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::{record_path_for_dir, record_path_for_file};
 use log::info;
 use serde::Serialize;
@@ -15,7 +16,7 @@ use crate::cli::{CliPalette, CliPlotFormat, CliPlotKind, CliPlotScale, CliRemove
 use crate::parsers::{
     parse_bins, parse_contour_step, parse_max_points, parse_plot_size, parse_range,
 };
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct PlotArgs {
@@ -164,7 +165,20 @@ pub(crate) fn run(
         cytiq_provenance::reuse::Destination::File(output.clone())
     };
     let recorder = crate::provenance::begin!(recorder, destination);
-    let summary = PlotRunner::run(&config)?;
+    let prepared = PlotRunner::prepare(&config)?;
+    let summary = prepared.summary;
+    let record = if batch.is_some() {
+        record_path_for_dir(&output)
+    } else {
+        record_path_for_file(&output)
+    };
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &summary.outputs(),
+        &record,
+        OutcomeReason::Success,
+    )?;
     for plot in &summary.plots {
         info!(
             "plot {}: {} of {} vs {}: {} event(s) shown, {} removed by mask, {} drawn as dots; wrote {}",
@@ -182,12 +196,7 @@ pub(crate) fn run(
                 .join(", ")
         );
     }
-    let record = if batch.is_some() {
-        record_path_for_dir(&output)
-    } else {
-        record_path_for_file(&output)
-    };
-    record_provenance(recorder, &summary.outputs(), &record)
+    Ok(outcome)
 }
 
 fn single_job(args: &PlotArgs, formats: &[OutputFormat]) -> Result<PlotJob, io::Error> {

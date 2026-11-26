@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use cytiq_fcs::{
     FcsDataset, FcsReader, MarginBounds, Parameter, dataset_margin_bounds, is_scatter_channel,
 };
-use cytiq_publish::{Existing, Publication};
-use log::{debug, info};
+use cytiq_publish::{Existing, Prepared, Publication};
+use log::debug;
 use serde::Serialize;
 
 use super::error::StatsError;
@@ -111,22 +111,32 @@ pub struct TimeStats {
 pub struct StatsRunner;
 
 impl StatsRunner {
-    /// Read one FCS file and write its statistics as pretty JSON.
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &StatsConfig) -> Result<StatsReport, StatsError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Read one FCS file and stage its statistics as pretty JSON. Nothing is
+    /// published.
     ///
     /// # Errors
     ///
     /// Returns an error for an invalid bin count, an existing output without
     /// `overwrite`, an unreadable input or a failed write.
-    pub fn run(config: &StatsConfig) -> Result<StatsReport, StatsError> {
+    pub fn prepare(config: &StatsConfig) -> Result<Prepared<StatsReport>, StatsError> {
         if !(2..=4096).contains(&config.bins) {
             return Err(StatsError::InvalidBins(config.bins));
         }
-        let existing = Existing::overwrite(config.overwrite);
-        Publication::new(existing).check(&config.output)?;
+        let mut publication = Publication::new(Existing::overwrite(config.overwrite));
+        publication.check(&config.output)?;
         let report = read_stats(&config.input, config.bins)?;
         let mut document = serde_json::to_vec_pretty(&report)?;
         document.push(b'\n');
-        cytiq_publish::write_file(&config.output, existing, |writer| {
+        publication.stage_file(&config.output, |writer| {
             writer
                 .write_all(&document)
                 .map_err(|source| StatsError::OutputWrite {
@@ -134,12 +144,10 @@ impl StatsRunner {
                     source,
                 })
         })?;
-        info!(
-            "wrote statistics of {} channel(s) to {}",
-            report.channels.len(),
-            config.output.display()
-        );
-        Ok(report)
+        Ok(Prepared {
+            summary: report,
+            publication,
+        })
     }
 }
 

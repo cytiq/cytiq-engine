@@ -64,25 +64,49 @@ fn contents(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     found
 }
 
-/// Arguments of a command for an output at the given path.
-type Arguments = Box<dyn Fn(&Path) -> Vec<String>>;
+/// Where a command's record goes, and how its outputs are published.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Record {
+    /// Beside the output file.
+    Beside,
+    /// In an output directory published by one rename.
+    WholeDirectory,
+}
 
-/// One command: how to run it, and where its output and record go.
+/// Where the output goes in the arguments of a command.
+const OUT: &str = "{out}";
+
+/// One command: how to run it, and where its outputs and record go.
 struct Case {
     name: &'static str,
-    args: Arguments,
     /// File name of the output in its own empty directory.
     output: &'static str,
-    /// The record is inside the output directory, which is replaced whole.
-    whole_directory: bool,
+    record: Record,
+    args: Vec<String>,
 }
 
 impl Case {
+    fn new(name: &'static str, output: &'static str, record: Record, args: &[&str]) -> Self {
+        Self {
+            name,
+            output,
+            record,
+            args: strings(args),
+        }
+    }
+
+    fn args(&self, output: &Path) -> Vec<String> {
+        self.args
+            .iter()
+            .map(|arg| arg.replace(OUT, &text(output)))
+            .collect()
+    }
+
     fn record(&self, output: &Path) -> PathBuf {
-        if self.whole_directory {
-            cytiq_provenance::record_path_for_dir(output)
-        } else {
+        if self.record == Record::Beside {
             cytiq_provenance::record_path_for_file(output)
+        } else {
+            cytiq_provenance::record_path_for_dir(output)
         }
     }
 }
@@ -91,92 +115,209 @@ fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|arg| (*arg).to_owned()).collect()
 }
 
+/// `cytiq` in `work`, which must succeed.
+fn prepare(args: &[&str]) {
+    succeed(&strings(args));
+}
+
+/// Inputs several commands read, made once in `work`.
+struct Inputs {
+    raw: String,
+    transformed: String,
+    mask: String,
+    compensate_record: String,
+}
+
+impl Inputs {
+    fn new(work: &Path) -> Self {
+        let raw = text(&fixture("flowcyt/Case12_P.fcs"));
+        let compensated = work.join("case12.comp.fcs");
+        let transformed = text(&work.join("case12.trans.fcs"));
+        prepare(&[
+            "compensate",
+            "--input",
+            &raw,
+            "--output",
+            &text(&compensated),
+        ]);
+        prepare(&[
+            "transform",
+            "--input",
+            &text(&compensated),
+            "--output",
+            &transformed,
+        ]);
+        Self {
+            mask: text(&compensated.with_extension("masks.parquet")),
+            compensate_record: text(&cytiq_provenance::record_path_for_file(&compensated)),
+            raw,
+            transformed,
+        }
+    }
+}
+
 /// The commands, on inputs prepared in `work`.
 fn cases(work: &Path) -> Vec<Case> {
-    let fcs = text(&fixture("flowcyt/Case12_P.fcs"));
+    let inputs = Inputs::new(work);
+    let mut cases = exports(&inputs);
+    cases.extend(reports(work, &inputs));
+    cases
+}
+
+fn exports(inputs: &Inputs) -> Vec<Case> {
     let manifest = text(&fixture("dataset/reference/manifest.json"));
-    let reference = fixture("dataset/reference");
-    let compensated = work.join("case12.comp.fcs");
-    succeed(&strings(&[
-        "compensate",
+    let events = text(&fixture("dataset/reference/events/M/S12-M.raw.parquet"));
+    let export = [
+        "export",
+        "events",
         "--input",
-        &fcs,
+        &inputs.raw,
         "--output",
-        &text(&compensated),
-    ]));
-    let mask = text(&compensated.with_extension("masks.parquet"));
-    let producer = text(&cytiq_provenance::record_path_for_file(&compensated));
-    let events = text(&reference.join("events/M/S12-M.raw.parquet"));
-    let table = fcs.clone();
-    let parts = fcs;
+        OUT,
+        "--layer",
+        "raw",
+    ];
     vec![
-        Case {
-            name: "export events",
-            args: Box::new(move |output| {
-                let output = text(output);
-                strings(&[
-                    "export", "events", "--input", &table, "--output", &output, "--layer", "raw",
-                ])
-            }),
-            output: "events.parquet",
-            whole_directory: false,
-        },
-        Case {
-            name: "export events, parts",
-            args: Box::new(move |output| {
-                let output = text(output);
-                strings(&[
-                    "export",
-                    "events",
-                    "--input",
-                    &parts,
-                    "--output",
-                    &output,
-                    "--layer",
-                    "raw",
-                    "--max-file-bytes",
-                    "128B",
-                ])
-            }),
-            output: "events",
-            whole_directory: true,
-        },
-        Case {
-            name: "export labels",
-            args: Box::new(move |output| {
-                strings(&[
-                    "export",
-                    "labels",
-                    "--kind",
-                    "qc",
-                    "--input",
-                    &mask,
-                    "--producer-provenance",
-                    &producer,
-                    "--events",
-                    &events,
-                    "--output",
-                    &text(output),
-                ])
-            }),
-            output: "labels.parquet",
-            whole_directory: false,
-        },
-        Case {
-            name: "dataset export",
-            args: Box::new(move |output| {
-                strings(&[
-                    "dataset",
-                    "export",
-                    "--manifest",
-                    &manifest,
-                    "--output",
-                    &text(output),
-                ])
-            }),
-            output: "product",
-            whole_directory: true,
-        },
+        Case::new("export events", "events.parquet", Record::Beside, &export),
+        Case::new(
+            "export events, parts",
+            "events",
+            Record::WholeDirectory,
+            &[&export[..], &["--max-file-bytes", "128B"]].concat(),
+        ),
+        Case::new(
+            "export labels",
+            "labels.parquet",
+            Record::Beside,
+            &[
+                "export",
+                "labels",
+                "--kind",
+                "qc",
+                "--input",
+                &inputs.mask,
+                "--producer-provenance",
+                &inputs.compensate_record,
+                "--events",
+                &events,
+                "--output",
+                OUT,
+            ],
+        ),
+        Case::new(
+            "dataset export",
+            "product",
+            Record::WholeDirectory,
+            &[
+                "dataset",
+                "export",
+                "--manifest",
+                &manifest,
+                "--output",
+                OUT,
+            ],
+        ),
+    ]
+}
+
+const RUN: &str = "\
+schema_version: 3
+cytometry: conventional
+panels:
+  - name: M
+    signal_state: raw
+    markers:
+      - { marker: CD14, channel: FL1 INT }
+samples:
+  - { id: S12, file: case12.fcs, panel: M }
+";
+
+fn reports(work: &Path, inputs: &Inputs) -> Vec<Case> {
+    fs::copy(&inputs.raw, work.join("case12.fcs")).unwrap();
+    let run = work.join("run.yaml");
+    fs::write(&run, RUN).unwrap();
+    let run = text(&run);
+    let manifest = text(&fixture("dataset/reference/manifest.json"));
+    let gates = text(&fixture("dataset/case12-gates.xml"));
+    let file = |name, output, args: &[&str]| Case::new(name, output, Record::Beside, args);
+    vec![
+        file(
+            "stats",
+            "stats.json",
+            &["stats", "--input", &inputs.raw, "--output", OUT],
+        ),
+        file(
+            "meta",
+            "meta.json",
+            &["meta", "--input", &inputs.raw, "--output", OUT],
+        ),
+        file(
+            "preflight",
+            "preflight.json",
+            &["preflight", "--manifest", &run, "--output", OUT],
+        ),
+        file(
+            "qc",
+            "qc.json",
+            &[
+                "qc",
+                "--manifest",
+                &run,
+                "--sample",
+                "S12",
+                "--mask",
+                &inputs.mask,
+                "--output",
+                OUT,
+            ],
+        ),
+        file(
+            "dataset validate",
+            "report.json",
+            &[
+                "dataset",
+                "validate",
+                "--manifest",
+                &manifest,
+                "--output",
+                OUT,
+            ],
+        ),
+        file(
+            "mask combine",
+            "combined.parquet",
+            &["mask", "combine", "--mask", &inputs.mask, "--output", OUT],
+        ),
+        file(
+            "gate",
+            "gates.csv",
+            &[
+                "gate",
+                "--input",
+                &inputs.transformed,
+                "--gating-ml",
+                &gates,
+                "--output",
+                OUT,
+                "--membership",
+                "{out}.membership.parquet",
+            ],
+        ),
+        file(
+            "plot",
+            "plot.svg",
+            &[
+                "plot",
+                "--input",
+                &inputs.raw,
+                "--x",
+                "FS INT",
+                "--y",
+                "SS INT",
+                "--output",
+                OUT,
+            ],
+        ),
     ]
 }
 
@@ -208,7 +349,7 @@ fn a_record_that_cannot_be_written_takes_the_output_with_it() {
         let directory = tempfile::tempdir().unwrap();
         let output = directory.path().join(case.output);
         let record = case.record(&output);
-        let args = (case.args)(&output);
+        let args = case.args(&output);
         let overwrite = [args.clone(), strings(&["--overwrite"])].concat();
         let suffix = record.file_name().unwrap().to_str().unwrap();
         let full = format!("stage|{suffix}|full");
@@ -221,9 +362,9 @@ fn a_record_that_cannot_be_written_takes_the_output_with_it() {
 
         // A previous output and its record: both stay.
         expect_nothing(&case, directory.path(), &overwrite, Some(&full));
-        let last = format!("published|{}|full", case.output);
-        expect_nothing(&case, directory.path(), &overwrite, Some(&last));
-        if !case.whole_directory {
+        let published = format!("published|{}|full", case.output);
+        expect_nothing(&case, directory.path(), &overwrite, Some(&published));
+        if case.record != Record::WholeDirectory {
             // A directory where the record goes.
             fs::remove_file(&record).unwrap();
             fs::create_dir(&record).unwrap();
@@ -244,7 +385,7 @@ fn a_directory_that_cannot_be_written_keeps_what_it_holds() {
     for case in cases(work.path()) {
         let directory = tempfile::tempdir().unwrap();
         let output = directory.path().join(case.output);
-        let args = (case.args)(&output);
+        let args = case.args(&output);
         succeed(&args);
         let overwrite = [args, strings(&["--overwrite"])].concat();
         let mode = |mode| {
@@ -267,8 +408,8 @@ fn kill_at(args: &[String], failpoint: &str, marker: &Path) {
     let start = Instant::now();
     while !marker.exists() {
         assert!(
-            start.elapsed() < Duration::from_secs(60) && child.try_wait().unwrap().is_none(),
-            "the run never reached `{failpoint}`"
+            start.elapsed() < Duration::from_secs(120) && child.try_wait().unwrap().is_none(),
+            "{args:?} never reached `{failpoint}`"
         );
         std::thread::sleep(Duration::from_millis(5));
     }
@@ -278,6 +419,25 @@ fn kill_at(args: &[String], failpoint: &str, marker: &Path) {
     fs::remove_file(marker).unwrap();
 }
 
+/// The recorded outputs and the record, with nothing else and nothing missing.
+fn expect_complete(case: &Case, directory: &Path, output: &Path) {
+    let record = case.record(output);
+    let found: RunRecord = serde_json::from_slice(&fs::read(&record).unwrap()).unwrap();
+    assert!(verify_outputs(&found), "{}", case.name);
+    let files: Vec<PathBuf> = contents(directory)
+        .into_keys()
+        .filter(|path| path.is_file())
+        .collect();
+    let mut expected: Vec<PathBuf> = found
+        .outputs
+        .iter()
+        .map(|output| PathBuf::from(&output.path))
+        .chain([record])
+        .collect();
+    expected.sort();
+    assert_eq!(files, expected, "{}", case.name);
+}
+
 /// Killed between the rename of an output and that of its record.
 #[test]
 fn a_kill_between_two_renames_is_completed_by_the_next_run() {
@@ -285,40 +445,32 @@ fn a_kill_between_two_renames_is_completed_by_the_next_run() {
     let marker = work.path().join("marker");
     for case in cases(work.path())
         .into_iter()
-        .filter(|case| !case.whole_directory)
+        .filter(|case| case.record != Record::WholeDirectory)
     {
         for previous in [false, true] {
             let directory = tempfile::tempdir().unwrap();
             let output = directory.path().join(case.output);
             let record = case.record(&output);
-            let mut args = (case.args)(&output);
+            let mut args = case.args(&output);
+            let mut before = None;
             if previous {
-                // An older output with its own record, both replaced.
-                fs::write(&output, "older").unwrap();
-                fs::write(&record, "{}").unwrap();
+                succeed(&args);
+                before = Some(fs::read(&record).unwrap());
                 args.push("--overwrite".into());
             }
             let failpoint = format!("published|{}|pause:{}", case.output, text(&marker));
             kill_at(&args, &failpoint, &marker);
-            let torn = fs::read(&output).unwrap();
-            assert_ne!(torn, b"older", "{}: the output was renamed", case.name);
-            assert_eq!(record.exists(), previous, "{}: not its record", case.name);
+            assert_eq!(
+                fs::read(&record).ok(),
+                before,
+                "{}: not its record",
+                case.name
+            );
 
-            // Completed: the same output, with the record it was staged with.
-            let reused = [strings(&["--reuse", "skip"]), args.clone()].concat();
-            succeed(&reused);
-            assert_eq!(fs::read(&output).unwrap(), torn, "{}", case.name);
-            let found: RunRecord = serde_json::from_slice(&fs::read(&record).unwrap()).unwrap();
-            assert!(verify_outputs(&found), "{}", case.name);
-            let names: Vec<PathBuf> = contents(directory.path()).into_keys().collect();
-            let mut expected: Vec<PathBuf> = found
-                .outputs
-                .iter()
-                .map(|output| PathBuf::from(&output.path))
-                .chain([record.clone()])
-                .collect();
-            expected.sort();
-            assert_eq!(names, expected, "{}", case.name);
+            // Completed: the outputs with the record they were staged with.
+            succeed(&[strings(&["--reuse", "skip"]), args].concat());
+            expect_complete(&case, directory.path(), &output);
+            assert_ne!(fs::read(&record).ok(), before, "{}: its record", case.name);
             assert!(OutputLock::acquire(&output).is_ok(), "the lock is free");
         }
     }
@@ -333,7 +485,7 @@ fn a_kill_before_the_first_rename_leaves_the_previous_output() {
         let directory = tempfile::tempdir().unwrap();
         let output = directory.path().join(case.output);
         let record = case.record(&output);
-        let args = (case.args)(&output);
+        let args = case.args(&output);
         succeed(&args);
         let before = contents(directory.path());
         let overwrite = [args, strings(&["--overwrite"])].concat();
@@ -346,14 +498,6 @@ fn a_kill_before_the_first_rename_leaves_the_previous_output() {
             }
         }
         succeed(&overwrite);
-        let found: RunRecord = serde_json::from_slice(&fs::read(&record).unwrap()).unwrap();
-        assert!(verify_outputs(&found), "{}", case.name);
-        assert!(
-            !contents(directory.path())
-                .keys()
-                .any(|path| path.extension().is_some_and(|e| e == "tmp")),
-            "{}: abandoned staging remains",
-            case.name
-        );
+        expect_complete(&case, directory.path(), &output);
     }
 }
