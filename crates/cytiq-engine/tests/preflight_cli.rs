@@ -217,15 +217,15 @@ fn manifest_with_compensation(samples: &str, compensation: &str) -> String {
     )
 }
 
-/// Copy `source` to `target` without its spillover keyword, as for a file
-/// whose matrix comes from `cytiq autospill`.
-fn without_spillover(source: &Path, target: &Path) {
+/// Copy the fixture with the specified embedded spillover keyword.
+fn with_spillover(source: &Path, target: &Path, spillover: Option<&str>) {
     let dataset = cytiq_fcs::FcsReader::open(source)
         .and_then(cytiq_fcs::FcsReader::read)
         .expect("fixture should be readable");
     let keywords = cytiq_fcs::carried_keywords(&dataset.text)
         .into_iter()
         .filter(|(key, _)| !cytiq_fcs::is_spillover_keyword(key))
+        .chain(spillover.map(|value| ("$SPILLOVER".to_owned(), value.to_owned())))
         .collect::<Vec<_>>();
     cytiq_fcs::write_fcs3_1_exact_with_options(
         target,
@@ -273,7 +273,7 @@ fn passes_with_an_external_compensation_matrix() {
         .expect("command should run");
     assert!(autospill.status.success());
     let sample_path = directory.join("sample.fcs");
-    without_spillover(&fixture("sample.fcs"), &sample_path);
+    with_spillover(&fixture("sample.fcs"), &sample_path, None);
     let samples = sample("S01", &sample_path);
 
     // Without a matrix source the missing `$SPILLOVER` fails the run.
@@ -339,13 +339,30 @@ fn fails_when_the_matrix_misses_a_sample_channel() {
 }
 
 #[test]
-fn warns_on_an_ill_conditioned_matrix() {
+fn warns_when_row_vector_condition_exceeds_threshold() {
     let directory = create_temp_dir("cytiq-engine-preflight-matrix-condition");
+    // The column-norm condition is 36; the row-norm condition is 121.
     fs::write(
         directory.join("spillover.csv"),
-        "channel,FL1-A,FL2-A\nFL1-A,1,0.99\nFL2-A,0.99,1\n",
+        "channel,FL1-A,FL2-A,FL3-A\nFL1-A,1,5,5\nFL2-A,0,1,0\nFL3-A,0,0,1\n",
     )
     .expect("matrix should write");
+
+    let embedded = directory.join("embedded.fcs");
+    with_spillover(
+        &fixture("sample.fcs"),
+        &embedded,
+        Some("3,FL1-A,FL2-A,FL3-A,1,5,5,0,1,0,0,0,1"),
+    );
+    let (_, embedded_report, _) = preflight(
+        &directory,
+        "embedded.yaml",
+        &manifest(&sample("S01", &embedded), MARKERS),
+    );
+    assert_eq!(
+        checks_named(&embedded_report, "spillover")[0]["status"],
+        "warn"
+    );
 
     let (output, report, _) = preflight(
         &directory,
@@ -466,7 +483,7 @@ fn reports_log_amplified_samples_and_controls() {
     // Samples compensated elsewhere skip `cytiq compensate`, so nothing writes
     // them linear before the stages that refuse them.
     let stripped = directory.join("sample.nospill.fcs");
-    without_spillover(&fixture("sample.fcs"), &stripped);
+    with_spillover(&fixture("sample.fcs"), &stripped, None);
     common::set_log_amplified(&stripped, "FL1-A");
     let (output, report, _) = preflight(
         &directory,
@@ -484,7 +501,7 @@ fn reports_log_amplified_samples_and_controls() {
 fn declared_compensated_samples_must_not_keep_their_spillover() {
     let directory = create_temp_dir("cytiq-engine-preflight-compensated");
     let stripped = directory.join("sample.nospill.fcs");
-    without_spillover(&fixture("sample.fcs"), &stripped);
+    with_spillover(&fixture("sample.fcs"), &stripped, None);
     let declared = |samples: &str| {
         manifest(samples, MARKERS).replace(
             "  name: test\n",

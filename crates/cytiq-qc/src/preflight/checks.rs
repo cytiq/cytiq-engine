@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::CheckStatus;
 
-/// Warn when the 1-norm condition number of the spillover matrix exceeds
+/// Warn when the infinity-norm condition number of the spillover matrix exceeds
 /// this: compensation then amplifies raw-value noise by up to that factor.
 pub const SPILLOVER_CONDITION_WARN: f64 = 100.0;
 
@@ -540,7 +540,7 @@ pub(crate) fn check_spillover(scope: &str, dataset: &FcsDataset) -> Check {
             format!("spillover channels not in the file: {}", missing.join(", ")),
         );
     }
-    match cytiq_fcs::condition_number_1(spillover.matrix(), spillover.size()) {
+    match cytiq_fcs::condition_number_inf(spillover.matrix(), spillover.size()) {
         Err(_) => Check::new(
             scope,
             "spillover",
@@ -552,7 +552,7 @@ pub(crate) fn check_spillover(scope: &str, dataset: &FcsDataset) -> Check {
             "spillover",
             CheckStatus::Warn,
             format!(
-                "{} channel(s); condition number {condition:.1} exceeds {SPILLOVER_CONDITION_WARN}: compensation will amplify noise",
+                "{} channel(s); condition number {condition:.1} exceeds {SPILLOVER_CONDITION_WARN}: compensation may amplify noise",
                 spillover.size()
             ),
         ),
@@ -710,32 +710,34 @@ pub(crate) fn check_matrix(
     let size = matrix.channels.len();
     // A matrix and its inverse have the same condition number, so this holds
     // for spillover and compensation files alike.
-    let mut checks = vec![match cytiq_fcs::condition_number_1(&matrix.values, size) {
-        Err(_) => Check::new(
-            scope,
-            "compensation_matrix",
-            CheckStatus::Fail,
-            format!("`{}` is singular", path.display()),
-        ),
-        Ok(condition) if condition > SPILLOVER_CONDITION_WARN => Check::new(
-            scope,
-            "compensation_matrix",
-            CheckStatus::Warn,
-            format!(
-                "`{}`: {size} channel(s); condition number {condition:.1} exceeds {SPILLOVER_CONDITION_WARN}: compensation will amplify noise",
-                path.display()
+    let mut checks = vec![
+        match cytiq_fcs::condition_number_inf(&matrix.values, size) {
+            Err(_) => Check::new(
+                scope,
+                "compensation_matrix",
+                CheckStatus::Fail,
+                format!("`{}` is singular", path.display()),
             ),
-        ),
-        Ok(condition) => Check::new(
-            scope,
-            "compensation_matrix",
-            CheckStatus::Pass,
-            format!(
-                "`{}`: {size} channel(s); condition number {condition:.1}",
-                path.display()
+            Ok(condition) if condition > SPILLOVER_CONDITION_WARN => Check::new(
+                scope,
+                "compensation_matrix",
+                CheckStatus::Warn,
+                format!(
+                    "`{}`: {size} channel(s); condition number {condition:.1} exceeds {SPILLOVER_CONDITION_WARN}: compensation may amplify noise",
+                    path.display()
+                ),
             ),
-        ),
-    }];
+            Ok(condition) => Check::new(
+                scope,
+                "compensation_matrix",
+                CheckStatus::Pass,
+                format!(
+                    "`{}`: {size} channel(s); condition number {condition:.1}",
+                    path.display()
+                ),
+            ),
+        },
+    ];
     for sample in samples {
         let Some(dataset) = &sample.dataset else {
             continue;

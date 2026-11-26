@@ -248,6 +248,23 @@ pub fn condition_number_1(matrix: &[f64], size: usize) -> Result<f64, FcsError> 
     Ok(norm_1(matrix) * norm_1(&inverse))
 }
 
+/// Infinity-norm condition number. This bounds the amplification of relative
+/// one-norm errors when compensating row-vector events.
+///
+/// # Errors
+///
+/// Returns the inversion error for a malformed or singular matrix.
+pub fn condition_number_inf(matrix: &[f64], size: usize) -> Result<f64, FcsError> {
+    let inverse = invert_matrix(matrix, size)?;
+    let norm = |values: &[f64]| {
+        values
+            .chunks(size.max(1))
+            .map(|row| row.iter().map(|x| x.abs()).sum())
+            .fold(0.0_f64, f64::max)
+    };
+    Ok(norm(matrix) * norm(&inverse))
+}
+
 /// Multiply event rows by a row-major compensation matrix.
 ///
 /// `columns[i][event]` is the raw value of channel `i`; the result has the same
