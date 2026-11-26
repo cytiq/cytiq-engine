@@ -16,7 +16,7 @@ use std::io::{self, Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cytiq_publish::{Existing, PublishError};
+use cytiq_publish::{Existing, Publication, PublishError};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -25,6 +25,7 @@ use thiserror::Error;
 pub mod fingerprint;
 pub mod input;
 pub mod outcome;
+pub mod recovery;
 pub mod reuse;
 
 /// Version 3 adds execution fingerprints, completion reasons and optional parallelism.
@@ -50,6 +51,11 @@ pub enum ProvenanceError {
         #[source]
         source: io::Error,
     },
+    /// A command recorded an output it does not publish with its record.
+    #[error("`{path}` is recorded as an output but is not staged for publication")]
+    NotStaged { path: PathBuf },
+    #[error(transparent)]
+    Publish(#[from] PublishError),
 }
 
 impl ProvenanceError {
@@ -61,7 +67,10 @@ impl ProvenanceError {
             Self::Hash { source, .. } | Self::Write { source, .. } => {
                 outcome::OutcomeReason::of_io(source)
             }
-            Self::InputChanged { .. } => outcome::OutcomeReason::RuntimeError,
+            Self::InputChanged { .. } | Self::NotStaged { .. } => {
+                outcome::OutcomeReason::RuntimeError
+            }
+            Self::Publish(source) => outcome::OutcomeReason::of_publish(source),
         }
     }
 }
@@ -245,6 +254,60 @@ impl RunRecorder {
         Ok(record)
     }
 
+    /// Stage the record of this run in the publication of its `outputs`, so
+    /// that they appear together or not at all. The inputs are checked and the
+    /// staged outputs hashed now; nothing is published.
+    ///
+    /// A record that goes in a directory staged as a whole is written there
+    /// and published by its rename. Any other is staged as the publication's
+    /// last file, replacing the record of a previous run, so it is the last
+    /// output a crash can leave new.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an input changed since its snapshot, an output is
+    /// not staged, a file cannot be hashed, or the record cannot be staged.
+    pub fn stage(
+        self,
+        publication: &mut Publication,
+        outputs: &[PathBuf],
+        record_path: &Path,
+        reason: outcome::OutcomeReason,
+    ) -> Result<RunRecord, ProvenanceError> {
+        let staged: BTreeMap<PathBuf, PathBuf> = publication.staged()?.into_iter().collect();
+        let pairs = outputs
+            .iter()
+            .map(|output| {
+                staged
+                    .get(output)
+                    .map(|file| (output.clone(), file.clone()))
+                    .ok_or_else(|| ProvenanceError::NotStaged {
+                        path: output.clone(),
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let record = self.prepare_staged(&pairs, reason)?;
+        debug!("staging provenance record {}", record_path.display());
+        let write_error = |source| ProvenanceError::Write {
+            path: record_path.to_path_buf(),
+            source,
+        };
+        let bytes = record_bytes(&record).map_err(write_error)?;
+        let directory = record_path
+            .parent()
+            .and_then(|parent| publication.staged_dir(parent));
+        if let (Some(directory), Some(name)) = (directory, record_path.file_name()) {
+            cytiq_publish::failpoint::hit("stage", record_path)
+                .and_then(|()| fs::write(directory.join(name), &bytes))
+                .map_err(write_error)?;
+        } else {
+            publication.stage_file_with(record_path, Existing::Replace, |writer| {
+                writer.write_all(&bytes).map_err(write_error)
+            })?;
+        }
+        Ok(record)
+    }
+
     #[must_use]
     pub fn start(
         tool: impl Into<String>,
@@ -311,6 +374,27 @@ impl RunRecorder {
     /// Record fixed algorithm constants.
     pub fn set_constants(&mut self, constants: &impl Serialize) {
         self.constants = to_value(constants);
+    }
+
+    /// The snapshotted inputs: where each is, and what it was.
+    pub fn inputs(&self) -> impl Iterator<Item = (&Path, &FileRecord)> {
+        self.inputs
+            .iter()
+            .map(|input| (input.path.as_path(), &input.record))
+    }
+
+    /// Record what the command established about its inputs before it ran, as
+    /// `constants.input_facts.<name>`. The v3 record has no other free field,
+    /// and its readers refuse unknown ones.
+    pub fn set_input_facts(&mut self, name: &str, facts: serde_json::Value) {
+        if self.constants.is_null() {
+            self.constants = serde_json::json!({});
+        }
+        if let Some(constants) = self.constants.as_object_mut() {
+            constants
+                .entry("input_facts")
+                .or_insert_with(|| serde_json::json!({}))[name] = facts;
+        }
     }
 
     /// Record the upstream implementations the algorithms port.
@@ -595,14 +679,19 @@ pub fn hash_reader(reader: &mut impl Read) -> io::Result<(u64, String)> {
     Ok((bytes, sha256))
 }
 
+fn record_bytes(record: &RunRecord) -> io::Result<Vec<u8>> {
+    let mut bytes = serde_json::to_vec_pretty(record)?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
 fn write_record(path: &Path, record: &RunRecord) -> Result<(), ProvenanceError> {
     debug!("writing provenance record to {}", path.display());
     let write_error = |source| ProvenanceError::Write {
         path: path.to_path_buf(),
         source,
     };
-    let mut bytes = serde_json::to_vec_pretty(record).map_err(|error| write_error(error.into()))?;
-    bytes.push(b'\n');
+    let bytes = record_bytes(record).map_err(write_error)?;
     cytiq_publish::write_file(path, Existing::Replace, |writer| {
         writer
             .write_all(&bytes)

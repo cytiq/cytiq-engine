@@ -393,3 +393,90 @@ fn directory_outputs_refuse_another_runs_files_unless_replacing() {
     ));
     check_output_dir(&occupied, Existing::Replace).unwrap();
 }
+
+#[test]
+fn staged_pairs_name_every_file_to_be_published() {
+    let root = tempfile::tempdir().unwrap();
+    let mut publication = Publication::new(Existing::Refuse);
+    write_text(&mut publication, &root.path().join("data.csv"), "a,b\n").unwrap();
+    let model = root.path().join("model");
+    let directory = publication.stage_dir(&model).unwrap();
+    fs::create_dir(directory.join("nested")).unwrap();
+    fs::write(directory.join("nested/b.json"), "b").unwrap();
+    fs::write(directory.join("a.json"), "a").unwrap();
+    let staged = publication.staged().unwrap();
+    let targets: Vec<PathBuf> = staged.iter().map(|(target, _)| target.clone()).collect();
+    assert_eq!(
+        targets,
+        [
+            root.path().join("data.csv"),
+            model.join("a.json"),
+            model.join("nested/b.json"),
+        ]
+    );
+    let texts: Vec<String> = staged
+        .iter()
+        .map(|(_, file)| fs::read_to_string(file).unwrap())
+        .collect();
+    assert_eq!(texts, ["a,b\n", "a", "b"]);
+    assert_eq!(publication.staged_dir(&model), Some(directory.as_path()));
+    assert_eq!(publication.staged_dir(root.path().join("data.csv")), None);
+}
+
+#[test]
+fn one_target_can_replace_what_the_others_refuse() {
+    let root = tempfile::tempdir().unwrap();
+    let (data, record) = (
+        root.path().join("data.csv"),
+        root.path().join("data.csv.provenance.json"),
+    );
+    fs::write(&record, "stale").unwrap();
+    let stage = |publication: &mut Publication| {
+        write_text(publication, &data, "new").unwrap();
+        publication
+            .stage_file_with(&record, Existing::Replace, |writer| {
+                writer
+                    .write_all(b"record")
+                    .map_err(|source| PublishError::io(&record, source))
+            })
+            .unwrap();
+    };
+    let mut publication = Publication::new(Existing::Refuse);
+    stage(&mut publication);
+    publication.commit().unwrap();
+    assert_eq!(fs::read_to_string(&record).unwrap(), "record");
+
+    // The refused target still refuses, and the replaced one keeps its bytes.
+    let mut publication = Publication::new(Existing::Replace);
+    stage(&mut publication);
+    fs::remove_file(&data).unwrap();
+    fs::create_dir(&data).unwrap();
+    fs::write(&record, "previous").unwrap();
+    assert!(publication.commit().is_err());
+    assert_eq!(fs::read_to_string(&record).unwrap(), "previous");
+}
+
+/// The record is staged last, so a failure to publish it must take back the
+/// outputs published before it.
+#[test]
+fn a_record_that_cannot_be_published_takes_its_outputs_back() {
+    let root = tempfile::tempdir().unwrap();
+    let data = root.path().join("data.csv");
+    let record = root.path().join("data.csv.provenance.json");
+    for previous in [None, Some("previous")] {
+        if let Some(previous) = previous {
+            fs::write(&data, previous).unwrap();
+        }
+        let mut publication = Publication::new(Existing::Replace);
+        write_text(&mut publication, &data, "new").unwrap();
+        write_text(&mut publication, &record, "record").unwrap();
+        fs::create_dir(&record).unwrap();
+        assert!(publication.commit().is_err());
+        assert_eq!(fs::read_to_string(&data).ok().as_deref(), previous);
+        fs::remove_dir(&record).unwrap();
+        assert_eq!(
+            listing(root.path()),
+            previous.map_or_else(Vec::new, |_| vec!["data.csv".to_owned()])
+        );
+    }
+}

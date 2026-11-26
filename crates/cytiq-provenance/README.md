@@ -36,7 +36,12 @@ Every command that writes files writes a `provenance.json` next to its output.
 record; `config` is every option with its default applied, so the record
 stays meaningful when defaults change. `constants` and `algorithms` capture
 what is fixed in the code: algorithm constants and the upstream versions the
-port is validated against. Inputs are hashed before the command runs, so a
+port is validated against. `constants.input_facts` holds what the command
+established about its inputs before it ran, such as `quarantined_keywords`: the
+keywords an FCS input repeats, by its SHA-256, whose values nothing reads.
+`cytiq export events` also records `constants.layer_basis`: `declared_by_file`
+when the input's `$PnTYPE` states its base state, `asserted_by_caller` when only
+`--base-state` does. Inputs are hashed before the command runs, so a
 command that replaces its own input still records what it read; each input
 carries its `role`. Debug directories are not listed.
 
@@ -50,6 +55,11 @@ Schema version 2 added `build`, `platform`, `config`, `constants`,
 `algorithms` and input roles, and moved input hashing before the run.
 
 ## Public API
+
+`RunRecorder::stage` stages the record in the `cytiq_publish::Publication` of the
+run's outputs: it verifies the inputs, hashes the staged files under their final
+paths and writes the record into a directory staged as a whole, or stages it as the
+last file. Outputs and record then appear together or not at all.
 
 `RunRecorder::prepare_staged` builds a v3 record from `(final_path, staged_path)`
 pairs, verifying input byte identities before publication. It writes nothing;
@@ -65,6 +75,7 @@ v2 records; reuse requires v3.
 | `record_path_for_file`, `record_path_for_dir` | Where a command's record goes |
 | `files_under` | Every file of an output directory, sorted, without records and `.tmp` files or directories (staged outputs and `.old.tmp` backups of `cytiq-publish`) |
 | `DirSnapshot` | `take` before a run, `published` after it: the files of a directory output the run wrote or replaced, so leftovers of earlier runs are never recorded |
+| `recovery::recover` | Under the output lock: completes a set whose renames a crash interrupted, when its staged record is whole and every output it lists is in place or staged with the recorded bytes; then `cytiq_publish::recovery::recover` for the output and its record |
 | `hash_file`, `hash_reader` | Streamed SHA-256 of a path (also used by `cytiq-inspect`), or of a file that is already open |
 | `outcome::OutcomeReason`, `exit_code` | The 0–4 exit contract of every `cytiq` command: `success` 0, `runtime_error` 1, `invalid_configuration` 2, `checks_failed` 3, `output_conflict`/`incomplete` 4 |
 | `OutcomeReason::of_io_kind` / `of_io` / `of_publish` | Type-independent classification: a missing path is `incomplete`, an existing one `output_conflict`, malformed or truncated data `invalid_configuration`, other I/O and staging failures `runtime_error` |
@@ -77,9 +88,12 @@ v2 records; reuse requires v3.
   renamed into place), so a failed run never leaves half a record.
 - A run's outputs are complete when its record exists and every output it
   lists has the recorded size and SHA-256. A failed run publishes none of its
-  outputs, but a crash in the middle of publishing can leave some outputs new
-  and others previous ones next to the previous run's record; only the hashes
-  tell.
+  outputs, and no record. Two files cannot be renamed at once, so a crash
+  (`kill -9`, power) between two renames leaves some outputs new and others
+  previous ones next to the previous run's record; until the next run only the
+  hashes tell. The next run on that output completes the interrupted set first:
+  its staged record, synced before the first rename, says what the set was.
+  Without `--overwrite` it then reports that the output exists.
 - Paths that are not files (optional inputs and outputs that were not given)
   are skipped.
 - An input that changed during the run and is not also an output fails

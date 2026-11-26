@@ -28,6 +28,7 @@ flowchart TB
         direction LR
         preflight["preflight<br/>cytiq-qc::preflight"]
         meta["meta<br/>cytiq-inspect"]
+        repair["repair (plan)<br/>cytiq-repair"]
         stats["stats (technical QC)<br/>cytiq-inspect"]
         cytoscan["cytoscan (cohort)<br/>cytiq-cytoscan"]
     end
@@ -179,7 +180,7 @@ cargo install --git https://github.com/cytiq/cytiq-engine --tag 0.5.0 --locked c
 ```
 
 For an existing `cargo install cytiq-cli` installation, add `--force` to replace
-the executable. See [crates.io publication](CONTRIBUTING.md#cratesio-publication)
+the executable. See [crates.io publication](docs/releasing.md#cratesio-publication)
 for registry setup.
 
 ## Docker

@@ -15,8 +15,12 @@ run publishes none of its outputs.
 | `Publication::new(existing)` | an empty set of staged outputs |
 | `check(target)` | fail early, before any work, when a target is refused |
 | `stage_file(target, \|writer\| ...)` | stage a file written through a buffered writer |
+| `stage_file_with(target, existing, \|writer\| ...)` | `stage_file` with its own policy for an existing target, such as a provenance record |
 | `stage_path(target, \|path\| ...)` | stage a file written by a writer that takes a path |
 | `stage_dir(target)` | stage a directory; returns the empty directory to fill |
+| `staged()` | `(target, staged file)` pairs of everything that will be published, files of staged directories included |
+| `staged_dir(target)` | the directory staged for `target` |
+| `Prepared { summary, publication }` | what a command computed and staged but did not publish; `commit()` publishes it |
 | `commit()` | publish every staged output in staging order, then sync their directories; undo everything if that fails |
 | `write_file(target, existing, \|writer\| ...)` | one file: stage and commit |
 | `check_output_dir(directory, existing)` | before any work: refuse a non-empty directory output unless `Existing::Replace` |
@@ -105,7 +109,8 @@ on Unix it checks the inode before accepting or unlinking it. A crash releases t
 kernel lock, and the next invocation can claim the leftover file.
 
 `recovery::leftovers(target)` recognizes only that target's exact six-character
-`.tmp`/`.old.tmp` names. `recovery::recover(&lock)` restores a missing target from a
+`.tmp`/`.old.tmp` names (`cytiq_provenance::recovery` first completes a set whose
+staged record is whole). `recovery::recover(&lock)` restores a missing target from a
 unique backup (directories use `previous`), cleans abandoned staging, and syncs the
 parent. Multiple possible predecessors are preserved and reported as a conflict.
 Mixed file sets still require a matching provenance record and verified hashes.

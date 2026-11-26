@@ -27,10 +27,14 @@
 //! ```
 
 mod error;
+#[doc(hidden)]
+pub mod failpoint;
 mod lock;
 mod publication;
 pub mod recovery;
 
 pub use crate::error::{PublishError, RollbackFailure};
 pub use crate::lock::OutputLock;
-pub use crate::publication::{Existing, Publication, Staging, check_output_dir, write_file};
+pub use crate::publication::{
+    Existing, Prepared, Publication, Staging, check_output_dir, write_file,
+};

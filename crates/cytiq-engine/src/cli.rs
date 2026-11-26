@@ -26,6 +26,7 @@ use crate::commands::peacoqc::PeacoqcArgs;
 use crate::commands::plot::PlotArgs;
 use crate::commands::preflight::PreflightArgs;
 use crate::commands::qc::QcArgs;
+use crate::commands::repair::RepairArgs;
 use crate::commands::spillqc::SpillqcArgs;
 use crate::commands::stats::StatsArgs;
 use crate::commands::transform::TransformArgs;
@@ -102,6 +103,10 @@ pub(crate) enum Commands {
     Qc(QcArgs),
     /// Dump FCS metadata (file hash, parameters, all TEXT keywords) as JSON.
     Meta(MetaArgs),
+    /// Diagnose an FCS file that deviates from the standard, and say whether
+    /// its DATA can still be read in exactly one way. No other command reads
+    /// a file around a deviation.
+    Repair(RepairArgs),
     /// Apply a spillover or compensation matrix to FCS events; also writes a
     /// raw detector-margin mask next to the output.
     Compensate(CompensateArgs),
@@ -162,6 +167,7 @@ impl Commands {
             | Self::Preflight(_)
             | Self::Qc(_)
             | Self::Meta(_)
+            | Self::Repair(_)
             | Self::Compensate(_)
             | Self::Stats(_) => None,
         }
@@ -526,6 +532,7 @@ pub(crate) const fn command_name(command: &Commands) -> &'static str {
         Commands::Gate(_) => "gate",
         Commands::Mask(MaskCommand::Combine { .. }) => "mask combine",
         Commands::Meta(_) => "meta",
+        Commands::Repair(_) => "repair",
         Commands::Plot(_) => "plot",
         Commands::Preflight(_) => "preflight",
         Commands::Qc(_) => "qc",

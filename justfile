@@ -175,7 +175,7 @@ fuzz crate target seconds="300":
       cp "$seed" "crates/{{ crate }}/fuzz/corpus/{{ target }}/regression-$(basename "$seed")"; \
     done
     case "{{ target }}" in \
-      read_fcs) seeds=(data/fixtures "${CYTIQ_REAL_DATA:-data/fixtures}"); pattern='*.fcs' ;; \
+      read_fcs|repair_plan) seeds=(data/fixtures "${CYTIQ_REAL_DATA:-data/fixtures}"); pattern='*.fcs' ;; \
       document_json|document_yaml) seeds=(data/fixtures/specimen crates/cytiq-population/contracts); pattern='*.json' ;; \
       gatingml) seeds=(data/fixtures); pattern='*.xml' ;; \
       *) seeds=() ;; \

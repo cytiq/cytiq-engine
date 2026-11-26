@@ -6,11 +6,13 @@ mod error;
 mod header;
 #[cfg(feature = "inputs")]
 pub mod inputs;
+mod keywords;
 mod layout;
 mod limits;
 mod lineage;
 mod linear;
 mod margins;
+mod measurement;
 mod signal;
 mod stream;
 mod text;
@@ -41,6 +43,7 @@ pub use crate::compensation::{
     is_spillover_keyword,
 };
 pub use crate::error::FcsError as Error;
+pub use crate::keywords::is_engine_keyword;
 pub use crate::limits::FcsReadLimits;
 pub use crate::lineage::{ORIGINAL_ID_PARAMETER, source_event_ids};
 pub use crate::linear::{ensure_linear_scale, linear_values, log_amplified_parameters};
@@ -49,6 +52,7 @@ pub use crate::margins::{
     SaturationDiagnostics, assess_detector_saturation, dataset_margin_bounds, encode_margin_bounds,
     margin_channels, raw_margin_pass, recorded_margin_bounds,
 };
+pub use crate::measurement::{DeclaredTypes, MeasurementType, quoted_names};
 pub use crate::signal::{
     COMPENSATION_KEYWORD, CompensationState, NORMALIZATION_KEYWORD, NormalizationState,
     SOURCE_SPILLOVER_KEYWORD, SignalState, TRANSFORM_KEYWORD, TransformContract, TransformState,
