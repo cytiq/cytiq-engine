@@ -48,6 +48,8 @@ for file in &result.summary.files {
 
 ## How a file is assessed
 
+Raw preprocessing refuses files declaring unmixed fluorescence in `$PnTYPE`.
+
 1. **Preprocessing** follows the CompensAID vignette. Skip it with
    `--preprocessed`.
    1. `PeacoQC::RemoveMargins` runs on the raw values of the matrix channels,

@@ -56,7 +56,7 @@ fluorescence and observed extrema are not saturation rules.
   keyword.
 - The output records `CYTIQ_COMPENSATION` (`{source, channels}`) and keeps the
   source matrix only as `CYTIQ_SOURCE_SPILL`. Already compensated input,
-  unmixed input (`CYTIQ_UNMIXING`) and input whose matrix channels were
+  unmixed input (`CYTIQ_UNMIXING` or an FCS `$PnTYPE` declaring unmixed fluorescence) and input whose matrix channels were
   transformed are rejected.
 - `<output>.masks.parquet` holds `margin_pass` per event: whether the raw
   values of the matrix channels and of every scatter channel stay below the

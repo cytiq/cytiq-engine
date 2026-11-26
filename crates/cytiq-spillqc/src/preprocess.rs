@@ -335,6 +335,13 @@ fn prepare_stored(
 }
 
 fn ensure_raw(path: &Path, dataset: &FcsDataset) -> Result<(), SpillQcError> {
+    let components = cytiq_fcs::DeclaredTypes::of(&dataset.parameters).unmixed;
+    if !components.is_empty() {
+        return Err(SpillQcError::UnmixedInput {
+            path: path.to_path_buf(),
+            components,
+        });
+    }
     let state = SignalState::of(&dataset.text).map_err(|source| SpillQcError::FcsRead {
         path: path.to_path_buf(),
         source,
@@ -730,6 +737,18 @@ mod tests {
         assert!(
             matches!(prepare(path,&negative,Some(&external),&PreprocessOptions { remove_margins:false,..options() }).unwrap(), Preparation::Skipped(reason) if reason.starts_with("logicle estimate for `A` failed:"))
         );
+    }
+
+    #[test]
+    fn preparation_refuses_acquisition_declared_unmixed_by_instrument() {
+        let mut data = dataset(&columns(), &[]);
+        data.parameters[0]
+            .keywords
+            .push(("$P1TYPE".into(), "Unmixed Fluorescence".into()));
+        assert!(matches!(
+            prepare(Path::new("x"), &data, Some(&identity_matrix()), &options()),
+            Err(SpillQcError::UnmixedInput { components, .. }) if components == ["A"]
+        ));
     }
 
     #[test]

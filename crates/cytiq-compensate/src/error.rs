@@ -40,7 +40,7 @@ pub enum CompensateError {
     )]
     TransformedInput { path: PathBuf, channel: String },
     #[error(
-        "`{path}` holds spectrally unmixed abundances ({components:?}) from `cytiq autospectral`; unmixing replaces compensation, so pass the raw FCS or skip `cytiq compensate`"
+        "`{path}` holds spectrally unmixed abundances ({components:?}); unmixing replaces compensation, so pass the raw FCS or skip `cytiq compensate`"
     )]
     UnmixedInput {
         path: PathBuf,
