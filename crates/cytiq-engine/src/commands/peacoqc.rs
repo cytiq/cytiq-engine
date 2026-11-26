@@ -4,13 +4,14 @@ use clap::Args;
 use cytiq_peacoqc::{
     PeacoQcConfig, PeacoQcConstants, PeacoQcRunner, masks_path as peacoqc_masks_path,
 };
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::info;
 use serde::Serialize;
 
 use crate::cli::CliPeacoQcMethod;
 use crate::parsers::{parse_channels, parse_threads};
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct PeacoqcArgs {
@@ -81,12 +82,20 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(output.clone())
     );
-    let result = PeacoQcRunner::run(&input, &output, &config)?;
+    let prepared = PeacoQcRunner::prepare(&input, &output, &config)?;
+    let result = prepared.summary;
     let outputs = [
         output.clone(),
         peacoqc_masks_path(&output),
         cytiq_peacoqc::summary_path(&output),
     ];
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &outputs,
+        &record_path_for_file(&output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "peacoqc retained {} of {} events",
         result.summary.metrics.events_after, result.summary.metrics.events_before
@@ -95,5 +104,5 @@ pub(crate) fn run(
         info!("wrote peacoqc debug artifacts to {}", debug_dir.display());
     }
     info!("peacoqc completed successfully");
-    record_provenance(recorder, &outputs, &record_path_for_file(&output))
+    Ok(outcome)
 }

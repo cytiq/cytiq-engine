@@ -155,6 +155,15 @@ impl Publication {
         Ok(files)
     }
 
+    /// The targets, files and directories, in staging order.
+    #[must_use]
+    pub fn targets(&self) -> Vec<PathBuf> {
+        self.entries
+            .iter()
+            .map(|entry| entry.target.clone())
+            .collect()
+    }
+
     /// The directory staged for `target`, when one is.
     #[must_use]
     pub fn staged_dir(&self, target: impl AsRef<Path>) -> Option<&Path> {
@@ -227,15 +236,54 @@ impl Publication {
         E: From<PublishError>,
         F: FnOnce(&Path) -> Result<(), E>,
     {
-        let target = self.prepare(target.as_ref(), self.existing)?;
+        self.stage_path_with(target, self.existing, write)
+    }
+
+    /// [`stage_path`](Self::stage_path) with its own policy for an existing
+    /// target, such as debug artifacts, which every run replaces.
+    ///
+    /// # Errors
+    /// As [`stage_file`](Self::stage_file).
+    pub fn stage_path_with<E, F>(
+        &mut self,
+        target: impl AsRef<Path>,
+        existing: Existing,
+        write: F,
+    ) -> Result<(), E>
+    where
+        E: From<PublishError>,
+        F: FnOnce(&Path) -> Result<(), E>,
+    {
+        let target = self.prepare(target.as_ref(), existing)?;
         let file = temporary_file(&target)?;
         write(file.path())?;
         sync_file(file.path()).map_err(|source| PublishError::io(&target, source))?;
         self.entries.push(Entry {
             target,
             staged: Staged::File(file),
-            existing: self.existing,
+            existing,
         });
+        Ok(())
+    }
+
+    /// Take over everything `other` staged, after what is staged here, so that
+    /// outputs computed in parallel are published together.
+    ///
+    /// # Errors
+    /// [`PublishError::StagedTwice`] when both staged a target; `other` is then
+    /// discarded with everything it staged.
+    pub fn merge(&mut self, mut other: Self) -> Result<(), PublishError> {
+        if let Some(entry) = other
+            .entries
+            .iter()
+            .find(|entry| self.entries.iter().any(|own| own.target == entry.target))
+        {
+            return Err(PublishError::StagedTwice {
+                path: entry.target.clone(),
+            });
+        }
+        self.entries.append(&mut other.entries);
+        self.created.append(&mut other.created);
         Ok(())
     }
 

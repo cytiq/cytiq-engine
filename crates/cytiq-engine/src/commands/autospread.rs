@@ -2,15 +2,16 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_autospill::{
-    AutospreadConfig, AutospreadRunner, export_spread_matrix, read_controls_manifest,
-    read_detectors_manifest,
+    AutospreadConfig, AutospreadRunner, read_controls_manifest, read_detectors_manifest,
+    stage_spread_matrix,
 };
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::{debug, info};
 use serde::Serialize;
 
 use crate::parsers::parse_threads;
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct AutospreadArgs {
@@ -93,8 +94,16 @@ pub(crate) fn run(
     // Refuse an existing output before the computation, not after it.
     let existing = cytiq_publish::Existing::overwrite(overwrite);
     cytiq_publish::Publication::new(existing).check(&output)?;
-    let result = AutospreadRunner::run(&manifest, &input_dir, &config)?;
-    export_spread_matrix(&result, &output, existing)?;
+    let prepared = AutospreadRunner::prepare(&manifest, &input_dir, &config)?;
+    let (result, mut publication) = (prepared.summary, prepared.publication);
+    stage_spread_matrix(&mut publication, &result, &output, existing)?;
+    let outcome = publish(
+        recorder,
+        publication,
+        std::slice::from_ref(&output),
+        &record_path_for_file(&output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "autospread finished computation for {} dyes across {} detectors",
         result.dyes.len(),
@@ -105,9 +114,5 @@ pub(crate) fn run(
         info!("wrote debug artifacts to {}", debug_dir.display());
     }
     info!("autospread completed successfully");
-    record_provenance(
-        recorder,
-        std::slice::from_ref(&output),
-        &record_path_for_file(&output),
-    )
+    Ok(outcome)
 }

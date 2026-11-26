@@ -15,7 +15,7 @@ use std::sync::{Arc, OnceLock};
 use arrow_array::{ArrayRef, BooleanArray, Float32Array, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema};
 use cytiq_fcs::{FcsDataset, FcsReadLimits, FcsReader, FcsStream};
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use ort::{session::Session, value::Tensor};
 use parquet::arrow::ArrowWriter;
 use serde::Serialize;
@@ -146,8 +146,19 @@ impl ClassifyRunner {
         Self::run_with_policy(config, None)
     }
 
-    /// Apply an independently validated selective-classification policy.
-    /// Existing bundle v1-v4 execution is unchanged when no policy is supplied.
+    /// [`Self::prepare_with_policy`], then publish, without a provenance record.
+    /// # Errors
+    /// As [`Self::prepare_with_policy`], and what publishing returns.
+    pub fn run_with_policy(
+        config: &ClassifyConfig,
+        policy_path: Option<&Path>,
+    ) -> Result<ClassifyRunResult, ClassifyError> {
+        Ok(Self::prepare_with_policy(config, policy_path)?.commit()?)
+    }
+
+    /// Apply an independently validated selective-classification policy and
+    /// stage the predictions. Existing bundle v1-v4 execution is unchanged when
+    /// no policy is supplied. Nothing is published.
     /// # Errors
     /// Rejects missing evidence, mismatched policy, invalid scorer output and ordinary classification errors.
     #[allow(
@@ -155,10 +166,10 @@ impl ClassifyRunner {
         clippy::cast_precision_loss,
         clippy::cast_possible_truncation
     )]
-    pub fn run_with_policy(
+    pub fn prepare_with_policy(
         config: &ClassifyConfig,
         policy_path: Option<&Path>,
-    ) -> Result<ClassifyRunResult, ClassifyError> {
+    ) -> Result<Prepared<ClassifyRunResult>, ClassifyError> {
         let invalid = |s: &str| ClassifyError::Invalid(s.to_owned());
         let batch_size = validate_run_config(config)?;
         let bundle = Bundle::load(&config.model, config.abstain_margin)?;
@@ -403,8 +414,10 @@ impl ClassifyRunner {
         publication.stage_file(config.output.join("summary.json"), |writer| {
             serde_json::to_writer_pretty(writer, &summary).map_err(ClassifyError::from)
         })?;
-        publication.commit()?;
-        Ok(result)
+        Ok(Prepared {
+            summary: result,
+            publication,
+        })
     }
 }
 

@@ -6,13 +6,14 @@ use cytiq_clean::{
     DEFAULT_MAX_FIT_EVENTS, DEFAULT_SINGLET_MAD, DEFAULT_SSC_A, DEFAULT_VIABILITY_COFACTOR,
     DEFAULT_VIABILITY_CONTROL_QUANTILE, DebrisConfig, FilterKind, FilterStatus, ViabilityConfig,
 };
-use cytiq_provenance::{DirSnapshot, record_path_for_dir};
+use cytiq_provenance::outcome::OutcomeReason;
+use cytiq_provenance::record_path_for_dir;
 use log::info;
 use serde::Serialize;
 
 use crate::cli::{CliDebrisMode, CliFilterKind};
 use crate::parsers::{parse_finite_f64, parse_positive_f64, parse_threads};
-use crate::provenance::record_provenance;
+use crate::provenance::{publish, staged_under};
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct CleanArgs {
@@ -135,24 +136,29 @@ pub(crate) fn run(
         cytiq_provenance::reuse::Destination::Dir(args.output.clone())
     );
     let config: CleanConfig = args.into();
-    let before = DirSnapshot::take(&config.output);
-    let result = match CleanRunner::run(&config) {
-        Ok(result) => result,
-        Err(error @ cytiq_clean::CleanError::RequiredFilterNotApplied { .. }) => {
-            let mut outcome = crate::provenance::record_with_reason(
-                recorder,
-                &before.published(&config.output),
-                &record_path_for_dir(&config.output),
-                cytiq_provenance::outcome::OutcomeReason::ChecksFailed,
-            )?;
-            if let Some(outcome) = &mut outcome {
-                outcome.message = error.to_string();
-            }
-            log::error!("{error}");
-            return Ok(outcome);
-        }
-        Err(error) => return Err(error.into()),
+    let prepared = CleanRunner::prepare(&config)?;
+    let result = prepared.summary;
+    let unmet = result.ensure_required(&config.required).err();
+    let reason = if unmet.is_some() {
+        OutcomeReason::ChecksFailed
+    } else {
+        OutcomeReason::Success
     };
+    let outputs = staged_under(&prepared.publication, &config.output)?;
+    let mut outcome = publish(
+        recorder,
+        prepared.publication,
+        &outputs,
+        &record_path_for_dir(&config.output),
+        reason,
+    )?;
+    if let Some(error) = unmet {
+        if let Some(outcome) = &mut outcome {
+            outcome.message = error.to_string();
+        }
+        log::error!("{error}");
+        return Ok(outcome);
+    }
     let metrics = &result.metrics;
     for (name, report) in [
         ("debris", &metrics.filters.debris),
@@ -177,9 +183,5 @@ pub(crate) fn run(
         metrics.event_count,
         result.output.display()
     );
-    record_provenance(
-        recorder,
-        &before.published(&result.output),
-        &record_path_for_dir(&result.output),
-    )
+    Ok(outcome)
 }

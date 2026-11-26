@@ -191,12 +191,31 @@ pub(crate) fn publish(
     // The output stays locked until its record is published.
     let Run { recorder, _lock } = run;
     let record = recorder.stage(&mut publication, outputs, record_path, reason)?;
+    // Directories published whole are targets, not recorded outputs.
+    let targets = publication.targets();
     publication.commit()?;
     // The run succeeded: what an earlier one left behind cannot undo that.
-    if let Err(error) = cytiq_provenance::recovery::discard_abandoned(outputs) {
+    if let Err(error) = cytiq_provenance::recovery::discard_abandoned(targets.iter().chain(outputs))
+    {
         log::warn!("abandoned temporary files remain: {error}");
     }
     Ok(Some(completed(record, reason)))
+}
+
+/// What a publication will publish under `directory`, sorted: the files a
+/// record of that directory lists.
+pub(crate) fn staged_under(
+    publication: &Publication,
+    directory: &Path,
+) -> Result<Vec<PathBuf>, PublishError> {
+    let mut targets: Vec<PathBuf> = publication
+        .staged()?
+        .into_iter()
+        .map(|(target, _)| target)
+        .filter(|target| target.starts_with(directory))
+        .collect();
+    targets.sort();
+    Ok(targets)
 }
 
 /// The outcome of a run whose `record` is published.
@@ -208,22 +227,4 @@ fn completed(record: RunRecord, reason: OutcomeReason) -> CommandOutcome {
         reused: false,
     });
     outcome
-}
-
-pub(crate) fn record_provenance(
-    run: Run,
-    outputs: &[PathBuf],
-    record_path: &Path,
-) -> CommandResult {
-    record_with_reason(run, outputs, record_path, OutcomeReason::Success)
-}
-
-pub(crate) fn record_with_reason(
-    run: Run,
-    outputs: &[PathBuf],
-    record_path: &Path,
-    reason: OutcomeReason,
-) -> CommandResult {
-    let record = run.recorder.finish(outputs, record_path, reason)?;
-    Ok(Some(completed(record, reason)))
 }

@@ -24,14 +24,31 @@ pub fn export_matrix(
     path: impl AsRef<Path>,
     existing: Existing,
 ) -> Result<(), AutospillError> {
-    let path = path.as_ref();
+    let mut publication = Publication::new(existing);
+    stage_matrix(&mut publication, result, kind, path, existing)?;
+    Ok(publication.commit()?)
+}
+
+/// [`export_matrix`] in a publication, to publish it with what it belongs to.
+///
+/// # Errors
+///
+/// As [`export_matrix`], except what publishing returns.
+pub fn stage_matrix(
+    publication: &mut Publication,
+    result: &AutospillResult,
+    kind: MatrixKind,
+    path: impl AsRef<Path>,
+    existing: Existing,
+) -> Result<(), AutospillError> {
     let (row_header, row_labels, column_labels) = matrix_labels(result, kind);
-    export_named_matrix(
+    stage_named_matrix(
+        publication,
         row_header,
         row_labels,
         column_labels,
         result.matrix(kind),
-        path,
+        path.as_ref(),
         existing,
     )
 }
@@ -47,25 +64,43 @@ pub fn export_spread_matrix(
     path: impl AsRef<Path>,
     existing: Existing,
 ) -> Result<(), AutospillError> {
-    export_named_matrix(
+    let mut publication = Publication::new(existing);
+    stage_spread_matrix(&mut publication, result, path, existing)?;
+    Ok(publication.commit()?)
+}
+
+/// [`export_spread_matrix`] in a publication, to publish it with what it
+/// belongs to.
+///
+/// # Errors
+///
+/// As [`export_spread_matrix`], except what publishing returns.
+pub fn stage_spread_matrix(
+    publication: &mut Publication,
+    result: &AutospreadResult,
+    path: impl AsRef<Path>,
+    existing: Existing,
+) -> Result<(), AutospillError> {
+    stage_named_matrix(
+        publication,
         "dye",
         &result.dyes,
         &result.detectors,
         &result.spread_matrix,
-        path,
+        path.as_ref(),
         existing,
     )
 }
 
-pub(crate) fn export_named_matrix(
+fn stage_named_matrix(
+    publication: &mut Publication,
     row_header: &str,
     row_labels: &[String],
     column_labels: &[String],
     matrix: &[Vec<f64>],
-    path: impl AsRef<Path>,
+    path: &Path,
     existing: Existing,
 ) -> Result<(), AutospillError> {
-    let path = path.as_ref();
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
@@ -90,8 +125,7 @@ pub(crate) fn export_named_matrix(
             });
         }
     };
-    let mut publication = Publication::new(existing);
-    publication.stage_path(path, |staged| match delimiter {
+    publication.stage_path_with(path, existing, |staged| match delimiter {
         Some(delimiter) => write_delimited_matrix(
             row_header,
             row_labels,
@@ -101,8 +135,7 @@ pub(crate) fn export_named_matrix(
             delimiter,
         ),
         None => write_parquet_matrix(row_header, row_labels, column_labels, matrix, staged),
-    })?;
-    Ok(publication.commit()?)
+    })
 }
 
 fn matrix_labels(

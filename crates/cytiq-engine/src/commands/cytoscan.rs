@@ -2,13 +2,14 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_cytoscan::{CytoScanConfig, CytoScanConstants, CytoScanRunner};
-use cytiq_provenance::{DirSnapshot, record_path_for_dir};
+use cytiq_provenance::outcome::OutcomeReason;
+use cytiq_provenance::record_path_for_dir;
 use log::{info, warn};
 use serde::Serialize;
 
 use crate::cli::{CliCytoScanFeatureMethod, CliCytoScanFlagMethod, CliNoveltyMode};
 use crate::parsers::{parse_channels, parse_stability_seeds, parse_threads};
-use crate::provenance::record_provenance;
+use crate::provenance::{publish, staged_under};
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct CytoscanArgs {
@@ -119,8 +120,16 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(config.output_dir.clone())
     );
-    let before = DirSnapshot::take(&config.output_dir);
-    let result = CytoScanRunner::run(&config)?;
+    let prepared = CytoScanRunner::prepare(&config)?;
+    let result = prepared.summary;
+    let outputs = staged_under(&prepared.publication, &config.output_dir)?;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &outputs,
+        &record_path_for_dir(&config.output_dir),
+        OutcomeReason::Success,
+    )?;
     for warning in &result.diagnostics.warnings {
         warn!("cytoscan: {warning}");
     }
@@ -149,9 +158,5 @@ pub(crate) fn run(
         info!("wrote cytoscan debug artifacts to {}", debug_dir.display());
     }
     info!("cytoscan completed successfully");
-    record_provenance(
-        recorder,
-        &before.published(&config.output_dir),
-        &record_path_for_dir(&config.output_dir),
-    )
+    Ok(outcome)
 }

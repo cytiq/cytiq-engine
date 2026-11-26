@@ -6,12 +6,13 @@ use cytiq_autospectral::{
     read_controls_manifest as read_autospectral_controls_manifest,
     read_detectors_manifest as read_autospectral_detectors_manifest, read_samples_manifest,
 };
-use cytiq_provenance::{DirSnapshot, record_path_for_dir};
+use cytiq_provenance::outcome::OutcomeReason;
+use cytiq_provenance::record_path_for_dir;
 use log::{debug, info};
 use serde::Serialize;
 
 use crate::parsers::parse_threads;
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct AutospectralArgs {
@@ -116,9 +117,17 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(output.clone())
     );
-    let before = DirSnapshot::take(&output);
-    let summary =
-        AutoSpectralRunner::run(&control_manifest, &sample_manifest, &input_dir, &config)?;
+    let prepared =
+        AutoSpectralRunner::prepare(&control_manifest, &sample_manifest, &input_dir, &config)?;
+    let summary = prepared.summary;
+    let outputs = crate::provenance::staged_under(&prepared.publication, &output)?;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &outputs,
+        &record_path_for_dir(&output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "autospectral finished {} samples across {} components; condition_number={:.6e}",
         summary.samples.len(),
@@ -127,9 +136,5 @@ pub(crate) fn run(
     );
     info!("wrote autospectral outputs to {}", output.display());
     info!("autospectral completed successfully");
-    record_provenance(
-        recorder,
-        &before.published(&output),
-        &record_path_for_dir(&output),
-    )
+    Ok(outcome)
 }

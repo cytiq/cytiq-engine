@@ -12,13 +12,13 @@ use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter};
 use cytiq_mask::EventMask;
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info, warn};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::error::FlowSomError;
-use crate::export::{write_assignments, write_debug_artifacts};
+use crate::export::{stage_debug_artifacts, write_assignments};
 
 #[path = "model.rs"]
 mod model;
@@ -295,32 +295,48 @@ impl DeterministicRng {
 pub struct FlowSomRunner;
 
 impl FlowSomRunner {
-    /// Run the FlowSOM-style pipeline and write per-event assignments as CSV.
+    /// [`Self::prepare`], then publish, without a provenance record.
     ///
     /// # Errors
     ///
-    /// Returns an error if the input cannot be read, channels cannot be
-    /// resolved, SOM assignment cannot be written, or debug artifacts cannot be
-    /// produced.
+    /// As [`Self::prepare`], and what publishing returns.
     pub fn run(
         input: impl AsRef<Path>,
         output: impl AsRef<Path>,
         config: &FlowSomConfig,
         overwrite: bool,
     ) -> Result<FlowSomResult, FlowSomError> {
-        let input = input.as_ref();
-        let output = output.as_ref();
-        Self::run_inner(input, output, config, Existing::overwrite(overwrite))
+        Ok(Self::prepare(input, output, config, overwrite)?.commit()?)
     }
 
-    fn run_inner(
+    /// Run the FlowSOM-style pipeline and stage per-event assignments as CSV.
+    ///
+    /// Nothing is published.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input cannot be read, channels cannot be
+    /// resolved, SOM assignment cannot be written, or debug artifacts cannot be
+    /// produced.
+    pub fn prepare(
+        input: impl AsRef<Path>,
+        output: impl AsRef<Path>,
+        config: &FlowSomConfig,
+        overwrite: bool,
+    ) -> Result<Prepared<FlowSomResult>, FlowSomError> {
+        let existing = Existing::overwrite(overwrite);
+        Self::prepare_inner(input.as_ref(), output.as_ref(), config, existing)
+    }
+
+    fn prepare_inner(
         input: &Path,
         output: &Path,
         config: &FlowSomConfig,
         existing: Existing,
-    ) -> Result<FlowSomResult, FlowSomError> {
+    ) -> Result<Prepared<FlowSomResult>, FlowSomError> {
         validate_config(config)?;
-        Publication::new(existing).check(output)?;
+        let mut publication = Publication::new(existing);
+        publication.check(output)?;
         let dataset = load_dataset(input)?;
         let rows = selected_rows(input, &dataset, &config.masks)?;
         let events = rows.len();
@@ -380,11 +396,18 @@ impl FlowSomRunner {
             training.as_ref().map_or(scaled.values.len(), Vec::len),
         );
 
-        cytiq_publish::write_file(output, existing, |writer| {
+        publication.stage_file(output, |writer| {
             write_assignments(writer, output, &assignments)
         })?;
         if let Some(debug_dir) = config.debug_dir.as_deref() {
-            write_debug_artifacts(&summary, &assignments, &nodes, &metaclusters, debug_dir)?;
+            stage_debug_artifacts(
+                &mut publication,
+                &summary,
+                &assignments,
+                &nodes,
+                &metaclusters,
+                debug_dir,
+            )?;
         }
         info!(
             "flowsom pipeline: assigned {} events across {} SOM nodes and {} metaclusters",
@@ -393,11 +416,14 @@ impl FlowSomRunner {
             metaclusters.len()
         );
 
-        Ok(FlowSomResult {
-            summary,
-            assignments,
-            nodes,
-            metaclusters,
+        Ok(Prepared {
+            summary: FlowSomResult {
+                summary,
+                assignments,
+                nodes,
+                metaclusters,
+            },
+            publication,
         })
     }
 }

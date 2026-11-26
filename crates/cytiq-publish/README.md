@@ -17,9 +17,12 @@ run publishes none of its outputs.
 | `stage_file(target, \|writer\| ...)` | stage a file written through a buffered writer |
 | `stage_file_with(target, existing, \|writer\| ...)` | `stage_file` with its own policy for an existing target, such as a provenance record |
 | `stage_path(target, \|path\| ...)` | stage a file written by a writer that takes a path |
+| `stage_path_with(target, existing, \|path\| ...)` | `stage_path` with its own policy for an existing target, such as a debug file every run replaces |
 | `stage_dir(target)` | stage a directory; returns the empty directory to fill |
 | `staged()` | `(target, staged file)` pairs of everything that will be published, files of staged directories included |
+| `targets()` | the targets, files and directories, in staging order |
 | `staged_dir(target)` | the directory staged for `target` |
+| `merge(other)` | add the entries of another publication, in its order; a target staged in both is `StagedTwice` |
 | `Prepared { summary, publication }` | what a command computed and staged but did not publish; `commit()` publishes it |
 | `commit()` | publish every staged output in staging order, then sync their directories; undo everything if that fails |
 | `write_file(target, existing, \|writer\| ...)` | one file: stage and commit |

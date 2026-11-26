@@ -16,6 +16,15 @@ use std::{
     sync::Arc,
 };
 
+/// The record of a run that wrote `output`, at `path`.
+fn write_record(recorder: RunRecorder, output: &Path, path: &Path) {
+    let outputs = [(output.to_path_buf(), output.to_path_buf())];
+    let record = recorder
+        .prepare_staged(&outputs, cytiq_provenance::outcome::OutcomeReason::Success)
+        .unwrap();
+    std::fs::write(path, serde_json::to_vec(&record).unwrap()).unwrap();
+}
+
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../data/fixtures/specimen")
@@ -135,13 +144,7 @@ fn setup_with_policy(directory: &Path, fail: bool, policy: &serde_json::Value) -
     producer
         .snapshot_inputs("mask", std::slice::from_ref(&config.mask))
         .unwrap();
-    producer
-        .finish(
-            std::slice::from_ref(&config.annotations),
-            &config.producer_provenance,
-            cytiq_provenance::outcome::OutcomeReason::Success,
-        )
-        .unwrap();
+    write_record(producer, &config.annotations, &config.producer_provenance);
     let status = if fail { "fail" } else { "pass" };
     std::fs::write(&config.qc_report,serde_json::to_vec(&json!({
         "acquisition":"a".repeat(64),"sample":"A01","panel":"P1","status":status,"failures":u64::from(fail),"warnings":0,
@@ -152,12 +155,7 @@ fn setup_with_policy(directory: &Path, fail: bool, policy: &serde_json::Value) -
         .unwrap();
     qc.snapshot_inputs("mask", std::slice::from_ref(&config.mask))
         .unwrap();
-    qc.finish(
-        std::slice::from_ref(&config.qc_report),
-        &config.qc_provenance,
-        cytiq_provenance::outcome::OutcomeReason::Success,
-    )
-    .unwrap();
+    write_record(qc, &config.qc_report, &config.qc_provenance);
     config
 }
 

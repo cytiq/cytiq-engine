@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use cytiq_compensate::{MatrixKind, read_matrix_file};
 use cytiq_fcs::{FcsDataset, FcsReader};
-use cytiq_publish::{Existing, Publication};
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info, warn};
 use rayon::prelude::*;
 use serde::Serialize;
@@ -163,6 +163,26 @@ pub struct SpillQcResult {
     pub summary: SpillQcSummary,
     /// Every file written, for provenance.
     pub outputs: Vec<PathBuf>,
+    /// Directories an earlier run may have written for files this run skipped.
+    stale: Vec<PathBuf>,
+}
+
+impl SpillQcResult {
+    /// Remove the results of an earlier run for files this run skipped, which
+    /// no longer apply. To be called once this run's outputs are published.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a directory cannot be removed.
+    pub fn remove_stale(&self) -> Result<(), SpillQcError> {
+        for path in self.stale.iter().filter(|path| path.is_dir()) {
+            fs::remove_dir_all(path).map_err(|source| SpillQcError::Write {
+                path: path.clone(),
+                source,
+            })?;
+        }
+        Ok(())
+    }
 }
 
 pub struct SpillQcRunner;
@@ -177,15 +197,27 @@ impl SpillQcRunner {
         resolve_inputs(&config.inputs)
     }
 
-    /// Assess every input and write the outputs.
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing and removing stale results
+    /// return.
+    pub fn run(config: &SpillQcConfig) -> Result<SpillQcResult, SpillQcError> {
+        let result = Self::prepare(config)?.commit()?;
+        result.remove_stale()?;
+        Ok(result)
+    }
+
+    /// Assess every input and stage the outputs. Nothing is published.
     ///
     /// # Errors
     ///
     /// Returns an error when the configuration is invalid, an input cannot be
     /// read, an input was already compensated or transformed by cytiq, or an
-    /// output cannot be written. Files that cannot be assessed are reported as
+    /// output cannot be staged. Files that cannot be assessed are reported as
     /// skipped instead.
-    pub fn run(config: &SpillQcConfig) -> Result<SpillQcResult, SpillQcError> {
+    pub fn prepare(config: &SpillQcConfig) -> Result<Prepared<SpillQcResult>, SpillQcError> {
         validate(config)?;
         let inputs = resolve_inputs(&config.inputs)?;
         let names = output_names(&inputs)?;
@@ -197,7 +229,7 @@ impl SpillQcRunner {
                 read_matrix_file(path, *kind).map(|matrix| ExternalMatrix { matrix })
             })
             .transpose()?;
-        run_inner(config, &inputs, &names, external.as_ref())
+        prepare_inner(config, &inputs, &names, external.as_ref())
     }
 }
 
@@ -207,12 +239,12 @@ struct Assessed {
     report: Option<FileReport>,
 }
 
-fn run_inner(
+fn prepare_inner(
     config: &SpillQcConfig,
     inputs: &[PathBuf],
     names: &[String],
     external: Option<&ExternalMatrix>,
-) -> Result<SpillQcResult, SpillQcError> {
+) -> Result<Prepared<SpillQcResult>, SpillQcError> {
     let with_dot_plots = inputs.len() <= DOT_PLOT_MAX_FILES;
     let assessed = inputs
         .par_iter()
@@ -323,19 +355,19 @@ fn run_inner(
     let summary_path = config.output.join(SUMMARY_FILE);
     publication.stage_path(&summary_path, |path| write_json(path, &summary))?;
     outputs.push(summary_path);
-    publication.commit()?;
-    // Results of an earlier run for files this run skipped no longer apply.
-    for (name, _) in &skipped {
-        let stale = config.output.join(name);
-        if stale.is_dir() {
-            fs::remove_dir_all(&stale).map_err(|source| SpillQcError::Write {
-                path: stale.clone(),
-                source,
-            })?;
-        }
-    }
     info!("spillqc: {summary_line}");
-    Ok(SpillQcResult { summary, outputs })
+    let stale = skipped
+        .iter()
+        .map(|(name, _)| config.output.join(name))
+        .collect();
+    Ok(Prepared {
+        summary: SpillQcResult {
+            summary,
+            outputs,
+            stale,
+        },
+        publication,
+    })
 }
 
 type WriteFn = fn(&Path, &CompensaidResult) -> Result<(), SpillQcError>;

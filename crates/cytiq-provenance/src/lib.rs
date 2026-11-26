@@ -462,61 +462,6 @@ impl RunRecorder {
         }
         Ok(())
     }
-
-    /// Hash `outputs` and write the record, with the inputs as snapshotted,
-    /// to `record_path` (through a `.tmp` sibling, so a failed run never
-    /// leaves half a record). Paths that are not files (missing optional
-    /// outputs, directories) are skipped.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when an input that is not also an output changed
-    /// since its snapshot, a file cannot be hashed, or the record cannot be
-    /// written.
-    pub fn finish(
-        self,
-        outputs: &[PathBuf],
-        record_path: &Path,
-        reason: outcome::OutcomeReason,
-    ) -> Result<RunRecord, ProvenanceError> {
-        let outputs = outputs
-            .iter()
-            .filter(|path| path.is_file())
-            .collect::<Vec<_>>();
-        let written = outputs
-            .iter()
-            .map(|path| canonical(path))
-            .collect::<Vec<_>>();
-        for input in &self.inputs {
-            if !written.contains(&canonical(&input.path)) {
-                Self::verify_input(input)?;
-            }
-        }
-        let mut record = RunRecord {
-            schema_version: SCHEMA_VERSION,
-            tool: self.tool,
-            version: self.version,
-            build: self.build,
-            platform: Platform::current(),
-            arguments: self.arguments,
-            config: self.config,
-            constants: self.constants,
-            algorithms: self.algorithms,
-            started_at_unix_ms: self.started_at_unix_ms,
-            finished_at_unix_ms: unix_ms(),
-            inputs: self.inputs.into_iter().map(|input| input.record).collect(),
-            outputs: outputs
-                .into_iter()
-                .map(|path| FileRecord::of(path))
-                .collect::<Result<_, _>>()?,
-            execution_fingerprint: None,
-            reason: Some(reason),
-            parallelism: self.parallelism,
-        };
-        record.execution_fingerprint = Some(record.compute_fingerprint());
-        write_record(record_path, &record)?;
-        Ok(record)
-    }
 }
 
 /// `sample.comp.fcs` -> `sample.comp.fcs.provenance.json`.
@@ -556,67 +501,6 @@ pub fn files_under(dir: &Path) -> Vec<PathBuf> {
     }
     files.sort();
     files
-}
-
-/// The files under a directory output before a run. With `--overwrite` a
-/// directory can hold an earlier run's files; [`DirSnapshot::published`]
-/// lists only what this run wrote, so a record never claims leftovers.
-///
-/// Publication always renames a new file into place, so a published file has
-/// a new identity (inode on Unix, else size and modification time) even when
-/// its bytes did not change.
-#[derive(Clone, Debug, Default)]
-pub struct DirSnapshot {
-    files: BTreeMap<PathBuf, FileStamp>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FileStamp {
-    len: u64,
-    modified: Option<std::time::SystemTime>,
-    #[cfg(unix)]
-    inode: (u64, u64),
-}
-
-impl FileStamp {
-    fn of(path: &Path) -> Option<Self> {
-        let metadata = fs::metadata(path).ok()?;
-        Some(Self {
-            len: metadata.len(),
-            modified: metadata.modified().ok(),
-            #[cfg(unix)]
-            inode: {
-                use std::os::unix::fs::MetadataExt as _;
-                (metadata.dev(), metadata.ino())
-            },
-        })
-    }
-}
-
-impl DirSnapshot {
-    /// Record the files [`files_under`] `dir` lists now.
-    #[must_use]
-    pub fn take(dir: &Path) -> Self {
-        Self {
-            files: files_under(dir)
-                .into_iter()
-                .filter_map(|path| FileStamp::of(&path).map(|stamp| (path, stamp)))
-                .collect(),
-        }
-    }
-
-    /// [`files_under`] `dir` that are new or replaced since [`Self::take`].
-    #[must_use]
-    pub fn published(&self, dir: &Path) -> Vec<PathBuf> {
-        files_under(dir)
-            .into_iter()
-            .filter(|path| {
-                self.files
-                    .get(path)
-                    .is_none_or(|before| FileStamp::of(path).as_ref() != Some(before))
-            })
-            .collect()
-    }
 }
 
 fn is_record_or_temporary(path: &Path) -> bool {
@@ -685,33 +569,10 @@ fn record_bytes(record: &RunRecord) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn write_record(path: &Path, record: &RunRecord) -> Result<(), ProvenanceError> {
-    debug!("writing provenance record to {}", path.display());
-    let write_error = |source| ProvenanceError::Write {
-        path: path.to_path_buf(),
-        source,
-    };
-    let bytes = record_bytes(record).map_err(write_error)?;
-    cytiq_publish::write_file(path, Existing::Replace, |writer| {
-        writer
-            .write_all(&bytes)
-            .map_err(|source| PublishError::io(path, source))
-    })
-    .map_err(|error| match error {
-        PublishError::Io { source, .. } => write_error(source),
-        other => write_error(io::Error::other(other)),
-    })
-}
-
 /// Plain option structs always serialize; anything else is recorded as its
 /// error rather than failing the run.
 fn to_value(value: &impl Serialize) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or_else(|error| serde_json::Value::String(error.to_string()))
-}
-
-/// `path` resolved, so `./a` and `a` name the same file.
-fn canonical(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn unix_ms() -> u128 {
@@ -729,6 +590,26 @@ mod tests {
             std::env::temp_dir().join(format!("cytiq-provenance-{}-{name}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
         directory
+    }
+
+    /// Publish `text` at `output` with the record of `recorder`.
+    fn publish(
+        recorder: RunRecorder,
+        output: &Path,
+        text: &[u8],
+    ) -> Result<RunRecord, ProvenanceError> {
+        let mut publication = Publication::new(Existing::Replace);
+        publication.stage_path(output, |path| {
+            fs::write(path, text).map_err(|source| PublishError::io(path, source))
+        })?;
+        let record = recorder.stage(
+            &mut publication,
+            &[output.to_path_buf()],
+            &record_path_for_file(output),
+            crate::outcome::OutcomeReason::Success,
+        )?;
+        publication.commit()?;
+        Ok(record)
     }
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
@@ -755,32 +636,6 @@ mod tests {
         assert_eq!(record.outputs[0].path, target.display().to_string());
         assert_eq!(record.outputs[0].sha256, ABC_SHA256);
         assert!(!target.exists());
-    }
-
-    #[test]
-    fn snapshots_list_only_files_a_run_published() {
-        let directory = temp_dir("snapshot");
-        fs::write(directory.join("left.csv"), "earlier run").unwrap();
-        fs::write(directory.join("replaced.csv"), "same").unwrap();
-        let snapshot = DirSnapshot::take(&directory);
-        // Publication renames a new file into place, even for equal bytes.
-        fs::write(directory.join("replaced.csv.tmp"), "same").unwrap();
-        fs::rename(
-            directory.join("replaced.csv.tmp"),
-            directory.join("replaced.csv"),
-        )
-        .unwrap();
-        fs::write(directory.join("new.csv"), "this run").unwrap();
-        assert_eq!(
-            snapshot.published(&directory),
-            [directory.join("new.csv"), directory.join("replaced.csv")]
-        );
-        assert!(
-            DirSnapshot::take(&directory.join("absent"))
-                .files
-                .is_empty()
-        );
-        fs::remove_dir_all(&directory).unwrap();
     }
 
     #[test]
@@ -849,14 +704,7 @@ mod tests {
         recorder
             .snapshot_inputs("input", &[input, directory.join("missing.txt")])
             .unwrap();
-        fs::write(&output, b"").unwrap();
-        let record = recorder
-            .finish(
-                &[output],
-                &record_path,
-                crate::outcome::OutcomeReason::Success,
-            )
-            .unwrap();
+        let record = publish(recorder, &output, b"").unwrap();
 
         assert_eq!(record.inputs.len(), 1, "missing paths are skipped");
         assert_eq!(record.inputs[0].sha256, ABC_SHA256);
@@ -879,14 +727,7 @@ mod tests {
             .snapshot_inputs("input", std::slice::from_ref(&file))
             .unwrap();
         // The command replaces its input in place.
-        fs::write(&file, b"abcdef").unwrap();
-        let record = recorder
-            .finish(
-                std::slice::from_ref(&file),
-                &record_path_for_file(&file),
-                crate::outcome::OutcomeReason::Success,
-            )
-            .unwrap();
+        let record = publish(recorder, &file, b"abcdef").unwrap();
 
         assert_eq!(record.inputs[0].sha256, ABC_SHA256);
         assert_eq!(record.inputs[0].bytes, 3);
@@ -905,18 +746,12 @@ mod tests {
             .snapshot_inputs("input", std::slice::from_ref(&input))
             .unwrap();
         fs::write(&input, b"abcd").unwrap();
-        fs::write(&output, b"").unwrap();
-        let record_path = record_path_for_file(&output);
 
         assert!(matches!(
-            recorder.finish(
-                &[output],
-                &record_path,
-                crate::outcome::OutcomeReason::Success
-            ),
+            publish(recorder, &output, b""),
             Err(ProvenanceError::InputChanged { .. })
         ));
-        assert!(!record_path.exists());
+        assert!(!output.exists() && !record_path_for_file(&output).exists());
     }
 
     #[test]
@@ -939,14 +774,7 @@ mod tests {
         recorder
             .snapshot_inputs("mask", std::slice::from_ref(&input))
             .unwrap();
-        fs::write(&output, b"").unwrap();
-        let record = recorder
-            .finish(
-                std::slice::from_ref(&output),
-                &record_path_for_file(&output),
-                crate::outcome::OutcomeReason::Success,
-            )
-            .unwrap();
+        let record = publish(recorder, &output, b"").unwrap();
 
         assert_eq!(record.schema_version, SCHEMA_VERSION);
         assert_eq!(record.build, build);

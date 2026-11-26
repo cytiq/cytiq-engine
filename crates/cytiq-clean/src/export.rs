@@ -18,7 +18,7 @@ pub const REPORT_FILE: &str = "report.html";
 
 /// Masks, metrics, Gating-ML and report are published together, the report
 /// last, so a directory never holds outputs of two runs.
-pub(crate) fn write_outputs(
+pub(crate) fn stage_outputs(
     config: &CleanConfig,
     metrics: &CleanMetrics,
     masks: &CleanMasks,
@@ -26,7 +26,7 @@ pub(crate) fn write_outputs(
     strategy: &GatingStrategy,
     dataset: &FcsDataset,
     results: &GatingResults,
-) -> Result<(), CleanError> {
+) -> Result<Publication, CleanError> {
     let directory = config.output.as_path();
     let mut publication = Publication::new(Existing::overwrite(config.overwrite));
     stage_masks_parquet(&mut publication, &directory.join(MASKS_FILE), masks)?;
@@ -40,7 +40,7 @@ pub(crate) fn write_outputs(
         results,
     )?;
     stage_text(&mut publication, &directory.join(REPORT_FILE), &report)?;
-    Ok(publication.commit()?)
+    Ok(publication)
 }
 
 /// One row per input event. `source_event_id` is the raw-file row (equal to

@@ -480,3 +480,30 @@ fn a_record_that_cannot_be_published_takes_its_outputs_back() {
         );
     }
 }
+
+#[test]
+fn merged_publications_are_published_together_or_not_at_all() {
+    let root = tempfile::tempdir().unwrap();
+    let (first, second) = (root.path().join("new/a.csv"), root.path().join("new/b.csv"));
+    let staged = |target: &Path| {
+        let mut publication = Publication::new(Existing::Refuse);
+        write_text(&mut publication, target, "new").unwrap();
+        publication
+    };
+    let mut publication = staged(&first);
+    publication.merge(staged(&second)).unwrap();
+    // The directory of the second would be missing for it alone.
+    assert_eq!(publication.staged().unwrap().len(), 2);
+    drop(publication);
+    assert!(
+        listing(root.path()).is_empty(),
+        "created directories are removed"
+    );
+
+    let mut publication = staged(&first);
+    publication.merge(staged(&second)).unwrap();
+    let error = publication.merge(staged(&second)).unwrap_err();
+    assert!(matches!(error, PublishError::StagedTwice { path } if path == second));
+    publication.commit().unwrap();
+    assert_eq!(listing(&root.path().join("new")), ["a.csv", "b.csv"]);
+}
