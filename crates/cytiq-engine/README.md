@@ -102,11 +102,16 @@ the package.
 
 ## Provenance
 
-Each command arm finishes with `record_provenance`, which writes
-`<output>.provenance.json` (or `<dir>/provenance.json`) with the arguments and
-the SHA-256 of the command's input and output files; see
-[`cytiq-provenance`](../cytiq-provenance). `meta` writes one only for a file
-`--output`; the JSON it prints on stdout carries the input's SHA-256 itself.
+Each command arm stages its outputs without publishing them, then calls
+`provenance::publish`, which stages `<output>.provenance.json` (or
+`<dir>/provenance.json`) with the arguments and the SHA-256 of the command's
+input and output files in the same publication and commits both: an output
+never appears without its record. See [`cytiq-provenance`](../cytiq-provenance).
+
+Commands that write no record: `meta` without `--output` (the JSON it prints
+on stdout carries the input's SHA-256 itself), `transform --dry-run` and
+`repair --plan`. `population` and `specimen` publish their package, record
+included, by one rename.
 
 ## Logging and output streams
 

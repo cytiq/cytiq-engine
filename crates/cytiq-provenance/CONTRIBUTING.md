@@ -24,9 +24,9 @@ this crate.
   directories (`*.tmp`, which covers the `*.old.tmp` backups a crash can
   leave) and provenance records.
 - Inputs are hashed by `snapshot_inputs` before the command runs, never at
-  `finish`.
+  `stage`.
 - The CLI decides which files are inputs and outputs of each command
-  (`crates/cytiq-engine/src/commands/*.rs` call `snapshot_inputs`, and `record_provenance` in `src/provenance.rs`).
+  (`crates/cytiq-engine/src/commands/*.rs` call `snapshot_inputs`, and `publish` in `src/provenance.rs`).
   When a command gains an input or output file, add it there and to its
   `*_cli.rs` provenance check.
 
@@ -46,4 +46,4 @@ classify must call `set_parallelism` with its effective thread count.
 `reuse.rs` assesses records read-only; the caller holds the destination's OutputLock
 through assessment and publication. Never accept v2, unidentified builds, missing
 fingerprints or unchecked outputs. Test both fingerprint component changes and
-reused failing outcomes. `finish` and `prepare_staged` require a completion reason.
+reused failing outcomes. `stage` and `prepare_staged` require a completion reason.

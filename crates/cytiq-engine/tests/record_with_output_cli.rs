@@ -51,6 +51,17 @@ fn succeed(args: &[String]) {
     );
 }
 
+/// Run a case's command, which must end with the case's exit code.
+fn complete(case: &Case, args: &[String]) {
+    let output = run(args, None);
+    assert_eq!(
+        output.status.code(),
+        Some(case.exit),
+        "{args:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// Every file and empty directory under `root`, with its bytes.
 fn contents(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     let mut found = BTreeMap::new();
@@ -93,6 +104,8 @@ struct Case {
     first: &'static str,
     record: Record,
     args: Vec<String>,
+    /// The exit code of a run that publishes: 3 when checks fail.
+    exit: i32,
 }
 
 impl Case {
@@ -103,6 +116,7 @@ impl Case {
             first: output,
             record,
             args: strings(args),
+            exit: 0,
         }
     }
 
@@ -242,7 +256,90 @@ fn cases(work: &Path) -> Vec<Case> {
     cases.extend(fcs_stages(&inputs));
     cases.extend(matrices());
     cases.extend(models(&inputs));
+    cases.extend(cohort_and_clean(work));
     cases
+}
+
+fn cohort_and_clean(work: &Path) -> Vec<Case> {
+    let cohort = work.join("cohort");
+    fs::create_dir(&cohort).unwrap();
+    for (index, offset) in [0.0, 4.0, 8.0, 280.0].into_iter().enumerate() {
+        write_cohort_sample(&cohort.join(format!("sample_{index:02}.fcs")), offset);
+    }
+    let clean = |input: &str| text(&fixture("clean").join(input));
+    let clean_args = |input: &str, extra: &[&str]| -> Vec<String> {
+        [
+            &strings(&[
+                "clean",
+                "--input",
+                &clean(input),
+                "--output",
+                OUT,
+                "--threads",
+                "2",
+            ])[..],
+            &strings(extra)[..],
+        ]
+        .concat()
+    };
+    let checks_failed = Case {
+        name: "clean, --require unmet",
+        args: clean_args("no_viability.fcs", &["--require", "singlets,viability"]),
+        exit: 3,
+        ..Case::in_directory("clean", "clean", "masks.parquet", &[])
+    };
+    vec![
+        Case::in_directory(
+            "cytoscan",
+            "cytoscan",
+            "cytoscan_summary.csv",
+            &[
+                "cytoscan",
+                "--input",
+                &text(&cohort),
+                "--output",
+                OUT,
+                "--channels",
+                "CD3,CD4,CD8",
+                "--flag-method",
+                "outlier",
+                "--threads",
+                "1",
+            ],
+        ),
+        Case {
+            args: clean_args("sample.fcs", &[]),
+            ..Case::in_directory("clean", "clean", "masks.parquet", &[])
+        },
+        checks_failed,
+    ]
+}
+
+/// 80 events whose markers are shifted by `offset` (`cytoscan_cli.rs`).
+fn write_cohort_sample(path: &Path, offset: f32) {
+    let mut columns = vec![Vec::new(); 6];
+    for event_index in 0_u16..80 {
+        let event = f32::from(event_index);
+        columns[0].push(event);
+        columns[1].push(20.0 + event * 0.2);
+        columns[2].push(30.0 + event * 0.25);
+        columns[3].push(100.0 + offset + event * 1.2);
+        columns[4].push(160.0 + offset * 0.5 + event * 0.8);
+        columns[5].push(90.0 + offset * 0.25 + event * 0.6);
+    }
+    let parameters = [
+        cytiq_fcs::FcsWriteParameter::new("Time"),
+        cytiq_fcs::FcsWriteParameter::new("FSC-A"),
+        cytiq_fcs::FcsWriteParameter::new("SSC-A"),
+        cytiq_fcs::FcsWriteParameter::with_label("FL1-A", "CD3"),
+        cytiq_fcs::FcsWriteParameter::with_label("FL2-A", "CD4"),
+        cytiq_fcs::FcsWriteParameter::with_label("FL3-A", "CD8"),
+    ];
+    let options = cytiq_fcs::FcsWriteOptions::new().with_text_keyword(
+        "SPILL",
+        "3,FL1-A,FL2-A,FL3-A,1,0.02,0.01,0.01,1,0.02,0.0,0.02,1",
+    );
+    cytiq_fcs::write_fcs3_1_f32_with_options(path, &parameters, &columns, &options).unwrap();
 }
 
 /// 60 events in two populations (`flowsom_cli.rs`).
@@ -627,8 +724,9 @@ fn expect_nothing(case: &Case, directory: &Path, args: &[String], failpoint: Opt
     let before = contents(directory);
     let output = run(args, failpoint);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
+    assert_ne!(
+        output.status.code(),
+        Some(case.exit),
         "{}: {failpoint:?} did not fail the run",
         case.name
     );
@@ -657,7 +755,7 @@ fn a_record_that_cannot_be_written_takes_the_output_with_it() {
 
         // Nothing there before: nothing after.
         expect_nothing(&case, directory.path(), &args, Some(&full));
-        succeed(&args);
+        complete(&case, &args);
         let first: RunRecord = serde_json::from_slice(&fs::read(&record).unwrap()).unwrap();
         assert!(verify_outputs(&first), "{}", case.name);
 
@@ -672,7 +770,7 @@ fn a_record_that_cannot_be_written_takes_the_output_with_it() {
             expect_nothing(&case, directory.path(), &overwrite, None);
             fs::remove_dir(&record).unwrap();
         }
-        succeed(&overwrite);
+        complete(&case, &overwrite);
         let again: RunRecord = serde_json::from_slice(&fs::read(&record).unwrap()).unwrap();
         assert!(verify_outputs(&again), "{}", case.name);
     }
@@ -687,7 +785,7 @@ fn a_directory_that_cannot_be_written_keeps_what_it_holds() {
         let directory = tempfile::tempdir().unwrap();
         let output = directory.path().join(case.output);
         let args = case.args(&output);
-        succeed(&args);
+        complete(&case, &args);
         let overwrite = [args, strings(&["--overwrite"])].concat();
         // Where the record is staged: the output directory, or its parent.
         let locked = if case.record == Record::InDirectory {
@@ -759,7 +857,7 @@ fn a_kill_between_two_renames_is_completed_by_the_next_run() {
             let mut args = case.args(&output);
             let mut before = None;
             if previous {
-                succeed(&args);
+                complete(&case, &args);
                 before = Some(fs::read(&record).unwrap());
                 args.push("--overwrite".into());
             }
@@ -773,7 +871,7 @@ fn a_kill_between_two_renames_is_completed_by_the_next_run() {
             );
 
             // Completed: the outputs with the record they were staged with.
-            succeed(&[strings(&["--reuse", "skip"]), args].concat());
+            complete(&case, &[strings(&["--reuse", "skip"]), args].concat());
             expect_complete(&case, directory.path(), &output);
             assert_ne!(fs::read(&record).ok(), before, "{}: its record", case.name);
             assert!(OutputLock::acquire(&output).is_ok(), "the lock is free");
@@ -791,7 +889,7 @@ fn a_kill_before_the_first_rename_leaves_the_previous_output() {
         let output = directory.path().join(case.output);
         let record = case.record(&output);
         let args = case.args(&output);
-        succeed(&args);
+        complete(&case, &args);
         let before = contents(directory.path());
         let overwrite = [args, strings(&["--overwrite"])].concat();
         let suffix = record.file_name().unwrap().to_str().unwrap();
@@ -802,7 +900,7 @@ fn a_kill_before_the_first_rename_leaves_the_previous_output() {
                 assert!(&fs::read(path).unwrap() == bytes, "{}", case.name);
             }
         }
-        succeed(&overwrite);
+        complete(&case, &overwrite);
         expect_complete(&case, directory.path(), &output);
     }
 }

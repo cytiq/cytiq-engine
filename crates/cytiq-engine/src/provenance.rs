@@ -187,21 +187,3 @@ fn completed(record: RunRecord, reason: OutcomeReason) -> CommandOutcome {
     });
     outcome
 }
-
-pub(crate) fn record_provenance(
-    run: Run,
-    outputs: &[PathBuf],
-    record_path: &Path,
-) -> CommandResult {
-    record_with_reason(run, outputs, record_path, OutcomeReason::Success)
-}
-
-pub(crate) fn record_with_reason(
-    run: Run,
-    outputs: &[PathBuf],
-    record_path: &Path,
-    reason: OutcomeReason,
-) -> CommandResult {
-    let record = run.recorder.finish(outputs, record_path, reason)?;
-    Ok(Some(completed(record, reason)))
-}
