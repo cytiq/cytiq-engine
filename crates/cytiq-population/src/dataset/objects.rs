@@ -258,7 +258,10 @@ impl Sources {
 
     fn check(&self, issues: &mut Issues) {
         for (at, acquisition, source) in &self.foreign {
-            if !self.repairs.contains(&(acquisition.clone(), source.clone())) {
+            if !self
+                .repairs
+                .contains(&(acquisition.clone(), source.clone()))
+            {
                 issues.error(
                     IssueCode::InvalidReference,
                     at.as_str(),
