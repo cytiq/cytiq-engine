@@ -38,7 +38,10 @@ stays meaningful when defaults change. `constants` and `algorithms` capture
 what is fixed in the code: algorithm constants and the upstream versions the
 port is validated against. `constants.input_facts` holds what the command
 established about its inputs before it ran, such as `quarantined_keywords`: the
-keywords an FCS input repeats, by its SHA-256, whose values nothing reads. Inputs are hashed before the command runs, so a
+keywords an FCS input repeats, by its SHA-256, whose values nothing reads.
+`cytiq export events` also records `constants.layer_basis`: `declared_by_file`
+when the input's `$PnTYPE` states its base state, `asserted_by_caller` when only
+`--base-state` does. Inputs are hashed before the command runs, so a
 command that replaces its own input still records what it read; each input
 carries its `role`. Debug directories are not listed.
 

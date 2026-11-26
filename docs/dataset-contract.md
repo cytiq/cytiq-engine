@@ -170,7 +170,29 @@ Export refuses:
 - normalization without a transform;
 - steps over channels the file lacks;
 - a compensation matrix or unmixing reference that the file records only by
-  path, unless its digest is supplied.
+  path, unless its digest is supplied;
+- a file whose `$PnTYPE` declares unmixed channels, on a raw base
+  (`--base-state raw`), unless `cytiq autospectral` unmixed it: its values
+  were unmixed elsewhere, so export it with `--layer unmixed --base-state
+  unmixed`. The rule is on the base, so values transformed from unmixed ones
+  are no raw base either;
+- a file that declares both raw and unmixed channels, under any base.
+
+**Declared measurement types.** FCS 3.2 (3.3.55) defines the `$PnTYPE` values
+Forward Scatter, Side Scatter, Raw Fluorescence, Unmixed Fluorescence, Mass,
+Time, Electronic Volume, Classification and Index, and keyword values are case
+sensitive (3.2.14). cytiq reads them exactly, with one extension: `_` reads as
+a space, because the files that set `$PnTYPE` before FCS 3.2 (SpectroFlo, FCS
+3.0 and 3.1) write `Unmixed_Fluorescence`. Any other value, such as
+`Fluorescence`, declares nothing; `cytiq preflight` warns about it. Only
+measurements 1 to `$PAR` count.
+
+Where the file declares nothing, the base state is the caller's statement.
+The export's provenance record says which: `constants.layer_basis` is
+`declared_by_file` when the file declares `Raw Fluorescence` for a raw base or
+`Unmixed Fluorescence` for an unmixed one, and `asserted_by_caller`
+otherwise. The basis is not part of the layer descriptor, so `layer_id` does
+not depend on it.
 
 `recipe_id` is the layer without its acquisition, origins, per-file
 compensation or unmixing definitions and normalization batch. Layers that

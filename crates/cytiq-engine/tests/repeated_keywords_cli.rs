@@ -172,7 +172,8 @@ fn derived_files_and_tables_leave_it_out_and_records_name_it() {
         "raw",
     ]);
     assert!(output.status.success());
-    assert_eq!(record(&other)["constants"], Value::Null);
+    // `layer_basis` is recorded for every export; facts about inputs only for repeats.
+    assert!(record(&other)["constants"].get("input_facts").is_none());
 }
 
 #[test]

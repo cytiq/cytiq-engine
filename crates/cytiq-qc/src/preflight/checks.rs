@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use cytiq_fcs::{FcsDataset, FcsReader, Parameter, Spillover};
+use cytiq_fcs::{DeclaredTypes, FcsDataset, FcsReader, Parameter, Spillover, quoted_names};
 use cytiq_manifest::{ControlEntry, Marker, MatrixKind, Panel, SignalState};
 use serde::Serialize;
 
@@ -54,6 +54,59 @@ fn check_repeated_keywords(scope: &str, dataset: &FcsDataset) -> Option<Check> {
                     .map(|key| format!("`{key}`"))
                     .collect::<Vec<_>>()
                     .join(", ")
+            ),
+        )
+    })
+}
+
+/// What the file declares in `$PnTYPE` (FCS 3.2) against the panel's
+/// signal state. Raw and unmixed channels together fail; unmixed channels
+/// fail in a raw panel unless `cytiq autospectral` unmixed them, as
+/// `cytiq export events` refuses them as a raw layer. Values FCS 3.2 does not
+/// define warn: they declare nothing.
+fn check_measurement_types(
+    scope: &str,
+    dataset: &FcsDataset,
+    declared: SignalState,
+) -> Option<Check> {
+    let types = DeclaredTypes::of(&dataset.parameters);
+    let check = |status, message| Check::new(scope, "measurement_types", status, message);
+    if types.is_mixed() {
+        return Some(check(
+            CheckStatus::Fail,
+            format!(
+                "the file declares both raw ({}) and unmixed ({}) channels in `$PnTYPE`",
+                quoted_names(&types.raw),
+                quoted_names(&types.unmixed)
+            ),
+        ));
+    }
+    let unmixed_by_cytiq =
+        cytiq_fcs::SignalState::of(&dataset.text).is_ok_and(|state| state.unmixing.is_some());
+    if !types.unmixed.is_empty() && declared == SignalState::Raw && !unmixed_by_cytiq {
+        return Some(check(
+            CheckStatus::Fail,
+            format!(
+                "the file declares unmixed channels in `$PnTYPE` ({}), but the panel's \
+                 `signal_state` is `raw`: declare it `unmixed`",
+                quoted_names(&types.unmixed)
+            ),
+        ));
+    }
+    let mut unknown: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    for (name, value) in &types.unknown {
+        unknown.entry(value).or_default().push(name.clone());
+    }
+    (!unknown.is_empty()).then(|| {
+        check(
+            CheckStatus::Warn,
+            format!(
+                "`$PnTYPE` values FCS 3.2 does not define, which declare no layer: {}",
+                unknown
+                    .iter()
+                    .map(|(value, names)| format!("`{value}` ({})", quoted_names(names)))
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ),
         )
     })
@@ -131,6 +184,7 @@ pub(crate) fn check_file(
         )
     });
     checks.extend(check_repeated_keywords(scope, &dataset));
+    checks.extend(check_measurement_types(scope, &dataset, declared));
     (
         checks,
         LoadedFile {
