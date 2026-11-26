@@ -27,7 +27,19 @@ pub fn recover(lock: &OutputLock, destination: &Destination) -> Result<(), Publi
     let record_path = destination.record_path();
     let outputs = complete(&record_path)?;
     recovery::recover(lock)?;
-    for path in outputs.iter().chain(std::iter::once(&record_path)) {
+    discard_abandoned(outputs.iter().chain(std::iter::once(&record_path)))
+}
+
+/// Discard the staging and the backups a killed run left beside `paths`, but
+/// not beside one that another process has locked. A command with several
+/// outputs locks only the first, and knows the others once it has staged them.
+///
+/// # Errors
+/// Returns I/O errors, and a conflict when an output has several predecessors.
+pub fn discard_abandoned<'a>(
+    paths: impl IntoIterator<Item = &'a PathBuf>,
+) -> Result<(), PublishError> {
+    for path in paths {
         // Locking writes beside the path, so only when there is work to do.
         if recovery::leftovers(path)?.is_empty() {
             continue;

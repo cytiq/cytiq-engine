@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use cytiq_fcs::FcsReader;
 use cytiq_mask::{EVENT_ID_COLUMN, EventMask, KEEP_COLUMN, SOURCE_EVENT_ID_COLUMN};
-use cytiq_publish::{Existing, Publication, Staging};
+use cytiq_publish::{Existing, Prepared, Publication, Staging};
 use log::{debug, info};
 
 use crate::error::GatingError;
@@ -44,18 +44,28 @@ pub struct GatingRunResult {
 pub struct GatingRunner;
 
 impl GatingRunner {
-    /// Gate one FCS file with a `GatingML` 2.0 strategy and write per-gate counts.
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Gate one FCS file with a `GatingML` 2.0 strategy and stage per-gate
+    /// counts, and membership when asked. Nothing is published.
     ///
     /// # Errors
     ///
     /// Returns an error when the inputs cannot be read or parsed, gating
-    /// fails, or the report cannot be written.
-    pub fn run(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
-        run_inner(config)
+    /// fails, or the report cannot be staged.
+    pub fn prepare(config: &GatingConfig) -> Result<Prepared<GatingRunResult>, GatingError> {
+        prepare_inner(config)
     }
 }
 
-fn run_inner(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
+fn prepare_inner(config: &GatingConfig) -> Result<Prepared<GatingRunResult>, GatingError> {
     // Counts and membership mask appear together or not at all. Existing
     // outputs are refused before any input is read.
     let mut publication = Publication::new(Existing::overwrite(config.overwrite));
@@ -119,12 +129,13 @@ fn run_inner(config: &GatingConfig) -> Result<GatingRunResult, GatingError> {
             source_event_ids,
         )?;
     }
-    publication.commit()?;
-
-    Ok(GatingRunResult {
-        event_count: results.event_count(),
-        gates: report,
-        output: config.output.clone(),
+    Ok(Prepared {
+        summary: GatingRunResult {
+            event_count: results.event_count(),
+            gates: report,
+            output: config.output.clone(),
+        },
+        publication,
     })
 }
 

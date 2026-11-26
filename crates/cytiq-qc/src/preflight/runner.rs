@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use cytiq_manifest::{
     CompensationSource, ControlEntry, Panel, RunManifest, SampleEntry, SignalState,
 };
-use cytiq_publish::Existing;
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info};
 use serde::Serialize;
 
@@ -99,15 +99,26 @@ impl PreflightRunner {
         Ok(files)
     }
 
-    /// Check the manifest and its files and write the report, whatever the
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &PreflightConfig) -> Result<PreflightReport, PreflightError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Check the manifest and its files and stage the report, whatever the
     /// checks found; [`PreflightReport::ensure_passed`] turns failed checks
     /// into an error.
+    ///
+    /// Nothing is published.
     ///
     /// # Errors
     ///
     /// Returns an error when the output exists without `overwrite`, the
     /// manifest is invalid, or the report cannot be written.
-    pub fn run(config: &PreflightConfig) -> Result<PreflightReport, PreflightError> {
+    pub fn prepare(config: &PreflightConfig) -> Result<Prepared<PreflightReport>, PreflightError> {
         if config.output.exists() && !config.overwrite {
             return Err(PreflightError::OutputExists {
                 path: config.output.clone(),
@@ -157,12 +168,15 @@ impl PreflightRunner {
             failures: count(CheckStatus::Fail),
             checks,
         };
-        write_report(
+        let publication = stage_report(
             &config.output,
             &report,
             Existing::overwrite(config.overwrite),
         )?;
-        Ok(report)
+        Ok(Prepared {
+            summary: report,
+            publication,
+        })
     }
 }
 
@@ -357,12 +371,12 @@ fn duplicate_files(manifest: &RunManifest) -> Vec<Check> {
         .collect()
 }
 
-fn write_report(
+fn stage_report(
     path: &Path,
     report: &PreflightReport,
     existing: Existing,
-) -> Result<(), PreflightError> {
-    debug!("writing preflight report to {}", path.display());
+) -> Result<Publication, PreflightError> {
+    debug!("staging preflight report to {}", path.display());
     let write_error = |source| PreflightError::Write {
         path: path.to_path_buf(),
         source,
@@ -370,9 +384,9 @@ fn write_report(
     let mut bytes = serde_json::to_vec_pretty(report)
         .map_err(|error| write_error(std::io::Error::other(error)))?;
     bytes.push(b'\n');
-    cytiq_publish::write_file(path, existing, |writer| {
-        writer.write_all(&bytes).map_err(write_error)
-    })
+    let mut publication = Publication::new(existing);
+    publication.stage_file(path, |writer| writer.write_all(&bytes).map_err(write_error))?;
+    Ok(publication)
 }
 
 /// Sample then control FCS files of a manifest, resolved.

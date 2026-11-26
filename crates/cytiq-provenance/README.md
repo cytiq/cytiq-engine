@@ -76,6 +76,7 @@ v2 records; reuse requires v3.
 | `files_under` | Every file of an output directory, sorted, without records and `.tmp` files or directories (staged outputs and `.old.tmp` backups of `cytiq-publish`) |
 | `DirSnapshot` | `take` before a run, `published` after it: the files of a directory output the run wrote or replaced, so leftovers of earlier runs are never recorded |
 | `recovery::recover` | Under the output lock: completes a set whose renames a crash interrupted, when its staged record is whole and every output it lists is in place or staged with the recorded bytes; then `cytiq_publish::recovery::recover` for the output and its record |
+| `recovery::discard_abandoned` | Discard what a killed run left beside further outputs, unless another process has locked them; called after a successful publication |
 | `hash_file`, `hash_reader` | Streamed SHA-256 of a path (also used by `cytiq-inspect`), or of a file that is already open |
 | `outcome::OutcomeReason`, `exit_code` | The 0–4 exit contract of every `cytiq` command: `success` 0, `runtime_error` 1, `invalid_configuration` 2, `checks_failed` 3, `output_conflict`/`incomplete` 4 |
 | `OutcomeReason::of_io_kind` / `of_io` / `of_publish` | Type-independent classification: a missing path is `incomplete`, an existing one `output_conflict`, malformed or truncated data `invalid_configuration`, other I/O and staging failures `runtime_error` |

@@ -71,7 +71,15 @@ fn export(
         recorder,
         cytiq_provenance::reuse::Destination::Dir(config.output.clone())
     );
-    let product = AnalyticsRunner::run(&config)?;
+    let prepared = AnalyticsRunner::prepare(&config)?;
+    let product = prepared.summary;
+    let outcome = crate::provenance::publish(
+        recorder,
+        prepared.publication,
+        &AnalyticsRunner::outputs(&config, &product),
+        &config.record_path(),
+        OutcomeReason::Success,
+    )?;
     info!(
         "dataset export: {} table(s), {} view(s), {} label table(s) checked against \
          observations, cohort views {}; wrote {}",
@@ -85,11 +93,7 @@ fn export(
         },
         config.output.display()
     );
-    crate::provenance::record_provenance(
-        recorder,
-        &AnalyticsRunner::outputs(&config, &product),
-        &config.record_path(),
-    )
+    Ok(outcome)
 }
 
 #[derive(Debug, Serialize, Args)]
@@ -166,7 +170,8 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let report = ValidateRunner::run(&config)?;
+    let prepared = ValidateRunner::prepare(&config)?;
+    let report = prepared.summary;
     for issue in &report.issues {
         let line = format!("{:?} at `{}`: {}", issue.code, issue.pointer, issue.message);
         match issue.severity {
@@ -184,8 +189,9 @@ pub(crate) fn run(
         ReportStatus::Valid => OutcomeReason::Success,
         ReportStatus::Invalid => OutcomeReason::ChecksFailed,
     };
-    let mut outcome = crate::provenance::record_with_reason(
+    let mut outcome = crate::provenance::publish(
         recorder,
+        prepared.publication,
         std::slice::from_ref(&config.output),
         &record_path_for_file(&config.output),
         reason,

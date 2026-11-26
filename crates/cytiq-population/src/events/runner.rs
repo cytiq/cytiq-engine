@@ -8,7 +8,7 @@ use cytiq_fcs::{DeclaredTypes, FcsReadLimits, FcsReader};
 
 use cytiq_mask::parquet::ParquetReadLimits;
 use cytiq_provenance::{RunRecord, hash_file, record_path_for_dir, record_path_for_file};
-use cytiq_publish::{Existing, Publication, PublishError};
+use cytiq_publish::{Existing, Prepared, Publication, PublishError};
 
 use super::{
     BaseState, Definition, ExportOptions, ExportSummary, LayerBasis, LayerState, PARTS_FILE,
@@ -102,15 +102,24 @@ impl ExportRunner {
         }
     }
 
-    /// Export the input, refusing an existing output without `overwrite`
-    /// before any work, and publish the table or the parts directory
-    /// atomically.
+    /// [`Self::prepare`], then publish the table or the parts directory
+    /// atomically, without a provenance record.
+    ///
+    /// # Errors
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &ExportConfig) -> Result<ExportSummary> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Export the input to a staged table or parts directory, refusing an
+    /// existing output without `overwrite` before any work. Nothing is
+    /// published.
     ///
     /// # Errors
     /// Returns [`PublishError::Exists`] for an existing output, a mismatch
     /// between a supplied definition and the input's provenance record, and
     /// every error of [`export_with`].
-    pub fn run(config: &ExportConfig) -> Result<ExportSummary> {
+    pub fn prepare(config: &ExportConfig) -> Result<Prepared<ExportSummary>> {
         if config.output.exists() && !config.overwrite {
             return Err(PublishError::Exists {
                 path: config.output.clone(),
@@ -151,8 +160,10 @@ impl ExportRunner {
             })?;
             summary.ok_or_else(|| PopulationError::Invalid("export wrote nothing".into()))?
         };
-        publication.commit()?;
-        Ok(summary)
+        Ok(Prepared {
+            summary,
+            publication,
+        })
     }
 }
 

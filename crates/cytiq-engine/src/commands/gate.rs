@@ -2,13 +2,14 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cytiq_gating::{GatingConfig, GatingRunner};
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::{debug, info};
 use serde::Serialize;
 
 use crate::cli::CliGateOutputFormat;
 use crate::parsers::parse_threads;
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Args)]
 pub(crate) struct GateArgs {
@@ -75,9 +76,17 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let result = GatingRunner::run(&config)?;
+    let prepared = GatingRunner::prepare(&config)?;
+    let result = prepared.summary;
     let mut outputs = vec![config.output.clone()];
     outputs.extend(config.membership.clone());
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &outputs,
+        &record_path_for_file(&config.output),
+        OutcomeReason::Success,
+    )?;
     for gate in &result.gates {
         debug!(
             "gate `{}`: {} event(s), {:.2}% of parent",
@@ -90,5 +99,5 @@ pub(crate) fn run(
         result.event_count,
         result.output.display()
     );
-    record_provenance(recorder, &outputs, &record_path_for_file(&config.output))
+    Ok(outcome)
 }

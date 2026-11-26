@@ -10,11 +10,12 @@ use cytiq_population::events::{
 use cytiq_population::labels::{
     ClusterModel, ExportLabelsConfig, GatingDefinition, LabelKind, LabelSettings, LabelsRunner,
 };
+use cytiq_provenance::outcome::OutcomeReason;
 use log::info;
 use serde::Serialize;
 
 use crate::parsers::{parse_byte_size, parse_channels, parse_positive_usize};
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Debug, Serialize, Subcommand)]
 pub(crate) enum ExportCommand {
@@ -314,7 +315,15 @@ fn labels(
         recorder,
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     );
-    let written = LabelsRunner::run(&config)?;
+    let prepared = LabelsRunner::prepare(&config)?;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        std::slice::from_ref(&config.output),
+        &config.record_path(),
+        OutcomeReason::Success,
+    )?;
+    let written = prepared.summary;
     let states = written
         .summary
         .states
@@ -334,11 +343,7 @@ fn labels(
             .map_or_else(String::new, |id| format!(", definition {id}")),
         config.output.display()
     );
-    record_provenance(
-        recorder,
-        std::slice::from_ref(&config.output),
-        &config.record_path(),
-    )
+    Ok(outcome)
 }
 
 pub(crate) fn run(
@@ -366,7 +371,15 @@ pub(crate) fn run(
         cytiq_provenance::reuse::Destination::File(config.output.clone())
     };
     let recorder = crate::provenance::begin!(recorder, destination);
-    let summary = ExportRunner::run(&config)?;
+    let prepared = ExportRunner::prepare(&config)?;
+    let summary = prepared.summary;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        &ExportRunner::outputs(&config, &summary),
+        &config.record_path(),
+        OutcomeReason::Success,
+    )?;
     info!(
         "exported {} event(s) of acquisition {} as a {} layer ({} of {} channel(s), layer {}) \
          into {} table(s); wrote {}",
@@ -379,9 +392,5 @@ pub(crate) fn run(
         summary.parts.as_ref().map_or(1, |parts| parts.parts.len()),
         config.output.display()
     );
-    record_provenance(
-        recorder,
-        &ExportRunner::outputs(&config, &summary),
-        &config.record_path(),
-    )
+    Ok(outcome)
 }
