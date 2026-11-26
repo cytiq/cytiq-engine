@@ -35,6 +35,7 @@ cytiq-publish.workspace = true
 cytiq-population.workspace = true
 cytiq-specimen.workspace = true
 cytiq-qc = { workspace = true, features = ["preflight"] }
+cytiq-repair.workspace = true
 cytiq-spillqc.workspace = true
 cytiq-transform.workspace = true
 log.workspace = true

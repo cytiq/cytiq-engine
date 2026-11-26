@@ -203,6 +203,92 @@ fn missing_invalid_and_existing_are_classified() {
     assert_eq!(cytiq(&args).status.code(), Some(4));
 }
 
+/// `from` and everything under it, copied to `to`.
+#[cfg(unix)]
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let path = entry.unwrap().path();
+        let target = to.join(path.file_name().unwrap());
+        if path.is_dir() {
+            copy_tree(&path, &target);
+        } else {
+            std::fs::copy(&path, &target).unwrap();
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn objects_are_not_read_through_a_link_out_of_the_root() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("dataset");
+    copy_tree(&fixture("dataset/reference"), &root);
+    let output = directory.path().join("product");
+    let report = directory.path().join("report.json");
+    let outside = directory.path().join("outside.parquet");
+    let labels = root.join("labels/M/S12-M.gates.parquet");
+    std::fs::rename(&labels, &outside).unwrap();
+    std::os::unix::fs::symlink(&outside, &labels).unwrap();
+    // From the root, so that the default root is the empty path.
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_cytiq"))
+            .current_dir(&root)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let export = [
+        "dataset",
+        "export",
+        "--manifest",
+        "manifest.json",
+        "--output",
+    ];
+    let refused = run(&[&export[..], &[text(&output)]].concat());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert_eq!(refused.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("symbolic link"), "{stderr}");
+    assert!(!output.exists());
+
+    let validate = [
+        "dataset",
+        "validate",
+        "--manifest",
+        "manifest.json",
+        "--verify-objects",
+    ];
+    let invalid = run(&[&validate[..], &["--output", text(&report)]].concat());
+    assert_eq!(invalid.status.code(), Some(3));
+    let document: Value = serde_json::from_slice(&std::fs::read(&report).unwrap()).unwrap();
+    let issues = document["issues"].as_array().unwrap();
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue["code"] == "invalid_reference"
+                && issue["message"].as_str().unwrap().contains("symbolic link"))
+    );
+    // The record names what was read, and the link's target was not.
+    let record = cytiq_provenance::record_path_for_file(&report);
+    let record: Value = serde_json::from_slice(&std::fs::read(record).unwrap()).unwrap();
+    let inputs = record["inputs"].as_array().unwrap();
+    assert!(inputs.len() > 1);
+    assert!(
+        !inputs
+            .iter()
+            .any(|input| input["path"].as_str().unwrap().contains("S12-M.gates"))
+    );
+
+    std::fs::remove_file(&labels).unwrap();
+    std::fs::rename(&outside, &labels).unwrap();
+    let accepted = run(&[&export[..], &[text(&output)]].concat());
+    assert!(
+        accepted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&accepted.stderr)
+    );
+}
+
 fn digest(path: &Path) -> String {
     KnowledgeArtifact::load(path).unwrap().sha256().into()
 }

@@ -1,0 +1,26 @@
+# Fuzz target for the repair plan. Excluded from the workspace: it needs
+# cargo-fuzz and a nightly toolchain (`just fuzz cytiq-repair repair_plan`).
+[package]
+name = "cytiq-repair-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+cytiq-fcs = { path = "../../cytiq-fcs" }
+cytiq-repair = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "repair_plan"
+path = "fuzz_targets/repair_plan.rs"
+test = false
+doc = false
+bench = false
+
+# Not part of the parent workspace.
+[workspace]
+members = ["."]

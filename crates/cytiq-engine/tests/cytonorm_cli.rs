@@ -20,6 +20,25 @@ fn success(output: &Output) {
     );
 }
 
+/// A normalized file is never a raw layer of its acquisition.
+fn assert_never_raw(root: &Path, file: &str) {
+    let raw = run(
+        &[
+            "export",
+            "events",
+            "--input",
+            file,
+            "--output",
+            "raw.parquet",
+            "--layer",
+            "raw",
+        ],
+        root,
+    );
+    assert_eq!(raw.status.code(), Some(2));
+    assert!(!root.join("raw.parquet").exists());
+}
+
 #[test]
 fn trains_applies_and_records_all_artifacts_and_original_acquisition() {
     let temp = tempfile::tempdir().unwrap();
@@ -110,6 +129,7 @@ fn trains_applies_and_records_all_artifacts_and_original_acquisition() {
         .success()
     );
     assert!(!root.join("bad.fcs").exists());
+    assert_never_raw(root, "sample.norm.fcs");
 }
 
 #[test]

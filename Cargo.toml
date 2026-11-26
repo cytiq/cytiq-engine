@@ -22,6 +22,7 @@ members = [
     "crates/cytiq-specimen",
     "crates/cytiq-publish",
     "crates/cytiq-qc",
+    "crates/cytiq-repair",
     "crates/cytiq-spillqc",
     "crates/cytiq-transform",
 ]
@@ -60,6 +61,7 @@ cytiq-population = { path = "crates/cytiq-population", version = "0.5.0" }
 cytiq-specimen = { path = "crates/cytiq-specimen", version = "0.5.0" }
 cytiq-publish = { path = "crates/cytiq-publish", version = "0.5.0" }
 cytiq-qc = { path = "crates/cytiq-qc", version = "0.5.0" }
+cytiq-repair = { path = "crates/cytiq-repair", version = "0.5.0" }
 cytiq-spillqc = { path = "crates/cytiq-spillqc", version = "0.5.0" }
 cytiq-transform = { path = "crates/cytiq-transform", version = "0.5.0" }
 
@@ -78,6 +80,7 @@ plotly = "0.14.1"
 proptest = "1.12.0"
 rayon = "1.10.0"
 roxmltree = "0.21.1"
+rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
 ryu = "1.0.23"
 serde = { version = "1.0.228", features = ["derive"] }
 serde-saphyr = "2.0.0"

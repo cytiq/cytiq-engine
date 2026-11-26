@@ -19,6 +19,7 @@ const TIGHT_LIMITS: FcsReadLimits = FcsReadLimits {
 pub fn read_fcs(bytes: &[u8]) {
     let read = FcsReader::new(Cursor::new(bytes)).read();
     if let Ok(dataset) = &read {
+        check_keywords(dataset);
         let events = dataset.event_count();
         assert_eq!(dataset.data.columns.len(), dataset.parameters.len());
         assert!(
@@ -41,6 +42,26 @@ pub fn read_fcs(bytes: &[u8]) {
         (Err(limited), Err(error)) => assert_eq!(limited.to_string(), error.to_string()),
     }
     stream_matches_read(bytes, &read);
+}
+
+/// A keyword either has one value or is quarantined, and nothing the engine
+/// reads is ever quarantined.
+fn check_keywords(dataset: &FcsDataset) {
+    let text = &dataset.text;
+    for key in text.quarantined() {
+        assert!(!cytiq_fcs::is_engine_keyword(key), "{key}");
+        assert_eq!(text.get(key), None, "{key}");
+        assert!(text.iter().all(|(name, _)| !name.eq_ignore_ascii_case(key)));
+        let written = |(name, _): &(&str, &str)| name.eq_ignore_ascii_case(key);
+        assert!(text.pairs().filter(written).count() > 1, "{key}");
+    }
+    let mut seen = std::collections::HashSet::new();
+    for (key, value) in text.iter() {
+        assert!(seen.insert(key.to_ascii_uppercase()), "{key} repeats");
+        assert_eq!(text.get(key), Some(value), "{key}");
+    }
+    let hidden = text.pairs().count() - text.iter().count();
+    assert!(hidden >= 2 * text.quarantined().count());
 }
 
 fn stream_matches_read(bytes: &[u8], read: &Result<FcsDataset, Error>) {

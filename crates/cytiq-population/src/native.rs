@@ -31,9 +31,22 @@ pub(crate) fn open_table_with_limits(
     Ok(ScalarParquetReader::new(File::open(path)?, limits)?)
 }
 
+/// [`open_table`] on a table that is already open.
+pub(crate) fn table(file: File) -> Result<ScalarParquetReader<File>> {
+    Ok(ScalarParquetReader::new(
+        file,
+        ParquetReadLimits::default(),
+    )?)
+}
+
 /// A producer's v3 (or readable v2) provenance record.
 pub(crate) fn producer_record(path: &Path) -> Result<RunRecord> {
-    let record: RunRecord = serde_json::from_value(serialization::read(path)?)?;
+    producer_record_from(File::open(path)?, path)
+}
+
+/// [`producer_record`] from an open record; `name` is its location.
+pub(crate) fn producer_record_from(file: File, name: &Path) -> Result<RunRecord> {
+    let record: RunRecord = serde_json::from_value(serialization::read_from(file, name)?)?;
     require(
         (cytiq_provenance::MIN_READ_SCHEMA_VERSION..=cytiq_provenance::SCHEMA_VERSION)
             .contains(&record.schema_version),
