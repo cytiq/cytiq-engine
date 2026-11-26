@@ -19,6 +19,7 @@ pub(crate) mod plot;
 pub(crate) mod population;
 pub(crate) mod preflight;
 pub(crate) mod qc;
+pub(crate) mod repair;
 pub(crate) mod specimen;
 pub(crate) mod spillqc;
 pub(crate) mod stats;

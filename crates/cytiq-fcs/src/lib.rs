@@ -6,6 +6,7 @@ mod error;
 mod header;
 #[cfg(feature = "inputs")]
 pub mod inputs;
+mod keywords;
 mod layout;
 mod limits;
 mod lineage;
@@ -41,6 +42,7 @@ pub use crate::compensation::{
     is_spillover_keyword,
 };
 pub use crate::error::FcsError as Error;
+pub use crate::keywords::is_engine_keyword;
 pub use crate::limits::FcsReadLimits;
 pub use crate::lineage::{ORIGINAL_ID_PARAMETER, source_event_ids};
 pub use crate::linear::{ensure_linear_scale, linear_values, log_amplified_parameters};

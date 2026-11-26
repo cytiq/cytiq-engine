@@ -50,6 +50,7 @@ pub(super) fn known(error: &(dyn Error + 'static)) -> Option<OutcomeReason> {
         cytiq_flowsom::FlowSomError => flowsom,
         cytiq_gating::GatingError => gating,
         cytiq_inspect::meta::MetaError => meta,
+        cytiq_repair::RepairError => repair,
         cytiq_peacoqc::PeacoQcError => peacoqc,
         cytiq_plot::PlotError => plot,
         cytiq_qc::preflight::PreflightError => preflight,
@@ -244,6 +245,16 @@ fn meta(error: &cytiq_inspect::meta::MetaError) -> OutcomeReason {
         E::FcsRead { source, .. } => fcs(source),
         E::Hash { source, .. } | E::OutputWrite { source, .. } => io(source),
         E::OutputExists { .. } => CONFLICT,
+        E::Serialize(source) => json(source, RUNTIME),
+    }
+}
+
+fn repair(error: &cytiq_repair::RepairError) -> OutcomeReason {
+    use cytiq_repair::RepairError as E;
+    match error {
+        E::MissingInput { .. } => MISSING,
+        E::Read { source, .. } | E::Write(source) => io(source),
+        E::Refused { .. } => INVALID,
         E::Serialize(source) => json(source, RUNTIME),
     }
 }

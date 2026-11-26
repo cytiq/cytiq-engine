@@ -707,3 +707,145 @@ fn writes_and_reads_dataset_over_100mb() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+type Pairs<'a> = Vec<(&'a str, &'a str)>;
+
+/// A one-parameter file whose TEXT also holds `extra`, and `supplemental` in a
+/// supplemental TEXT segment.
+fn read_with_keywords(
+    extra: &[(&str, &str)],
+    supplemental: Option<Pairs<'_>>,
+) -> Result<cytiq_fcs::FcsDataset, FcsError> {
+    let mut pairs = vec![
+        ("$BYTEORD", "1,2,3,4"),
+        ("$DATATYPE", "I"),
+        ("$MODE", "L"),
+        ("$NEXTDATA", "00000000"),
+        ("$PAR", "1"),
+        ("$TOT", "1"),
+        ("$P1B", "16"),
+        ("$P1E", "0,0"),
+        ("$P1N", "FL1-A"),
+        ("$P1R", "1024"),
+    ];
+    pairs.extend_from_slice(extra);
+    let bytes = build_fcs(
+        "FCS3.1",
+        pairs,
+        supplemental,
+        encode_u16_rows(&[[42]], true),
+        None,
+    );
+    FcsReader::new(std::io::Cursor::new(bytes)).read()
+}
+
+#[test]
+fn a_repeated_vendor_keyword_has_no_value_and_keeps_its_pairs() {
+    let cases: [(Pairs<'_>, Option<Pairs<'_>>); 4] = [
+        // As the cross-platform T-cell tubes hold it, and all alike.
+        (
+            vec![("NA", "empty"), ("NA", "CD3-AA750-A"), ("NA", "x")],
+            None,
+        ),
+        (vec![("NA", "empty"), ("NA", "empty")], None),
+        // Keywords are case-insensitive.
+        (vec![("NA", "a"), ("na", "b"), ("Na", "c")], None),
+        (vec![("NA", "a")], Some(vec![("NA", "b")])),
+    ];
+    for (extra, supplemental) in cases {
+        let count = extra.len() + supplemental.as_ref().map_or(0, Vec::len);
+        let dataset = read_with_keywords(&extra, supplemental).unwrap();
+        for key in ["NA", "na"] {
+            assert_eq!(dataset.text.get(key), None, "neither first nor last");
+        }
+        let visible = |key: &str| {
+            dataset
+                .text
+                .iter()
+                .filter(|(found, _)| found.eq_ignore_ascii_case(key))
+                .count()
+        };
+        assert_eq!(visible("NA"), 0, "no lookup finds it");
+        assert_eq!(visible("$P1N"), 1);
+        let kept = dataset
+            .text
+            .pairs()
+            .filter(|(key, _)| key.eq_ignore_ascii_case("NA"))
+            .count();
+        assert_eq!(kept, count, "TEXT is kept as written");
+        assert_eq!(dataset.text.quarantined().collect::<Vec<_>>(), ["NA"]);
+        assert!(
+            cytiq_fcs::carried_keywords(&dataset.text)
+                .iter()
+                .all(|(key, _)| !key.eq_ignore_ascii_case("NA")),
+            "a derived file does not inherit it"
+        );
+        assert_eq!(dataset.data.column(0), Some(&ColumnData::UInt(vec![42])));
+    }
+    let clean = read_with_keywords(&[("NA", "empty")], None).unwrap();
+    assert_eq!(clean.text.get("NA"), Some("empty"));
+    assert_eq!(clean.text.quarantined().count(), 0);
+}
+
+#[test]
+fn a_repeated_keyword_the_engine_reads_is_refused() {
+    for key in [
+        "$CYT",
+        "$SPILLOVER",
+        "$VENDORONLY",
+        "SPILL",
+        "SPILLOVER",
+        "CYTIQ_ACQUISITION",
+        "CYTIQ_ANYTHING",
+        "flowCore_$P1Rmax",
+        "transformation",
+        "minRange",
+        "maxRange",
+        "CYT",
+        "OriginalInstrument",
+        "P1G",
+    ] {
+        // In TEXT, with equal values, by case, and through supplemental TEXT.
+        let lower = key.to_ascii_lowercase();
+        for (extra, supplemental) in [
+            (vec![(key, "1"), (key, "2")], None),
+            (vec![(key, "1"), (key, "1")], None),
+            (vec![(key, "1"), (lower.as_str(), "2")], None),
+            (vec![(key, "1")], Some(vec![(key, "2")])),
+        ] {
+            let error = read_with_keywords(&extra, supplemental).unwrap_err();
+            assert!(
+                matches!(&error, FcsError::DuplicateKeyword(found)
+                    if found.eq_ignore_ascii_case(key)),
+                "{key}: {error}"
+            );
+        }
+    }
+    // A layout keyword in supplemental TEXT repeats the primary one.
+    let error = read_with_keywords(&[], Some(vec![("$TOT", "9")])).unwrap_err();
+    assert!(matches!(error, FcsError::DuplicateKeyword(_)), "{error}");
+}
+
+#[test]
+fn several_keywords_can_be_quarantined_and_the_stream_agrees() {
+    let dataset = read_with_keywords(
+        &[
+            ("NA", "1"),
+            ("FJ_X", "1"),
+            ("NA", "2"),
+            ("Plain", "kept"),
+            ("fj_x", "1"),
+        ],
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        dataset.text.quarantined().collect::<Vec<_>>(),
+        ["FJ_X", "NA"]
+    );
+    assert_eq!(dataset.text.get("plain"), Some("kept"));
+    assert_eq!(
+        dataset.text.pairs().count(),
+        dataset.text.iter().count() + 4
+    );
+}
