@@ -78,6 +78,13 @@ impl CompensateRunner {
         // `$SPILLOVER`, which would otherwise be the reported problem.
         let state = SignalState::of(&dataset.text).map_err(read_error)?;
         ensure_uncompensated(input, &state)?;
+        let components = cytiq_fcs::DeclaredTypes::of(&dataset.parameters).unmixed;
+        if !components.is_empty() {
+            return Err(CompensateError::UnmixedInput {
+                path: input.clone(),
+                components,
+            });
+        }
         let matrix = match &config.matrix {
             Some((path, kind)) => read_matrix_file(path, *kind)?,
             None => CompensationMatrix::from_dataset(input, &dataset)?,

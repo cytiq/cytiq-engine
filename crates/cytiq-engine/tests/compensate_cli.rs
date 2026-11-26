@@ -470,6 +470,30 @@ fn non_finite_output_publishes_neither_fcs_mask_nor_provenance() {
 }
 
 #[test]
+fn refuses_declared_unmixed_channels_before_applying_a_matrix() {
+    let directory = create_temp_dir("cytiq-engine-compensate-declared-unmixed");
+    let input = directory.join("sample.fcs");
+    cytiq_fcs::write_fcs3_1_exact_with_options(
+        &input,
+        &[cytiq_fcs::FcsWriteParameter::new("A").with_keyword("TYPE", "Unmixed_Fluorescence")],
+        &[vec![2.0, 4.0]],
+        &cytiq_fcs::FcsWriteOptions::new().with_text_keyword("$SPILL", "1,A,1"),
+    )
+    .unwrap();
+    let path = directory.join("result.fcs");
+    let output = cytiq(&[
+        "compensate",
+        "--input",
+        utf8(&input),
+        "--output",
+        utf8(&path),
+    ]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("spectrally unmixed"));
+    assert!(!path.exists());
+}
+
+#[test]
 fn refuses_to_compensate_unmixed_input() {
     let directory = create_temp_dir("cytiq-engine-compensate-unmixed");
     let input = directory.join("sample.unmixed.fcs");
