@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
 
 use crate::error::FcsError;
-use crate::types::{ByteRange, FcsText, TextSegment};
+use crate::types::{ByteRange, FcsText, Keywords, TextSegment};
 
 pub(crate) fn read_text_segment<R: Read + Seek>(
     reader: &mut R,
@@ -45,17 +44,17 @@ pub(crate) fn build_text(
     primary: TextSegment,
     supplemental: Option<TextSegment>,
 ) -> Result<FcsText, FcsError> {
-    let mut lookup = HashMap::new();
+    let mut keywords = Keywords::default();
     for (key, value) in &primary.pairs {
-        FcsText::insert_lookup(&mut lookup, key, value)?;
+        keywords.insert(key, value)?;
     }
     if let Some(segment) = &supplemental {
         for (key, value) in &segment.pairs {
-            FcsText::insert_lookup(&mut lookup, key, value)?;
+            keywords.insert(key, value)?;
         }
     }
 
-    Ok(FcsText::new(primary, supplemental, lookup))
+    Ok(FcsText::new(primary, supplemental, keywords))
 }
 
 pub(crate) fn parse_segment_range(

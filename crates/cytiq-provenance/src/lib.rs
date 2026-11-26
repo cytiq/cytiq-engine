@@ -313,6 +313,27 @@ impl RunRecorder {
         self.constants = to_value(constants);
     }
 
+    /// The snapshotted inputs: where each is, and what it was.
+    pub fn inputs(&self) -> impl Iterator<Item = (&Path, &FileRecord)> {
+        self.inputs
+            .iter()
+            .map(|input| (input.path.as_path(), &input.record))
+    }
+
+    /// Record what the command established about its inputs before it ran, as
+    /// `constants.input_facts.<name>`. The v3 record has no other free field,
+    /// and its readers refuse unknown ones.
+    pub fn set_input_facts(&mut self, name: &str, facts: serde_json::Value) {
+        if self.constants.is_null() {
+            self.constants = serde_json::json!({});
+        }
+        if let Some(constants) = self.constants.as_object_mut() {
+            constants
+                .entry("input_facts")
+                .or_insert_with(|| serde_json::json!({}))[name] = facts;
+        }
+    }
+
     /// Record the upstream implementations the algorithms port.
     pub fn set_algorithms(&mut self, algorithms: &[(&str, &str)]) {
         self.algorithms = algorithms

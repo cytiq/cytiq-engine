@@ -31,10 +31,18 @@ Legacy flowCore/PeacoQC thresholds remain explicitly separate. Invalid bounds,
 non-finite detector values and invalid channel indices return errors.
 
 The reader is strict by design: anything that does not match the spec is an
-error rather than a best-effort guess (duplicate keywords, HEADER/TEXT offset
+error rather than a best-effort guess (repeated keywords, HEADER/TEXT offset
 mismatch, non-UTF-8 TEXT, unsupported `$MODE`/`$BYTEORD`/widths, DATA length
 mismatch). A file with more than one data set (`$NEXTDATA` other than 0) is
 refused too: reading only the first would silently drop the others' events.
+
+Keywords are unique in a data set (FCS 3.1, 2.2.5), so a repeated keyword has no
+value, whatever its values are. A file that repeats one the standard or cytiq
+reads (`is_engine_keyword`: every `$` keyword, `SPILL`, `CYTIQ_*`, `flowCore_*`
+and a few more) is refused. Any other is quarantined: `Text::get` and
+`Text::iter` do not return it, so neither its first nor its last value is ever
+used, and no file cytiq writes keeps it. `Text::pairs` still shows every pair as
+written, and `Text::quarantined` names the keywords.
 
 It also never lets a size declared in the file drive an allocation or a loop
 before that size is checked. Every segment is checked against the file length
