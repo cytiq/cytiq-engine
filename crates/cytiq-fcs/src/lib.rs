@@ -40,8 +40,8 @@ pub use crate::acquisition::{
 };
 pub use crate::channels::{is_scatter_channel, parse_channel_list};
 pub use crate::compensation::{
-    Spillover, compensate, condition_number_1, find_parameter_index, invert_matrix,
-    is_spillover_keyword,
+    Spillover, compensate, condition_number_1, condition_number_inf, find_parameter_index,
+    invert_matrix, is_spillover_keyword,
 };
 pub use crate::error::FcsError as Error;
 pub use crate::keywords::is_engine_keyword;

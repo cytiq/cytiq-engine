@@ -28,8 +28,8 @@ metadata without assigning fluorescence spillover or spectral control coverage.
 | `linear_scale` | every file | a control, or a sample `cytiq compensate` does not process (spectral, or declared compensated), has a log-amplified parameter (`$PnE` other than `0,0`): the stages that read it refuse it | a raw sample of a conventional panel has one: `cytiq compensate` writes it linear, the other stages refuse it raw |
 | `panel_marker` | samples | a required marker matches no channel, or several | an optional marker is missing; `channel`'s `$PnS` names another marker |
 | `unique_labels` | samples | | two channels share a `$PnS` |
-| `spillover` | raw samples of a conventional panel with `source: fcs` (the default) | no, invalid, mismatched or singular spillover matrix | its 1-norm condition number exceeds `SPILLOVER_CONDITION_WARN` (100) |
-| `compensation_matrix` | conventional panel with `source: matrix` | the file cannot be read, is not square or is singular | its 1-norm condition number exceeds `SPILLOVER_CONDITION_WARN` |
+| `spillover` | raw samples of a conventional panel with `source: fcs` (the default) | no, invalid, mismatched or singular spillover matrix | its infinity-norm condition number for row-vector compensation exceeds `SPILLOVER_CONDITION_WARN` (100) |
+| `compensation_matrix` | conventional panel with `source: matrix` | the file cannot be read, is not square or is singular | its infinity-norm condition number for row-vector compensation exceeds `SPILLOVER_CONDITION_WARN` |
 | `compensation_channels` | samples of that panel | a matrix channel is not in the file | |
 | `control_coverage` | conventional panel with `source: controls`; spectral panels of raw samples | `source: controls` and a marker channel has no single-stain control with that `primary_channel` | a spectral marker channel has no control, or a control without `primary_channel` makes coverage unknown |
 | `control_dyes` | panels with controls | two controls of the panel share a dye | |
