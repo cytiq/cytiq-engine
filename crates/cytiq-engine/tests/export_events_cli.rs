@@ -183,6 +183,76 @@ fn compensated_and_transformed_layers_chain_on_one_acquisition() {
     assert_eq!(roles, ["input", "producer_provenance"]);
 }
 
+/// `dataset validate` requires the source of a raw layer of every event to be
+/// the acquisition itself. No command may derive such a layer from another
+/// file: each records a step, or marks its rows as a subset. `cytonorm apply`
+/// and `autospectral` say the same in their own tests.
+#[test]
+fn no_command_derives_a_raw_layer_of_every_event() {
+    let directory = create_temp_dir("cytiq-events-derived");
+    let input = fixture("flowcyt", "Case12_P.fcs");
+    let compensated = directory.join("case12.comp.fcs");
+    let transformed = directory.join("case12.trans.fcs");
+    succeed(&[
+        "compensate",
+        "--input",
+        utf8(&input),
+        "--output",
+        utf8(&compensated),
+    ]);
+    succeed(&[
+        "transform",
+        "--input",
+        utf8(&compensated),
+        "--output",
+        utf8(&transformed),
+    ]);
+    for derived in [&compensated, &transformed] {
+        let output = directory.join("layer.parquet");
+        let refused = export(derived, &output, "raw", &["--allow-subset"]);
+        assert_eq!(refused.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("not a raw one"));
+    }
+
+    // PeacoQC keeps the values, so its layer is raw, but its rows name the
+    // raw events they came from even when it removed none.
+    let raw = directory.join("raw.fcs");
+    let cleaned = directory.join("cleaned.fcs");
+    let time: Vec<f32> = (0..4_000_u16).map(f32::from).collect();
+    let signal: Vec<f32> = (0..4_000_u16).map(|i| 500.0 + f32::from(i % 97)).collect();
+    cytiq_fcs::write_fcs3_1_f32(
+        &raw,
+        &[
+            cytiq_fcs::FcsWriteParameter::new("Time"),
+            cytiq_fcs::FcsWriteParameter::new("FL1-A"),
+        ],
+        &[time, signal],
+    )
+    .unwrap();
+    succeed(&[
+        "peacoqc",
+        "--input",
+        utf8(&raw),
+        "--output",
+        utf8(&cleaned),
+        "--channels",
+        "FL1-A",
+    ]);
+    let output = directory.join("cleaned.parquet");
+    assert_eq!(export(&cleaned, &output, "raw", &[]).status.code(), Some(2));
+    let exported = export(&cleaned, &output, "raw", &["--allow-subset"]);
+    assert_eq!(
+        exported.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let summary = verified(&output);
+    assert_eq!(summary.raw_events, None);
+    assert_eq!(summary.descriptor.acquisition_id, common::sha256_hex(&raw));
+    assert_eq!(summary.source_sha256, common::sha256_hex(&cleaned));
+}
+
 fn write_matrix(path: &Path, spillover: &cytiq_fcs::Spillover, scale: f64) {
     let channels = spillover.channels();
     let mut text = format!("channel,{}\n", channels.join(","));
