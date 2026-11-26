@@ -22,6 +22,7 @@ metadata without assigning fluorescence spillover or spectral control coverage.
 | `events` | every file | the file has no events | |
 | `raw_signal` | every file, by its panel's `signal_state`; controls, always as `raw` | the processing cytiq recorded (`CYTIQ_*` keywords) does not fit the declared state: any for `raw`; anything but `cytiq compensate` for `compensated`, anything but `cytiq autospectral` for `unmixed`; `cytiq transform` always; or a `CYTIQ_*` keyword cannot be read | |
 | `acquisition_metadata` | every file | | `$CYT` or `$DATE` is missing |
+| `repeated_keywords` | every file | | TEXT repeats a keyword without `$` that cytiq does not read (case ignored): cytiq reads none of its values, and no file it writes keeps it |
 | `signal_state` | samples, by their panel's `signal_state`; controls, always as `raw` | `raw`: `Comp-<detector>` channels without the detector; `compensated`: the file carries `$SPILLOVER`/`$SPILL`, which stages would apply again | `raw`: `Comp-<detector>` channels next to their detectors; `unmixed`: the file carries a spillover keyword |
 | `linear_scale` | every file | a control, or a sample `cytiq compensate` does not process (spectral, or declared compensated), has a log-amplified parameter (`$PnE` other than `0,0`): the stages that read it refuse it | a raw sample of a conventional panel has one: `cytiq compensate` writes it linear, the other stages refuse it raw |
 | `panel_marker` | samples | a required marker matches no channel, or several | an optional marker is missing; `channel`'s `$PnS` names another marker |
