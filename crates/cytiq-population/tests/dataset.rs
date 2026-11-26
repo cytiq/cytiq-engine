@@ -490,6 +490,26 @@ fn dataset_ids_are_reproducible_from_canonical_json() {
     let _: PathBuf = built.root.path().to_path_buf();
 }
 
+/// An empty optional section is an absent one, for the dataset id too.
+#[test]
+fn explicit_empty_sections_do_not_change_the_dataset_id() {
+    let built = build();
+    let mut document = serde_json::to_value(&built.manifest).unwrap();
+    let sections = document.as_object_mut().unwrap();
+    for section in ["controls", "knowledge"] {
+        assert!(!sections.contains_key(section), "{section}");
+        sections.insert(section.into(), serde_json::json!([]));
+    }
+    let mut issues = Issues::new();
+    let parsed = dataset::parse(
+        document.to_string().as_bytes(),
+        DocumentFormat::Json,
+        &mut issues,
+    )
+    .unwrap();
+    assert_eq!(parsed.dataset_id(), built.manifest.dataset_id());
+}
+
 #[test]
 fn layers_split_into_parts_validate_like_one_table() {
     let whole = build();

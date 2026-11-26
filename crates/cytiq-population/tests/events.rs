@@ -667,6 +667,49 @@ fn tampered_tables_are_reported_by_code() {
     });
 }
 
+/// A dictionary that contradicts the table is corrupt; one in another order is
+/// an order problem.
+#[test]
+fn an_edited_channel_dictionary_is_corrupt() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = standard(directory.path(), &[]);
+    let (output, _) = export(&input, &ExportOptions::default());
+    let tampered = directory.path().join("t.parquet");
+    let codes = |change: &dyn Fn(&mut Vec<serde_json::Value>)| {
+        rewrite(
+            &output,
+            &tampered,
+            Compression::UNCOMPRESSED,
+            |_, metadata| {
+                for kv in metadata
+                    .iter_mut()
+                    .filter(|kv| kv.key == events::CHANNELS_KEY)
+                {
+                    let mut entries: Vec<serde_json::Value> =
+                        serde_json::from_str(kv.value.as_deref().unwrap()).unwrap();
+                    change(&mut entries);
+                    kv.value = Some(serde_json::to_string(&entries).unwrap());
+                }
+            },
+        );
+        errors(&verify(&tampered).1)
+    };
+    let corrupt = [IssueCode::CorruptArtifactHash].into();
+    assert_eq!(codes(&|_| {}), [].into(), "the rewrite itself is fine");
+    assert_eq!(codes(&|entries| entries[0]["bits"] = "16".into()), corrupt);
+    assert_eq!(
+        codes(&|entries| entries[0]["label"] = "another".into()),
+        corrupt
+    );
+    assert_eq!(
+        codes(&|entries| entries[0]["value_type"] = "float64".into()),
+        corrupt
+    );
+    // Without its entries nothing says what the columns are.
+    assert!(codes(&Vec::clear).contains(&IssueCode::CorruptArtifactHash));
+    assert!(codes(&|entries| entries.swap(0, 1)).contains(&IssueCode::InconsistentChannelOrder));
+}
+
 #[test]
 fn files_that_are_not_events_tables_are_unsupported() {
     let directory = tempfile::tempdir().unwrap();
