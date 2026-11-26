@@ -23,13 +23,25 @@ pub const ACQUISITION_KEYWORD: &str = "CYTIQ_ACQUISITION";
 /// Returns an error when the recorded value is not a lowercase hex SHA-256 or
 /// the file cannot be read.
 pub fn acquisition_id(path: &Path, text: &FcsText) -> Result<String, FcsError> {
+    match recorded_acquisition(text)? {
+        Some(id) => Ok(id.to_owned()),
+        None => sha256_file(path).map_err(FcsError::Io),
+    }
+}
+
+/// The acquisition the file records in `CYTIQ_ACQUISITION`; `None` for a file
+/// that is itself the acquisition.
+///
+/// # Errors
+///
+/// Returns an error when the recorded value is not a lowercase hex SHA-256.
+pub fn recorded_acquisition(text: &FcsText) -> Result<Option<&str>, FcsError> {
     match text.get(ACQUISITION_KEYWORD) {
-        Some(value) if is_sha256(value) => Ok(value.to_owned()),
-        Some(value) => Err(FcsError::InvalidKeywordValue {
+        Some(value) if !is_sha256(value) => Err(FcsError::InvalidKeywordValue {
             key: ACQUISITION_KEYWORD.to_owned(),
             value: value.to_owned(),
         }),
-        None => sha256_file(path).map_err(FcsError::Io),
+        recorded => Ok(recorded),
     }
 }
 

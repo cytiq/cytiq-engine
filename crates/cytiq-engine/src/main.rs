@@ -100,6 +100,7 @@ fn run(
         Commands::Preflight(args) => commands::preflight::run(args, recorder),
         Commands::Qc(args) => commands::qc::run(args, recorder),
         Commands::Meta(args) => commands::meta::run(args, recorder),
+        Commands::Repair(args) => commands::repair::run(&args),
         Commands::Spillqc(args) => commands::spillqc::run(&args, recorder),
         Commands::Stats(args) => commands::stats::run(args, recorder),
         Commands::Clean(args) => commands::clean::run(args, recorder),
