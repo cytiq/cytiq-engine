@@ -10,6 +10,7 @@ use cytiq_fcs::FcsDataset;
 use cytiq_publish::{Existing, Publication};
 use log::debug;
 use parquet::arrow::ArrowWriter;
+use parquet::errors::ParquetError;
 use parquet::file::metadata::KeyValue;
 use parquet::file::properties::WriterProperties;
 
@@ -136,9 +137,9 @@ impl EventMask {
     ) -> Result<(), MaskError> {
         self.validate()?;
         debug!("writing event mask to {}", path.display());
-        let parquet_error = |message: String| MaskError::Parquet {
+        let parquet_error = |source: ParquetError| MaskError::Parquet {
             path: path.to_path_buf(),
-            message,
+            source,
         };
         let mut fields = vec![
             Field::new(EVENT_ID_COLUMN, DataType::UInt64, false),
@@ -156,7 +157,7 @@ impl EventMask {
         columns.push(Arc::new(BooleanArray::from(self.keep.clone())));
         let schema = Arc::new(Schema::new(fields));
         let batch = RecordBatch::try_new(Arc::clone(&schema), columns)
-            .map_err(|error| parquet_error(error.to_string()))?;
+            .map_err(|error| parquet_error(error.into()))?;
 
         let properties = WriterProperties::builder()
             .set_key_value_metadata(Some(vec![
@@ -166,14 +167,10 @@ impl EventMask {
             ]))
             .build();
         publication.stage_file(path, |file| {
-            let mut writer = ArrowWriter::try_new(file, schema, Some(properties))
-                .map_err(|error| parquet_error(error.to_string()))?;
-            writer
-                .write(&batch)
-                .map_err(|error| parquet_error(error.to_string()))?;
-            writer
-                .close()
-                .map_err(|error| parquet_error(error.to_string()))?;
+            let mut writer =
+                ArrowWriter::try_new(file, schema, Some(properties)).map_err(parquet_error)?;
+            writer.write(&batch).map_err(parquet_error)?;
+            writer.close().map_err(parquet_error)?;
             Ok(())
         })
     }
@@ -191,16 +188,16 @@ impl EventMask {
             path: path.to_path_buf(),
             reason,
         };
-        let parquet_error = |message: String| MaskError::Parquet {
+        let parquet_error = |source: ParquetError| MaskError::Parquet {
             path: path.to_path_buf(),
-            message,
+            source,
         };
         let file = File::open(path).map_err(|source| MaskError::Io {
             path: path.to_path_buf(),
             source,
         })?;
-        let builder = ScalarParquetReader::new(file, ParquetReadLimits::default())
-            .map_err(|error| parquet_error(error.to_string()))?;
+        let builder =
+            ScalarParquetReader::new(file, ParquetReadLimits::default()).map_err(parquet_error)?;
         let acquisition = read_acquisition(
             path,
             builder.metadata().file_metadata().key_value_metadata(),
@@ -213,7 +210,7 @@ impl EventMask {
         let mut filters: Vec<(String, Vec<Option<bool>>)> = Vec::new();
         let mut has_event_ids = false;
         for batch in reader {
-            let batch = batch.map_err(|error| parquet_error(error.to_string()))?;
+            let batch = batch.map_err(parquet_error)?;
             let schema = batch.schema();
             for (field, column) in schema.fields().iter().zip(batch.columns()) {
                 let name = field.name().as_str();
