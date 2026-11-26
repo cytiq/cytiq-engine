@@ -1014,6 +1014,8 @@ version = "0.5.0"
 dependencies = [
  "cytiq-fcs",
  "cytiq-provenance",
+ "cytiq-publish",
+ "log",
  "serde",
  "serde_json",
  "sha2",

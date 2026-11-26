@@ -4952,9 +4952,57 @@
             ]
           },
           {
-            "action": "set_true",
+            "action": "set",
             "aliases": [],
             "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "output",
+            "long": "output",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OUTPUT"
+            ]
+          },
+          {
+            "action": "append",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "allow",
+            "long": "allow",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "text_trailing_padding",
+              "text_overlaps_data",
+              "text_empty_values",
+              "data_end_exclusive",
+              "supplemental_text_inside_text",
+              "analysis_offsets_negative",
+              "undeclared_bytes"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "ALLOW"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [
+              "allow",
+              "output",
+              "overwrite"
+            ],
             "defaults": [],
             "global": false,
             "hidden": false,
@@ -4970,6 +5018,27 @@
             "short": null,
             "value_names": [
               "PLAN"
+            ]
+          },
+          {
+            "action": "set_true",
+            "aliases": [],
+            "conflicts_with": [],
+            "defaults": [],
+            "global": false,
+            "hidden": false,
+            "id": "overwrite",
+            "long": "overwrite",
+            "num_args": null,
+            "positional": false,
+            "possible_values": [
+              "true",
+              "false"
+            ],
+            "required": false,
+            "short": null,
+            "value_names": [
+              "OVERWRITE"
             ]
           }
         ],
@@ -6679,7 +6748,10 @@
       "sample"
     ],
     "repair": [
+      "allow",
       "input",
+      "output",
+      "overwrite",
       "plan"
     ],
     "specimen compare": [

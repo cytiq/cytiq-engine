@@ -588,6 +588,98 @@ fn a_raw_layer_of_every_event_comes_from_its_acquisition() {
     }
 }
 
+/// List the record of a `tool` run that made `output` from `input`, under a
+/// disclosure that lets the dataset carry records.
+fn with_record(
+    built: &mut Built,
+    tool: &str,
+    reason: cytiq_provenance::outcome::OutcomeReason,
+    input: &str,
+    output: &str,
+) {
+    use cytiq_provenance::{FileRecord, RunRecorder};
+    let file = |path: &str, role: Option<&str>, sha256: &str| FileRecord {
+        path: path.into(),
+        role: role.map(Into::into),
+        bytes: 1,
+        sha256: sha256.into(),
+    };
+    let mut record = RunRecorder::start(tool, "0.0.0", vec![])
+        .prepare_staged(&[], reason)
+        .unwrap();
+    record.inputs = vec![file("instrument.fcs", Some("input"), input)];
+    record.outputs = vec![file("repaired.fcs", None, output)];
+    let location = "provenance/repaired.fcs.provenance.json";
+    let path = built.root.path().join(location);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+    let manifest = &mut built.manifest;
+    manifest.artifacts.push(ArtifactEntry::object(
+        ArtifactRole::Provenance,
+        contracts::PROVENANCE,
+        None,
+        vec![],
+        location.into(),
+        dataset::content_of(&path).unwrap(),
+    ));
+    if !manifest
+        .contracts
+        .iter()
+        .any(|c| c == contracts::PROVENANCE)
+    {
+        manifest.contracts.push(contracts::PROVENANCE.into());
+    }
+    manifest.privacy = PrivacyPolicy {
+        profile: PrivacyProfile::Controlled,
+        disclosures: vec![Disclosure {
+            contract: "DUA-2026-014".into(),
+            purpose: "cohort analysis".into(),
+            keywords: vec![],
+            source_locations: false,
+            provenance_records: true,
+        }],
+    };
+    manifest.dataset_id = None;
+}
+
+#[test]
+fn a_listed_repair_record_vouches_for_the_file_it_made() {
+    use cytiq_provenance::outcome::OutcomeReason::{ChecksFailed, Success};
+    let made = "d".repeat(64);
+    let other = "e".repeat(64);
+    let with = |tool: &str, reason, input: Option<&str>, output: &str| {
+        let mut built = build();
+        let acquisition = built.manifest.artifacts[0].acquisition.clone().unwrap();
+        with_source(&mut built, 0, &made);
+        with_record(
+            &mut built,
+            tool,
+            reason,
+            input.unwrap_or(&acquisition),
+            output,
+        );
+        built
+    };
+
+    let repaired = with("cytiq repair", Success, None, &made);
+    let issues = check(&repaired, Profile::Structural, true);
+    assert!(!issues.has_errors(), "{:?}", issues.items());
+
+    // Another command, a failed run, another acquisition or another file
+    // vouch for nothing.
+    for built in [
+        with("cytiq compensate", Success, None, &made),
+        with("cytiq repair", ChecksFailed, None, &made),
+        with("cytiq repair", Success, Some(&other), &made),
+        with("cytiq repair", Success, None, &other),
+    ] {
+        let issues = check(&built, Profile::Structural, true);
+        assert_eq!(issues.errors(), 1, "{:?}", issues.items());
+        assert_eq!(issues.items()[0].code, IssueCode::InvalidReference);
+        assert_eq!(issues.items()[0].pointer, "/artifacts/0");
+    }
+}
+
 #[test]
 fn a_projection_is_not_a_signal_layer() {
     let built = build_storing(Storage::Projection);

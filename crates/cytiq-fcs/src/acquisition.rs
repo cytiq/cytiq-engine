@@ -15,6 +15,34 @@ use crate::types::FcsText;
 /// acquisition whose rows their `source_event_id`s count.
 pub const ACQUISITION_KEYWORD: &str = "CYTIQ_ACQUISITION";
 
+/// The repairs `cytiq repair` made to a file whose instrument wrote it against
+/// the standard. DATA is untouched: such a file, with no processing recorded,
+/// stands for its acquisition.
+pub const REPAIR_KEYWORD: &str = "CYTIQ_REPAIR";
+
+/// Whether a file is an acquisition that `cytiq repair` made readable: it
+/// records both the repair and the acquisition, and no cytiq processing.
+/// A subset of its rows, which `Original_ID` marks, is not one.
+///
+/// # Errors
+///
+/// Returns an error when a recorded signal state is unreadable.
+pub fn is_repaired_acquisition(
+    text: &FcsText,
+    parameters: &[crate::types::Parameter],
+) -> Result<bool, FcsError> {
+    let state = crate::signal::SignalState::of(text)?;
+    Ok(text.get(REPAIR_KEYWORD).is_some()
+        && text.get(ACQUISITION_KEYWORD).is_some()
+        && state.compensation.is_none()
+        && state.unmixing.is_none()
+        && state.transform.is_none()
+        && state.normalization.is_none()
+        && parameters
+            .iter()
+            .all(|parameter| parameter.name != crate::lineage::ORIGINAL_ID_PARAMETER))
+}
+
 /// The acquisition a dataset read from `path` belongs to: the recorded
 /// `CYTIQ_ACQUISITION`, or the SHA-256 of `path` itself when the file is raw.
 ///

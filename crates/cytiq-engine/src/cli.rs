@@ -103,9 +103,10 @@ pub(crate) enum Commands {
     Qc(QcArgs),
     /// Dump FCS metadata (file hash, parameters, all TEXT keywords) as JSON.
     Meta(MetaArgs),
-    /// Diagnose an FCS file that deviates from the standard, and say whether
-    /// its DATA can still be read in exactly one way. No other command reads
-    /// a file around a deviation.
+    /// Rewrite HEADER and TEXT, never DATA, of an FCS file that deviates from
+    /// the standard, when its DATA can be read in exactly one way and each
+    /// repair is allowed by name. No other command reads a file around a
+    /// deviation.
     Repair(RepairArgs),
     /// Apply a spillover or compensation matrix to FCS events; also writes a
     /// raw detector-margin mask next to the output.

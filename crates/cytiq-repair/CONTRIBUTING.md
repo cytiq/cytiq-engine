@@ -10,6 +10,7 @@ Workspace guidance lives in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 - `src/plan.rs`: the DATA window, what is kept, changed and dropped, the new TEXT.
 - `src/repaired.rs`: the repaired file as a reader, without writing it.
 - `src/diagnosis.rs`: conforming, repairable or refused; the `--plan` document.
+- `src/runner.rs`: write, read back and report; publication is the caller's.
 - `fuzz/checks.rs`: the fuzz invariants, replayed by `tests/fuzz_regressions.rs`.
 
 ## Invariants

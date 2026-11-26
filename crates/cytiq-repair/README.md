@@ -9,7 +9,31 @@ DATA can still be read in exactly one way.
 
 ```bash
 cytiq repair --input instrument.fcs --plan
+cytiq repair --input instrument.fcs --output repaired.fcs --allow text_trailing_padding
 ```
+
+Nothing is repaired without `--allow CODE`, which names one repair and can be
+repeated. A file that needs a repair that was not allowed is refused (exit 2) and
+the message lists what it needs. A conforming file is refused too: there is
+nothing to repair, so a second repair never happens.
+
+The repaired file has the same FCS version, the same delimiter, and the same
+keywords in the same order, except those a repair drops. Its DATA and ANALYSIS
+are the source's bytes. HEADER, the offset keywords and the CRC (eight `0`, FCS
+3.1, 3.5: not computed) are new, and two keywords are added:
+
+- `CYTIQ_ACQUISITION`: the SHA-256 of the file the instrument wrote. Every stage
+  carries it, so masks, labels and tables name that file.
+- `CYTIQ_REPAIR`: `{"codes":[…],"version":1}`.
+
+Such a file stands for its raw acquisition in every cytiq command. Beside it are
+`<output>.repair.json` (`cytiq.repair.report.v1`: what was changed, and the
+offset, length and SHA-256 of everything dropped; no path and no keyword value)
+and the provenance record. The three are published together.
+
+Before that, the staged file is read back: the strict reader accepts it, it needs
+no repair, its DATA hashes to the source's, and the source did not change. A file
+that fails one of these is not published (exit 1).
 
 `--plan` prints the diagnosis as JSON (`cytiq.repair.plan.v1`) and writes
 nothing: `conforming`, `repairable` with the repairs it needs, or `refused` with
@@ -48,6 +72,7 @@ and `still_refused`.
 | `diagnose(reader)` | `Diagnosis::{Conforming, Repairable, Refused}` of anything that reads and seeks |
 | `Plan` | `codes`, `findings`, `changes`, `dropped`, the `DataWindow`; `repaired(source, acquisition)` reads the repaired file without writing it |
 | `PlanDocument::of(path)` | The document `--plan` prints |
+| `RepairRunner::prepare`, `run`, `RepairConfig`, `RepairReport`, `report_path` | Stage, or publish, the repaired file and its report |
 | `RepairCode`, `RefusalCode`, `Refusal` | Stable codes |
 | `REPAIR_KEYWORD`, `REPAIR_VERSION` | `CYTIQ_REPAIR` and its version |
 
@@ -71,7 +96,8 @@ A repair says how a file is read, not that its measurements are right.
 
 ## Dependencies
 
-`cytiq-fcs`, `cytiq-provenance`, `serde` / `serde_json`, `sha2`, `thiserror`.
+`cytiq-fcs`, `cytiq-provenance`, `cytiq-publish`, `serde` / `serde_json`, `sha2`, `log`,
+`thiserror`.
 
 ## Tests
 

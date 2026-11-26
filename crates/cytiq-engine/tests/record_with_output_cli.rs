@@ -252,6 +252,7 @@ impl Inputs {
 fn cases(work: &Path) -> Vec<Case> {
     let inputs = Inputs::new(work);
     let mut cases = exports(&inputs);
+    cases.push(repair(work, &inputs));
     cases.extend(reports(work, &inputs));
     cases.extend(fcs_stages(&inputs));
     cases.extend(matrices());
@@ -629,6 +630,28 @@ panels:
 samples:
   - { id: S12, file: case12.fcs, panel: M }
 ";
+
+/// `cytiq repair` of Case12 with an ANALYSIS that ends at -1 in HEADER.
+fn repair(work: &Path, inputs: &Inputs) -> Case {
+    let mut bytes = fs::read(&inputs.raw).unwrap();
+    bytes[42..58].copy_from_slice(b"       0      -1");
+    let deviating = work.join("deviating.fcs");
+    fs::write(&deviating, bytes).unwrap();
+    Case::new(
+        "repair",
+        "repaired.fcs",
+        Record::Beside,
+        &[
+            "repair",
+            "--input",
+            &text(&deviating),
+            "--output",
+            OUT,
+            "--allow",
+            "analysis_offsets_negative",
+        ],
+    )
+}
 
 fn reports(work: &Path, inputs: &Inputs) -> Vec<Case> {
     fs::copy(&inputs.raw, work.join("case12.fcs")).unwrap();

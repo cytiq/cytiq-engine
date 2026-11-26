@@ -35,7 +35,8 @@ use crate::text::{build_text, parse_offset_value, parse_segment_range, read_text
 use crate::types::{ByteRange, FcsText, Header};
 
 pub use crate::acquisition::{
-    ACQUISITION_KEYWORD, acquisition_id, is_sha256, recorded_acquisition, set_acquisition,
+    ACQUISITION_KEYWORD, REPAIR_KEYWORD, acquisition_id, is_repaired_acquisition, is_sha256,
+    recorded_acquisition, set_acquisition,
 };
 pub use crate::channels::{is_scatter_channel, parse_channel_list};
 pub use crate::compensation::{
