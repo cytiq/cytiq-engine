@@ -28,6 +28,7 @@ flowchart TB
         direction LR
         preflight["preflight<br/>cytiq-qc::preflight"]
         meta["meta<br/>cytiq-inspect"]
+        repair["repair (plan)<br/>cytiq-repair"]
         stats["stats (technical QC)<br/>cytiq-inspect"]
         cytoscan["cytoscan (cohort)<br/>cytiq-cytoscan"]
     end

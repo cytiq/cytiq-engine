@@ -1,6 +1,6 @@
 name: Fuzz
 
-# Fuzzes the FCS reader and spillover parser, the population document and
+# Fuzzes the FCS reader, its repair plan and the spillover parser, the population document and
 # observation-table readers, specimen comparison, the Gating-ML parser and the
 # QC artifact-truth reader: weekly for 10 minutes a
 # target, on demand, and for one minute on pull requests that change a fuzzed
@@ -19,6 +19,7 @@ on:
       - crates/cytiq-provenance/**
       - crates/cytiq-manifest/**
       - crates/cytiq-qc/**
+      - crates/cytiq-repair/**
       - Cargo.toml
       - Cargo.lock
       - mise.toml
@@ -63,6 +64,7 @@ jobs:
           - { crate: cytiq-population, target: flowsom_csv }
           - { crate: cytiq-specimen, target: specimen_documents }
           - { crate: cytiq-qc, target: truth_parquet }
+          - { crate: cytiq-repair, target: repair_plan }
           - { crate: cytiq-gating, target: gatingml }
     env:
       FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && '60' || inputs.seconds || '600' }}

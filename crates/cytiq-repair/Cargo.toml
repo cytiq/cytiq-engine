@@ -1,0 +1,23 @@
+[package]
+name = "cytiq-repair"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Explicit, evidenced repair of FCS files that instruments wrote against the standard"
+
+[dependencies]
+cytiq-fcs.workspace = true
+cytiq-provenance.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
