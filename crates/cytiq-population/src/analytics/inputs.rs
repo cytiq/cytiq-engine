@@ -6,10 +6,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::annotations::EventAnnotations;
-use crate::dataset::objects::{present, verified_labels};
+use crate::dataset::objects::verified_labels;
 use crate::dataset::{self, AcquisitionEntry, ArtifactRole, DatasetManifest, Profile, contracts};
 use crate::issue::{Issues, pointer};
 use crate::labels::LabelsSummary;
+use crate::object::ObjectRoot;
 use crate::serialization::{self, DocumentFormat};
 use crate::{PopulationError, PopulationObservation, Result, table};
 
@@ -44,6 +45,7 @@ pub(crate) struct Inputs {
 /// provenance role, for the export's record.
 pub(crate) fn files(manifest_path: &Path, root: &Path) -> Result<Vec<(&'static str, PathBuf)>> {
     let manifest = read_manifest(manifest_path)?;
+    let objects = ObjectRoot::open(root)?;
     let mut files = vec![("manifest", manifest_path.to_path_buf())];
     for artifact in &manifest.artifacts {
         let role = match (artifact.role, artifact.contract.as_str()) {
@@ -54,7 +56,10 @@ pub(crate) fn files(manifest_path: &Path, root: &Path) -> Result<Vec<(&'static s
             }
             _ => continue,
         };
-        if let Ok(key) = crate::identity::ObjectKey::parse(&artifact.location) {
+        // An object the export will refuse is not read for the record either.
+        if let Ok(key) = crate::identity::ObjectKey::parse(&artifact.location)
+            && objects.object(&key).is_ok()
+        {
             files.push((role, key.resolve(root)));
         }
     }
@@ -102,6 +107,7 @@ pub(crate) fn read(manifest_path: &Path, root: &Path) -> Result<Inputs> {
         .iter()
         .map(|a| (a.id.as_str(), a))
         .collect();
+    let root = ObjectRoot::open(root)?;
     let mut labels = Vec::new();
     let mut observations = Vec::new();
     let mut descriptors = Vec::new();
@@ -118,13 +124,8 @@ pub(crate) fn read(manifest_path: &Path, root: &Path) -> Result<Inputs> {
         if !reads {
             continue;
         }
-        let Some(path) = present(
-            root,
-            &artifact.location,
-            &artifact.content,
-            &at,
-            &mut issues,
-        ) else {
+        let Some(file) = root.verified(&artifact.location, &artifact.content, &at, &mut issues)
+        else {
             continue;
         };
         if artifact.contract == contracts::LABELS {
@@ -134,7 +135,7 @@ pub(crate) fn read(manifest_path: &Path, root: &Path) -> Result<Inputs> {
                 .and_then(|id| acquisitions.get(id).copied());
             if let Some(acquisition) = acquisition
                 && let Some(summary) =
-                    verified_labels(artifact, acquisition, &path, &at, &mut issues)
+                    verified_labels(artifact, acquisition, file, &at, &mut issues)
             {
                 labels.push(LabelTable {
                     location: artifact.location.clone(),
@@ -143,7 +144,7 @@ pub(crate) fn read(manifest_path: &Path, root: &Path) -> Result<Inputs> {
                 });
             }
         } else if artifact.role == ArtifactRole::Observations {
-            match table::read(&path) {
+            match table::read_from(file) {
                 Ok(rows) => observations.push(ObservationTable {
                     semantic_id: artifact.semantic_id.clone(),
                     rows,
@@ -155,7 +156,7 @@ pub(crate) fn read(manifest_path: &Path, root: &Path) -> Result<Inputs> {
                 ),
             }
         } else {
-            match serialization::read(&path)
+            match serialization::read_from(file, Path::new(&artifact.location))
                 .and_then(|value| Ok(serde_json::from_value::<EventAnnotations>(value)?))
             {
                 Ok(value) => descriptors.push(Descriptor {

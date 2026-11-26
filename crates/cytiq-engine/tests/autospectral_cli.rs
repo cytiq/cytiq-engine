@@ -100,6 +100,26 @@ fn cli_runs_autospectral() {
         &[&unmixed, &output_dir.join("diagnostics/run.json")],
     );
 
+    // An unmixed file is never a raw layer of its acquisition.
+    let raw = Command::new(env!("CARGO_BIN_EXE_cytiq"))
+        .args([
+            "export",
+            "events",
+            "--input",
+            utf8(&unmixed),
+            "--output",
+            utf8(&directory.join("raw.parquet")),
+            "--layer",
+            "raw",
+            "--unmixing-reference",
+            utf8(&output_dir.join("references/autospectral-references.json")),
+        ])
+        .output()
+        .expect("command should run");
+    assert_eq!(raw.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&raw.stderr);
+    assert!(stderr.contains("not a raw one"), "stderr: {stderr}");
+
     // Unmixed abundances have no detector margins.
     let peacoqc = Command::new(env!("CARGO_BIN_EXE_cytiq"))
         .args([
