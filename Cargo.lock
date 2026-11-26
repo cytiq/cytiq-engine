@@ -955,6 +955,7 @@ dependencies = [
  "cytiq-publish",
  "cytiq-qc",
  "parquet",
+ "rustix",
  "ryu",
  "serde",
  "serde-saphyr",

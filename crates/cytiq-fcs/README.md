@@ -118,7 +118,7 @@ write_fcs3_1_f32_with_options(
 | `write_fcs3_1_f32`, `..._with_options`, `..._to_writer`, `..._to_writer_with_options` | FCS 3.1 float32 writer |
 | `write_fcs3_1_f64_with_options`, `write_fcs3_1_f64_to_writer_with_options` | FCS 3.1 float64 writer, for values f32 cannot hold exactly |
 | `write_fcs3_1_exact_with_options`, `needs_f64` | Writer that picks f32 or f64 so every value is stored exactly |
-| `acquisition_id`, `set_acquisition`, `is_sha256`, `ACQUISITION_KEYWORD` | Raw acquisition a file belongs to (`CYTIQ_ACQUISITION`) |
+| `acquisition_id`, `recorded_acquisition`, `set_acquisition`, `is_sha256`, `ACQUISITION_KEYWORD` | Raw acquisition a file belongs to (`CYTIQ_ACQUISITION`) |
 | `FcsWriteParameter` (`from_source`, `with_range`, `with_keyword`), `FcsWriteOptions`, `carried_keywords` | Writer parameters, extra TEXT keywords, and source keywords a derived file can keep |
 | `Spillover`, `invert_matrix`, `compensate`, `is_spillover_keyword` | Spillover parsing and compensation |
 | `condition_number_1` | 1-norm condition number of a spillover matrix |
