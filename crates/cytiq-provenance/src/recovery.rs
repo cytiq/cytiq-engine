@@ -27,7 +27,30 @@ pub fn recover(lock: &OutputLock, destination: &Destination) -> Result<(), Publi
     let record_path = destination.record_path();
     let outputs = complete(&record_path)?;
     recovery::recover(lock)?;
-    discard_abandoned(outputs.iter().chain(std::iter::once(&record_path)))
+    let directories = directories_below(&outputs, destination);
+    discard_abandoned(
+        outputs
+            .iter()
+            .chain(&directories)
+            .chain(std::iter::once(&record_path)),
+    )
+}
+
+/// The directories between `outputs` and a directory destination: a command
+/// can publish a whole subdirectory, whose staging is beside it.
+fn directories_below(outputs: &[PathBuf], destination: &Destination) -> Vec<PathBuf> {
+    let Destination::Dir(root) = destination else {
+        return Vec::new();
+    };
+    let mut directories: Vec<PathBuf> = outputs
+        .iter()
+        .flat_map(|output| output.ancestors().skip(1))
+        .filter(|directory| directory.starts_with(root) && *directory != root.as_path())
+        .map(Path::to_path_buf)
+        .collect();
+    directories.sort();
+    directories.dedup();
+    directories
 }
 
 /// Discard the staging and the backups a killed run left beside `paths`, but
@@ -139,4 +162,29 @@ fn sync_parent(path: &Path) -> Result<(), PublishError> {
         io::Result::Ok(())
     };
     synced.map_err(|error| PublishError::io(parent, error))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn directories_below_a_directory_destination_only() {
+        let outputs = [
+            PathBuf::from("out/tube_1/cutoffs.csv"),
+            PathBuf::from("out/tube_1/deep/ssi.csv"),
+            PathBuf::from("out/summary.json"),
+        ];
+        assert_eq!(
+            directories_below(&outputs, &Destination::Dir(PathBuf::from("out"))),
+            [
+                PathBuf::from("out/tube_1"),
+                PathBuf::from("out/tube_1/deep")
+            ]
+        );
+        assert_eq!(
+            directories_below(&outputs, &Destination::File(PathBuf::from("out"))),
+            Vec::<PathBuf>::new()
+        );
+    }
 }

@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
+use cytiq_publish::Publication;
 use log::{debug, info};
 use plotly::common::{Mode, Title};
 use plotly::{HeatMap, Layout, Plot, Scatter};
@@ -264,20 +265,17 @@ struct ReportPanel {
 }
 
 #[allow(clippy::too_many_lines)]
-pub(crate) fn write_autospill_debug_artifacts(
+pub(crate) fn stage_autospill_debug_artifacts(
+    publication: &mut Publication,
     debug_dir: &Path,
     loaded: &LoadedControls,
     gates: &[GateComputation],
     result: &AutospillResult,
 ) -> Result<(), AutospillError> {
     info!(
-        "writing autospill debug artifacts to {}",
+        "staging autospill debug artifacts for {}",
         debug_dir.display()
     );
-    fs::create_dir_all(debug_dir).map_err(|source| AutospillError::DebugOutputCreate {
-        path: debug_dir.to_path_buf(),
-        source,
-    })?;
 
     let mut sections = Vec::new();
     sections.push(ReportSection {
@@ -380,13 +378,15 @@ pub(crate) fn write_autospill_debug_artifacts(
             .collect(),
     });
 
-    write_report(
-        &debug_dir.join(REPORT_FILE_NAME),
-        "cytiq AutoSpill Report",
-        "Single-page debug report with run metrics first, followed by charts in reading order.",
-        "AutoSpill",
-        &sections,
-    )?;
+    publication.stage_path(debug_dir.join(REPORT_FILE_NAME), |path| {
+        write_report(
+            path,
+            "cytiq AutoSpill Report",
+            "Single-page debug report with run metrics first, followed by charts in reading order.",
+            "AutoSpill",
+            &sections,
+        )
+    })?;
     debug!(
         "wrote autospill report with {} sections and {} controls",
         sections.len(),
@@ -405,26 +405,25 @@ pub(crate) fn write_autospill_debug_artifacts(
             primary_channels: result.primary_channels.clone(),
         },
     };
-    write_json(&debug_dir.join("summary.json"), &summary)?;
+    publication.stage_path(debug_dir.join("summary.json"), |path| {
+        write_json(path, &summary)
+    })?;
     info!("autospill debug artifacts ready in {}", debug_dir.display());
     Ok(())
 }
 
 #[allow(clippy::too_many_lines)]
-pub(crate) fn write_autospread_debug_artifacts(
+pub(crate) fn stage_autospread_debug_artifacts(
+    publication: &mut Publication,
     debug_dir: &Path,
     loaded: &LoadedControls,
     gates: &[GateComputation],
     result: &AutospreadResult,
 ) -> Result<(), AutospillError> {
     info!(
-        "writing autospread debug artifacts to {}",
+        "staging autospread debug artifacts for {}",
         debug_dir.display()
     );
-    fs::create_dir_all(debug_dir).map_err(|source| AutospillError::DebugOutputCreate {
-        path: debug_dir.to_path_buf(),
-        source,
-    })?;
 
     let mut sections = Vec::new();
     sections.push(ReportSection {
@@ -493,13 +492,15 @@ pub(crate) fn write_autospread_debug_artifacts(
             .collect(),
     });
 
-    write_report(
-        &debug_dir.join(REPORT_FILE_NAME),
-        "cytiq AutoSpread Report",
-        "Single-page debug report with run metrics first, followed by charts in reading order.",
-        "AutoSpread",
-        &sections,
-    )?;
+    publication.stage_path(debug_dir.join(REPORT_FILE_NAME), |path| {
+        write_report(
+            path,
+            "cytiq AutoSpread Report",
+            "Single-page debug report with run metrics first, followed by charts in reading order.",
+            "AutoSpread",
+            &sections,
+        )
+    })?;
     debug!(
         "wrote autospread report with {} sections and {} controls",
         sections.len(),
@@ -518,7 +519,9 @@ pub(crate) fn write_autospread_debug_artifacts(
             primary_channels: result.primary_channels.clone(),
         },
     };
-    write_json(&debug_dir.join("summary.json"), &summary)?;
+    publication.stage_path(debug_dir.join("summary.json"), |path| {
+        write_json(path, &summary)
+    })?;
     info!(
         "autospread debug artifacts ready in {}",
         debug_dir.display()

@@ -8,6 +8,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
+use cytiq_publish::{Existing, Publication};
 use plotly::common::{Mode, Title};
 use plotly::{Bar, HeatMap, Layout, Plot, Scatter};
 
@@ -42,27 +43,28 @@ pub(crate) fn write_assignments<W: std::io::Write>(
     })
 }
 
-pub(crate) fn write_debug_artifacts(
+/// Stage the debug artifacts with the output; every run replaces them.
+pub(crate) fn stage_debug_artifacts(
+    publication: &mut Publication,
     summary: &FlowSomSummary,
     assignments: &[FlowSomAssignment],
     nodes: &[FlowSomNode],
     metaclusters: &[FlowSomMetacluster],
     debug_dir: &Path,
 ) -> Result<(), FlowSomError> {
-    fs::create_dir_all(debug_dir).map_err(|source| FlowSomError::DebugDirectoryCreate {
-        path: debug_dir.to_path_buf(),
-        source,
+    let replace = Existing::Replace;
+    publication.stage_path_with(debug_dir.join("summary.json"), replace, |path| {
+        write_summary_json(path, summary)
     })?;
-    write_summary_json(&debug_dir.join("summary.json"), summary)?;
-    write_nodes_csv(&debug_dir.join("nodes.csv"), summary, nodes)?;
-    write_metaclusters_csv(&debug_dir.join("metaclusters.csv"), metaclusters)?;
-    write_report_html(
-        &debug_dir.join(REPORT_FILE_NAME),
-        summary,
-        assignments,
-        nodes,
-        metaclusters,
-    )
+    publication.stage_path_with(debug_dir.join("nodes.csv"), replace, |path| {
+        write_nodes_csv(path, summary, nodes)
+    })?;
+    publication.stage_path_with(debug_dir.join("metaclusters.csv"), replace, |path| {
+        write_metaclusters_csv(path, metaclusters)
+    })?;
+    publication.stage_path_with(debug_dir.join(REPORT_FILE_NAME), replace, |path| {
+        write_report_html(path, summary, assignments, nodes, metaclusters)
+    })
 }
 
 fn write_summary_json(path: &Path, summary: &FlowSomSummary) -> Result<(), FlowSomError> {

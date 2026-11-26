@@ -155,6 +155,15 @@ impl Publication {
         Ok(files)
     }
 
+    /// The targets, files and directories, in staging order.
+    #[must_use]
+    pub fn targets(&self) -> Vec<PathBuf> {
+        self.entries
+            .iter()
+            .map(|entry| entry.target.clone())
+            .collect()
+    }
+
     /// The directory staged for `target`, when one is.
     #[must_use]
     pub fn staged_dir(&self, target: impl AsRef<Path>) -> Option<&Path> {

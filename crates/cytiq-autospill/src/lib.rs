@@ -22,7 +22,7 @@ mod runner;
 mod transform;
 
 pub use crate::error::AutospillError;
-pub use crate::export::{export_matrix, export_spread_matrix};
+pub use crate::export::{export_matrix, export_spread_matrix, stage_matrix, stage_spread_matrix};
 pub use crate::manifest::{
     ControlsManifestRow, DetectorSpec, TransformSpec, read_controls_manifest,
     read_detectors_manifest, read_transform_manifest,

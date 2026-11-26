@@ -5,13 +5,14 @@ use cytiq_flowsom::{
     FLOWSOM_METACLUSTERS, FLOWSOM_RANDOM_SEED, FLOWSOM_XDIM, FLOWSOM_YDIM, FlowSomConfig,
     FlowSomConstants, FlowSomRunner,
 };
+use cytiq_provenance::outcome::OutcomeReason;
 use cytiq_provenance::record_path_for_file;
 use log::info;
 use serde::Serialize;
 
 use crate::cli::CliMetaclustering;
 use crate::parsers::{parse_channels, parse_positive_usize, parse_threads};
-use crate::provenance::record_provenance;
+use crate::provenance::publish;
 
 #[derive(Clone, Copy, Debug, Serialize, ValueEnum)]
 #[serde(rename_all = "snake_case")]
@@ -201,7 +202,15 @@ pub(crate) fn run(
         recorder,
         cytiq_provenance::reuse::Destination::File(output.clone())
     );
-    let result = FlowSomRunner::run(&input, &output, &config, overwrite)?;
+    let prepared = FlowSomRunner::prepare(&input, &output, &config, overwrite)?;
+    let result = prepared.summary;
+    let outcome = publish(
+        recorder,
+        prepared.publication,
+        std::slice::from_ref(&output),
+        &record_path_for_file(&output),
+        OutcomeReason::Success,
+    )?;
     info!(
         "flowsom assigned {} events across {} SOM nodes and {} metaclusters",
         result.summary.metrics.events,
@@ -212,11 +221,7 @@ pub(crate) fn run(
         info!("wrote flowsom debug artifacts to {}", debug_dir.display());
     }
     info!("flowsom completed successfully");
-    record_provenance(
-        recorder,
-        std::slice::from_ref(&output),
-        &record_path_for_file(&output),
-    )
+    Ok(outcome)
 }
 
 fn run_flowsom_model(
@@ -249,17 +254,19 @@ fn run_flowsom_model(
                 recorder,
                 cytiq_provenance::reuse::Destination::File(output.clone())
             );
-            cytiq_flowsom::FlowSomModel::train_to_file(
+            let prepared = cytiq_flowsom::FlowSomModel::prepare_train_to_file(
                 &input,
                 &output,
                 &config,
                 metaclustering.into(),
                 overwrite,
             )?;
-            record_provenance(
+            publish(
                 recorder,
+                prepared.publication,
                 std::slice::from_ref(&output),
                 &record_path_for_file(&output),
+                OutcomeReason::Success,
             )
         }
         FlowSomCommand::Apply {
@@ -277,15 +284,19 @@ fn run_flowsom_model(
                 recorder,
                 cytiq_provenance::reuse::Destination::File(output.clone())
             );
-            let events = cytiq_flowsom::FlowSomModel::apply_model_file(
+            let prepared = cytiq_flowsom::FlowSomModel::prepare_apply_model_file(
                 &model, &input, &output, &masks, overwrite,
             )?;
-            info!("flowsom assigned {events} events with saved model");
-            record_provenance(
+            let events = prepared.summary;
+            let outcome = publish(
                 recorder,
+                prepared.publication,
                 std::slice::from_ref(&output),
                 &record_path_for_file(&output),
-            )
+                OutcomeReason::Success,
+            )?;
+            info!("flowsom assigned {events} events with saved model");
+            Ok(outcome)
         }
     }
 }

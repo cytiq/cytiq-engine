@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use cytiq_fcs::{ColumnData, FcsDataset, FcsReader, Parameter, SignalState};
+use cytiq_publish::{Existing, Prepared, Publication};
 use log::{debug, info};
 use nalgebra::DMatrix;
 use ndarray::Array2;
@@ -16,7 +17,7 @@ use serde::Serialize;
 
 use crate::error::AutospillError;
 use crate::manifest::{ControlsManifestRow, DetectorSpec, TransformSpec};
-use crate::plotting::{write_autospill_debug_artifacts, write_autospread_debug_artifacts};
+use crate::plotting::{stage_autospill_debug_artifacts, stage_autospread_debug_artifacts};
 use crate::regression::{
     RegressionResult, ordinary_linear_regression, ordinary_linear_regression_without_intercept,
     robust_linear_regression, robust_standard_deviation, sample_standard_deviation_iter, skewness,
@@ -304,15 +305,29 @@ impl AutospillRunner {
         input_dir: impl AsRef<Path>,
         config: &AutospillConfig,
     ) -> Result<AutospillResult, AutospillError> {
-        let input_dir = input_dir.as_ref();
-        Self::run_inner(manifest_rows, input_dir, config)
+        Ok(Self::prepare(manifest_rows, input_dir, config)?.commit()?)
     }
 
-    fn run_inner(
+    /// [`Self::run`] with its debug artifacts staged: the caller stages the
+    /// matrix with them. Nothing is published.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`], except what publishing returns.
+    pub fn prepare(
+        manifest_rows: &[ControlsManifestRow],
+        input_dir: impl AsRef<Path>,
+        config: &AutospillConfig,
+    ) -> Result<Prepared<AutospillResult>, AutospillError> {
+        let input_dir = input_dir.as_ref();
+        Self::prepare_inner(manifest_rows, input_dir, config)
+    }
+
+    fn prepare_inner(
         manifest_rows: &[ControlsManifestRow],
         input_dir: &Path,
         config: &AutospillConfig,
-    ) -> Result<AutospillResult, AutospillError> {
+    ) -> Result<Prepared<AutospillResult>, AutospillError> {
         info!(
             "autospill pipeline: loading {} controls from {}",
             manifest_rows.len(),
@@ -377,16 +392,21 @@ impl AutospillRunner {
             convergence,
         };
 
+        // Every run replaces its debug artifacts.
+        let mut publication = Publication::new(Existing::Replace);
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             info!(
-                "autospill pipeline: writing debug artifacts to {}",
+                "autospill pipeline: staging debug artifacts for {}",
                 debug_dir.display()
             );
-            write_autospill_debug_artifacts(debug_dir, &loaded, &gates, &result)?;
+            stage_autospill_debug_artifacts(&mut publication, debug_dir, &loaded, &gates, &result)?;
         }
 
         info!("autospill pipeline: completed successfully");
-        Ok(result)
+        Ok(Prepared {
+            summary: result,
+            publication,
+        })
     }
 }
 
@@ -411,15 +431,29 @@ impl AutospreadRunner {
         input_dir: impl AsRef<Path>,
         config: &AutospreadConfig,
     ) -> Result<AutospreadResult, AutospillError> {
-        let input_dir = input_dir.as_ref();
-        Self::run_inner(manifest_rows, input_dir, config)
+        Ok(Self::prepare(manifest_rows, input_dir, config)?.commit()?)
     }
 
-    fn run_inner(
+    /// [`Self::run`] with its debug artifacts staged: the caller stages the
+    /// matrix with them. Nothing is published.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`], except what publishing returns.
+    pub fn prepare(
+        manifest_rows: &[ControlsManifestRow],
+        input_dir: impl AsRef<Path>,
+        config: &AutospreadConfig,
+    ) -> Result<Prepared<AutospreadResult>, AutospillError> {
+        let input_dir = input_dir.as_ref();
+        Self::prepare_inner(manifest_rows, input_dir, config)
+    }
+
+    fn prepare_inner(
         manifest_rows: &[ControlsManifestRow],
         input_dir: &Path,
         config: &AutospreadConfig,
-    ) -> Result<AutospreadResult, AutospillError> {
+    ) -> Result<Prepared<AutospreadResult>, AutospillError> {
         info!(
             "autospread pipeline: loading {} controls from {}",
             manifest_rows.len(),
@@ -487,16 +521,27 @@ impl AutospreadRunner {
             spread_stats,
         };
 
+        // Every run replaces its debug artifacts.
+        let mut publication = Publication::new(Existing::Replace);
         if let Some(debug_dir) = config.debug_dir.as_deref() {
             info!(
-                "autospread pipeline: writing debug artifacts to {}",
+                "autospread pipeline: staging debug artifacts for {}",
                 debug_dir.display()
             );
-            write_autospread_debug_artifacts(debug_dir, &loaded, &gates, &result)?;
+            stage_autospread_debug_artifacts(
+                &mut publication,
+                debug_dir,
+                &loaded,
+                &gates,
+                &result,
+            )?;
         }
 
         info!("autospread pipeline: completed successfully");
-        Ok(result)
+        Ok(Prepared {
+            summary: result,
+            publication,
+        })
     }
 }
 

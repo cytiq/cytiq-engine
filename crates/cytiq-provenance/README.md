@@ -3,8 +3,10 @@
 Run records for cytiq commands: which command, with which arguments, read
 which files and wrote which files.
 
-Every command that writes files writes a `provenance.json` next to its output.
-`meta` to stdout carries the input hash in its document and writes no record:
+Every command that writes files writes a `provenance.json` next to its output,
+in the same publication. `meta` to stdout carries the input hash in its document
+and writes no record; neither do `transform --dry-run` and `repair --plan`,
+which write no file:
 
 - `<output>.provenance.json` when the output is a file (`sample.comp.fcs` →
   `sample.comp.fcs.provenance.json`);
@@ -59,17 +61,16 @@ last file. Outputs and record then appear together or not at all.
 `RunRecorder::prepare_staged` builds a v3 record from `(final_path, staged_path)`
 pairs, verifying input byte identities before publication. It writes nothing;
 the caller publishes it with data and an `outcome::CommandOutcome` v1 in one
-directory transaction. `finish` and `prepare_staged` require an explicit `OutcomeReason`. Readers still accept
+directory transaction. `stage` and `prepare_staged` require an explicit `OutcomeReason`. Readers still accept
 v2 records; reuse requires v3.
 
 | Item | Purpose |
 | --- | --- |
-| `RunRecorder::start` / `snapshot_inputs` / `snapshot_roles` / `finish` | Start a record and hash the inputs, with their role, before a command runs; hash its outputs and write the record afterwards |
+| `RunRecorder::start` / `snapshot_inputs` / `snapshot_roles` / `stage` | Start a record and hash the inputs, with their role, before a command runs; hash its staged outputs and stage the record with them |
 | `RunRecorder::with_build`, `set_config`, `set_constants`, `set_algorithms` | Build info, effective configuration, fixed algorithm constants, upstream versions |
 | `RunRecord`, `FileRecord`, `BuildInfo`, `Platform`, `SCHEMA_VERSION` (3) | The document |
 | `record_path_for_file`, `record_path_for_dir` | Where a command's record goes |
 | `files_under` | Every file of an output directory, sorted, without records and `.tmp` files or directories (staged outputs and `.old.tmp` backups of `cytiq-publish`) |
-| `DirSnapshot` | `take` before a run, `published` after it: the files of a directory output the run wrote or replaced, so leftovers of earlier runs are never recorded |
 | `recovery::recover` | Under the output lock: completes a set whose renames a crash interrupted, when its staged record is whole and every output it lists is in place or staged with the recorded bytes; then `cytiq_publish::recovery::recover` for the output and its record |
 | `recovery::discard_abandoned` | Discard what a killed run left beside further outputs, unless another process has locked them; called after a successful publication |
 | `hash_file` | Streamed SHA-256 (also used by `cytiq-inspect`) |
@@ -92,9 +93,8 @@ v2 records; reuse requires v3.
   Without `--overwrite` it then reports that the output exists.
 - Paths that are not files (optional inputs and outputs that were not given)
   are skipped.
-- An input that changed during the run and is not also an output fails
-  `finish` (`InputChanged`) rather than write a record that does not describe
-  what was read. An input that is also an output (`transform --overwrite` in
+- An input that changed during the run fails `stage` (`InputChanged`) rather than
+  publish outputs with a record that does not describe what was read. An input that is also an output (`transform --overwrite` in
   place) is recorded with both hashes.
 - `--dry-run` runs write no record.
 

@@ -14,6 +14,7 @@ use cytiq_fcs::{
     Error as FcsError, FcsDataset, FcsReader, Parameter, Spillover, compensate,
     find_parameter_index,
 };
+use cytiq_publish::Prepared;
 use log::{debug, info};
 use nalgebra::DMatrix;
 use rayon::prelude::*;
@@ -25,7 +26,7 @@ use crate::assessment::{
 };
 use crate::calibration::{self, ConformalNovelty, ConformalStatus, NoveltyMode};
 use crate::error::CytoScanError;
-use crate::export::write_outputs;
+use crate::export::stage_outputs;
 use crate::mixture::MclustModel;
 use crate::novelty;
 use crate::outlier;
@@ -395,15 +396,25 @@ struct FingerprintSplit {
 pub struct CytoScanRunner;
 
 impl CytoScanRunner {
-    /// Run the CytoScan-style anomaly detection pipeline and write outputs.
+    /// [`Self::prepare`], then publish, without a provenance record.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and what publishing returns.
+    pub fn run(config: &CytoScanConfig) -> Result<CytoScanResult, CytoScanError> {
+        Ok(Self::prepare(config)?.commit()?)
+    }
+
+    /// Run the CytoScan-style anomaly detection pipeline and stage outputs.
+    /// Nothing is published.
     ///
     /// # Errors
     ///
     /// Returns an error when inputs cannot be resolved/read, selected channels
     /// cannot be processed, model fitting fails, or output files cannot be
-    /// written.
-    pub fn run(config: &CytoScanConfig) -> Result<CytoScanResult, CytoScanError> {
-        Self::run_inner(config)
+    /// staged.
+    pub fn prepare(config: &CytoScanConfig) -> Result<Prepared<CytoScanResult>, CytoScanError> {
+        Self::prepare_inner(config)
     }
 
     /// The FCS files a run with `config` reads, `(test, reference)`, with
@@ -420,7 +431,7 @@ impl CytoScanRunner {
         resolve_test_and_reference(config)
     }
 
-    fn run_inner(config: &CytoScanConfig) -> Result<CytoScanResult, CytoScanError> {
+    fn prepare_inner(config: &CytoScanConfig) -> Result<Prepared<CytoScanResult>, CytoScanError> {
         validate_config(config)?;
         cytiq_publish::check_output_dir(
             &config.output_dir,
@@ -488,14 +499,17 @@ impl CytoScanRunner {
             diagnostics,
             stability,
         };
-        write_outputs(config, &result, &test_files, &reference_files)?;
+        let publication = stage_outputs(config, &result, &test_files, &reference_files)?;
         info!(
-            "cytoscan pipeline: wrote outputs for {} test file(s) to {}",
+            "cytoscan pipeline: staged outputs for {} test file(s) in {}",
             result.summary_rows.len(),
             config.output_dir.display()
         );
 
-        Ok(result)
+        Ok(Prepared {
+            summary: result,
+            publication,
+        })
     }
 }
 
